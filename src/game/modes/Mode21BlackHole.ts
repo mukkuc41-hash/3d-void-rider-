@@ -33,11 +33,11 @@ export const Mode21BlackHole: BlackHoleMode21Descriptor = {
   name: 'BLACK HOLE',
   subtitle: 'QUANTUM LAUNCH PRO',
   description:
-    'A ten-submode black-hole racing campaign featuring gravitational routes, dynamic track collapse, event-horizon hazards, tactical AI, emergency escapes, and a final seven-minute five-stage singularity survival sequence.',
+    'A ten-submode black-hole racing campaign featuring gravitational routes, dynamic track collapse, event-horizon hazards, tactical AI, emergency escapes, and a final eight-minute forty-event singularity collapse sequence with physical launcher escape.',
   submodeCount: BLACK_HOLE_SUBMODES.length,
   submodes: BLACK_HOLE_SUBMODES,
   finalSubmodeId: 'FINAL_COLLAPSE',
-  finalCountdownSeconds: 3000,
+  finalCountdownSeconds: 480,
 };
 
 export function getMode21BlackHoleSubmode(id: BlackHoleSubmodeId): BlackHoleSubmodeConfig {

@@ -36,7 +36,7 @@ export interface BranchRouteConfig {
   detail: string;
   themeColor: string;
   isShortcut: boolean;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
   hasBoostPads: boolean;
   boostPadFractions?: number[];
   hasObstacles: boolean;
@@ -55,6 +55,11 @@ export interface BranchRouteConfig {
   description?: string;
   boostPadCount?: number;
   obstacleCount?: number;
+  /** Mode 21/Submode 10 only: keep route endpoints physically separated. */
+  terminalLateralOffset?: number;
+  terminalElevationOffset?: number;
+  terminalForwardExtension?: number;
+  terminalRoute?: boolean;
 }
 
 export interface JunctionZoneConfig {
@@ -63,7 +68,7 @@ export interface JunctionZoneConfig {
   trackId: TrackId;
   approachT: number;      // Spline T where HUD prompt appears (~120m out)
   junctionStartT: number; // Spline T where road splits
-  junctionEndT: number;   // Spline T where routes merge back
+  junctionEndT: number;   // Spline T used as the base/end anchor; terminal routes may end separately
   routes: BranchRouteConfig[];
   defaultRouteId: string;
   bannerText: string;
@@ -119,11 +124,16 @@ export class BranchRouteInstance {
   ) {
     this.config = config;
 
-    // Generate smooth 3D Catmull-Rom curve between startT and endT
+    // Generate a smooth 3D Catmull-Rom route. Normal branches return to the
+    // main-track anchor. Submode 10 terminal routes deliberately continue
+    // past that anchor and finish at physically separated endpoints.
     const controlPoints: THREE.Vector3[] = [];
-    const numPoints = 8;
+    const numPoints = 10;
     const isWrapping = endT < startT;
     const effectiveEndT = isWrapping ? endT + 1.0 : endT;
+    const terminalLat = config.terminalLateralOffset || 0;
+    const terminalElev = config.terminalElevationOffset || 0;
+    const terminalExtension = config.terminalForwardExtension || 0;
 
     for (let i = 0; i <= numPoints; i++) {
       const frac = i / numPoints;
@@ -131,15 +141,18 @@ export class BranchRouteInstance {
       const wrappedT = ((rawT % 1.0) + 1.0) % 1.0;
       const mainSample = mainTrack.getSampleAt(wrappedT);
 
-      // Bell-curve arc for lateral divergence: 0 at start, peak in middle, 0 at end
+      // Arc opens the route away from the main track, while terminal offsets
+      // keep dedicated Submode-10 endings separated instead of rejoining.
       const arcFactor = Math.sin(frac * Math.PI);
-      const lateralOff = config.lateralDivergence * arcFactor;
-      const elevOff = (config.elevationOffset || 0) * arcFactor;
+      const lateralOff = config.lateralDivergence * arcFactor + terminalLat * frac;
+      const elevOff = (config.elevationOffset || 0) * arcFactor + terminalElev * frac;
+      const forwardOff = terminalExtension * Math.pow(frac, 2);
 
       const pt = mainSample.point
         .clone()
         .add(mainSample.binormal.clone().multiplyScalar(lateralOff))
-        .add(mainSample.normal.clone().multiplyScalar(elevOff));
+        .add(mainSample.normal.clone().multiplyScalar(elevOff))
+        .add(mainSample.tangent.clone().multiplyScalar(forwardOff));
 
       controlPoints.push(pt);
     }
@@ -1388,6 +1401,10 @@ export class JunctionManager {
   public finalCollapseMode = false;
   public readonly finalCollapseJunctionId = 'final_collapse_tower_access';
   public finalCollapseShelter: THREE.Group | null = null;
+  /** Visible Submode-10 landmark shown before the terminal routes unlock. */
+  public finalCollapseLauncherPreview: THREE.Group | null = null;
+  /** Separate physical terminal for Route 02; never reconnects to Route 01. */
+  public finalCollapseEscapeTerminal: THREE.Group | null = null;
   public finalCollapseDoorLeft: THREE.Mesh | null = null;
   public finalCollapseDoorRight: THREE.Mesh | null = null;
   public finalCollapseDoorOpenFraction = 0; // 0 = closed, 1 = open
@@ -1506,6 +1523,15 @@ export class JunctionManager {
       this.finalCollapseShelter = null;
     }
 
+    if (this.finalCollapseLauncherPreview) {
+      this.junctionMeshGroup.remove(this.finalCollapseLauncherPreview);
+      this.finalCollapseLauncherPreview = null;
+    }
+    if (this.finalCollapseEscapeTerminal) {
+      this.junctionMeshGroup.remove(this.finalCollapseEscapeTerminal);
+      this.finalCollapseEscapeTerminal = null;
+    }
+
     const configs = [...(TRACK_JUNCTIONS_CONFIG[trackId] || TRACK_JUNCTIONS_CONFIG.circuit_alpha)];
 
     // Mode 21 / Submode 10 is an additive evacuation junction. It is injected
@@ -1525,8 +1551,18 @@ export class JunctionManager {
       });
 
       if (cfg.id === this.finalCollapseJunctionId) {
+        // Submode 10 has two genuinely separate terminal ends. The launcher
+        // shelter is anchored to Route 01's endpoint; Route 02 has its own
+        // independent emergency-escape endpoint.
+        const launcherEnd = jInst.routeInstances.get('bh10_launcher_route')?.getSampleAt(1);
+        if (launcherEnd) jInst.exitSample = launcherEnd;
         this.finalCollapseShelter = this.buildFinalCollapseShelter(jInst);
         this.junctionMeshGroup.add(this.finalCollapseShelter);
+        const escapeRoute = jInst.routeInstances.get('bh10_escape_route');
+        if (escapeRoute) {
+          this.finalCollapseEscapeTerminal = this.buildFinalCollapseEscapeTerminal(escapeRoute);
+          this.junctionMeshGroup.add(this.finalCollapseEscapeTerminal);
+        }
       }
     });
   }
@@ -1537,6 +1573,150 @@ export class JunctionManager {
    * This method intentionally rebuilds only the junction layer. The main
    * CosmicTrack, player movement, AI systems, and other modes remain intact.
    */
+  /**
+   * Show the Orbital Launcher as a real distant 3D landmark during Submode 10.
+   * This does not unlock either terminal route and does not affect other modes.
+   */
+  public setFinalCollapseLauncherPreview(active: boolean): void {
+    if (!active) {
+      if (this.finalCollapseLauncherPreview) {
+        this.junctionMeshGroup.remove(this.finalCollapseLauncherPreview);
+        this.finalCollapseLauncherPreview.traverse(object => {
+          const mesh = object as THREE.Mesh;
+          if (mesh.geometry) mesh.geometry.dispose();
+          const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+          if (Array.isArray(material)) material.forEach(m => m.dispose());
+          else material?.dispose();
+        });
+        this.finalCollapseLauncherPreview = null;
+      }
+      return;
+    }
+
+    if (this.finalCollapseLauncherPreview || !this.mainTrack) return;
+
+    // Match the exact terminal endpoint used by Route 01.
+    // Place a highly visible approach landmark before the actual terminal.
+    // The physical launcher itself remains at Route 01's true terminal endpoint.
+    const approachT = 0.86;
+    const terminalLateralOffset = -92;
+    const terminalElevationOffset = 10;
+    const terminalForwardExtension = 105;
+    const s = this.mainTrack.getSampleAt(approachT);
+    const anchor = s.point.clone()
+      .add(s.binormal.clone().multiplyScalar(terminalLateralOffset))
+      .add(s.normal.clone().multiplyScalar(terminalElevationOffset))
+      .add(s.tangent.clone().multiplyScalar(terminalForwardExtension));
+
+    const group = new THREE.Group();
+    group.name = 'Submode10_OrbitalLauncher_ApproachLandmark';
+    const rot = new THREE.Matrix4();
+    rot.makeBasis(s.binormal, s.normal, s.tangent.clone().negate());
+    group.position.copy(anchor);
+    group.quaternion.setFromRotationMatrix(rot);
+
+    const structureMat = new THREE.MeshStandardMaterial({
+      color: 0x081522,
+      metalness: 0.94,
+      roughness: 0.2,
+      emissive: 0x063b4a,
+      emissiveIntensity: 1.2,
+    });
+    const cyan = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+    const magenta = new THREE.MeshBasicMaterial({ color: 0xff2bd6 });
+
+    // Large launch tower / gantry.
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(88, 108, 54), structureMat);
+    tower.position.set(0, 54, -30);
+    group.add(tower);
+
+    const leftTower = new THREE.Mesh(new THREE.BoxGeometry(11, 136, 14), structureMat);
+    leftTower.position.set(-50, 68, -20);
+    const rightTower = leftTower.clone();
+    rightTower.position.x = 50;
+    group.add(leftTower, rightTower);
+
+    const overhead = new THREE.Mesh(new THREE.BoxGeometry(112, 12, 16), structureMat);
+    overhead.position.set(0, 126, -20);
+    group.add(overhead);
+
+    // Highly visible launch aperture.
+    const portal = new THREE.Mesh(
+      new THREE.TorusGeometry(25, 2.0, 16, 64),
+      cyan
+    );
+    portal.rotation.x = Math.PI / 2;
+    portal.position.set(0, 30, 2);
+    group.add(portal);
+
+    const innerPortal = new THREE.Mesh(
+      new THREE.TorusGeometry(18, 0.9, 12, 48),
+      magenta
+    );
+    innerPortal.rotation.x = Math.PI / 2;
+    innerPortal.position.set(0, 30, 1.5);
+    group.add(innerPortal);
+
+    const beacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.6, 2.6, 26, 16),
+      cyan
+    );
+    beacon.position.set(0, 148, -20);
+    group.add(beacon);
+
+    // Large floating sign visible on approach.
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#03101a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#22d3ee';
+      ctx.lineWidth = 12;
+      ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 64px Arial';
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillText('ORBITAL LAUNCHER', 512, 90);
+      ctx.font = 'bold 38px Arial';
+      ctx.fillStyle = '#ff2bd6';
+      ctx.fillText('ROUTE 01 // MAGNETIC LOCK', 512, 170);
+    }
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(56, 14),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, side: THREE.DoubleSide })
+    );
+    sign.position.set(0, 88, 3);
+    group.add(sign);
+
+    // Long-range route guide: three luminous rings point directly toward the
+    // physical launcher so it is readable even before Route 02 unlocks.
+    for (let i = 0; i < 3; i++) {
+      const guide = new THREE.Mesh(
+        new THREE.TorusGeometry(32 + i * 7, 0.9, 10, 48),
+        new THREE.MeshBasicMaterial({ color: i === 1 ? 0xff2bd6 : 0x22d3ee, transparent: true, opacity: 0.72 })
+      );
+      guide.rotation.x = Math.PI / 2;
+      guide.position.set(0, 24 + i * 10, 35 + i * 18);
+      group.add(guide);
+    }
+
+    // Approach lights make the landmark readable against the black-hole sky.
+    for (let i = -3; i <= 3; i++) {
+      const light = new THREE.Mesh(
+        new THREE.SphereGeometry(1.4, 10, 10),
+        cyan
+      );
+      light.position.set(i * 10, 2, 8);
+      group.add(light);
+    }
+
+    this.finalCollapseLauncherPreview = group;
+    this.junctionMeshGroup.add(group);
+  }
+
   public setFinalCollapseMode(active: boolean): void {
     if (this.finalCollapseMode === active) return;
 
@@ -1560,48 +1740,174 @@ export class JunctionManager {
   /**
    * Dedicated Mode 21 / Submode 10 junction.
    *
-   * The shelter branch is intentionally wide, low-risk, non-divergent and
-   * physically continuous with the main track. The final 1.5% of the branch
-   * passes through the visible tower entrance so the existing GameEngine
-   * completion check can finish the race while the player is physically inside.
+   * Submode 10 uses two expanded terminal branches. They do not reconnect to
+   * the main track or to each other. Route 01 terminates at the launcher/shelter;
+   * Route 02 terminates at its own emergency escape gate. Hazard density is
+   * driven continuously by the 40-event collapse timeline, not by difficulty tiers.
    */
   private createFinalCollapseJunctionConfig(trackId: TrackId): JunctionZoneConfig {
     return {
       id: this.finalCollapseJunctionId,
-      name: 'EMERGENCY EVACUATION TOWER',
+      name: 'QUANTUM LAUNCH SPLIT // TWO TERMINAL ENDS',
       trackId,
-      approachT: 0.78,
-      junctionStartT: 0.84,
-      junctionEndT: 0.995,
-      defaultRouteId: 'bh10_shelter',
-      bannerText: 'FINAL COLLAPSE // TOWER BASEMENT ACCESS',
+      approachT: 0.72,
+      junctionStartT: 0.80,
+      junctionEndT: 0.94,
+      defaultRouteId: 'bh10_launcher_route',
+      bannerText: 'FINAL COLLAPSE // SELECT TERMINAL ROUTE',
       routes: [
         {
-          id: 'bh10_shelter',
-          name: 'TOWER BASEMENT ACCESS',
-          direction: 'CENTER',
-          subtitle: 'Physical Emergency Shelter Corridor',
-          detail: 'Wide continuous evacuation lane leading directly through the blast-door entrance and into the sealed basement safe zone.',
-          themeColor: '#22c55e',
+          id: 'bh10_launcher_route',
+          name: 'ROUTE 01 // ORBITAL LAUNCHER',
+          direction: 'LEFT',
+          subtitle: 'Extended launcher corridor',
+          detail: 'Long, wide terminal route through the launcher complex. Ends at the dedicated magnetic-lock platform; it never reconnects to the main track.',
+          themeColor: '#22d3ee',
           isShortcut: false,
-          riskLevel: 'LOW',
+          riskLevel: 'MEDIUM',
           hasBoostPads: true,
-          boostPadFractions: [0.30, 0.62],
-          hasObstacles: false,
-          lengthMultiplier: 1.0,
-          width: 30,
-          lateralDivergence: 0,
-          elevationOffset: 0,
+          boostPadFractions: [0.10, 0.24, 0.39, 0.54, 0.69, 0.83, 0.94],
+          hasObstacles: true,
+          obstacleFractions: [0.18, 0.31, 0.43, 0.56, 0.68, 0.79, 0.89, 0.96],
+          lengthMultiplier: 2.35,
+          width: 38,
+          lateralDivergence: -245,
+          elevationOffset: 18,
+          terminalLateralOffset: -150,
+          terminalElevationOffset: 18,
+          terminalForwardExtension: 680,
+          terminalRoute: true,
           requiredCheckpointIndices: [],
           entryJunctionId: this.finalCollapseJunctionId,
-          difficulty: 'EASY',
+          // Submode 10 has no selectable difficulty tiers. Hazard density rises continuously with the 40-event timeline.
           hasShortcut: false,
-          description: 'Guaranteed forward evacuation corridor into the tower basement.',
-          boostPadCount: 2,
-          obstacleCount: 0,
+          description: 'Expanded launcher route with gravity gates, debris and magnetic-lock approach.',
+          boostPadCount: 7,
+          obstacleCount: 8,
+        },
+        {
+          id: 'bh10_escape_route',
+          name: 'ROUTE 02 // EMERGENCY ESCAPE',
+          direction: 'RIGHT',
+          subtitle: 'Terminal escape vector // sequence armed',
+          detail: 'Separate extended emergency route. Selecting or entering this route initiates the escape sequence and leads to its own terminal escape gate.',
+          themeColor: '#ff2bd6',
+          isShortcut: false,
+          riskLevel: 'EXTREME',
+          hasBoostPads: true,
+          boostPadFractions: [0.08, 0.21, 0.35, 0.49, 0.63, 0.77, 0.89, 0.96],
+          hasObstacles: true,
+          obstacleFractions: [0.14, 0.26, 0.38, 0.50, 0.62, 0.73, 0.83, 0.91, 0.97],
+          lengthMultiplier: 2.65,
+          width: 32,
+          lateralDivergence: 255,
+          elevationOffset: -22,
+          terminalLateralOffset: 180,
+          terminalElevationOffset: -24,
+          terminalForwardExtension: 820,
+          terminalRoute: true,
+          requiredCheckpointIndices: [],
+          entryJunctionId: this.finalCollapseJunctionId,
+          // Submode 10 has no selectable difficulty tiers. Hazard density rises continuously with the 40-event timeline.
+          hasShortcut: false,
+          description: 'Expanded emergency route. Escape sequence begins on commitment and accelerates toward the independent terminal escape gate.',
+          boostPadCount: 8,
+          obstacleCount: 9,
         },
       ],
     };
+  }
+
+  /**
+   * Build Route 02's independent terminal end. It is deliberately separate from
+   * the Orbital Launcher shelter: entering Route 02 arms the escape sequence,
+   * and reaching this gate provides the physical terminal for the escape vector.
+   */
+  private buildFinalCollapseEscapeTerminal(route: BranchRouteInstance): THREE.Group {
+    const group = new THREE.Group();
+    const s = route.getSampleAt(1);
+    const rot = new THREE.Matrix4();
+    rot.makeBasis(s.binormal, s.normal, s.tangent.clone().negate());
+    group.position.copy(s.point);
+    group.quaternion.setFromRotationMatrix(rot);
+    group.name = 'Submode10_Route02_EmergencyEscape_Terminal';
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x170a22,
+      metalness: 0.92,
+      roughness: 0.2,
+      emissive: 0x5b0b72,
+      emissiveIntensity: 1.1,
+    });
+    const cyan = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+    const magenta = new THREE.MeshBasicMaterial({ color: 0xff2bd6 });
+    const warning = new THREE.MeshBasicMaterial({ color: 0xff5b35 });
+
+    const left = new THREE.Mesh(new THREE.BoxGeometry(12, 150, 18), frameMat);
+    left.position.set(-58, 75, 0);
+    const right = left.clone();
+    right.position.x = 58;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(128, 14, 20), frameMat);
+    top.position.set(0, 145, 0);
+    group.add(left, right, top);
+
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(31 + i * 9, 1.8, 14, 72),
+        i === 1 ? magenta : cyan
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(0, 58 + i * 24, -8 - i * 10);
+      group.add(ring);
+    }
+
+    const gate = new THREE.Mesh(
+      new THREE.CircleGeometry(43, 64),
+      new THREE.MeshBasicMaterial({ color: 0x0b1020, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+    );
+    gate.rotation.x = Math.PI / 2;
+    gate.position.set(0, 58, 2);
+    group.add(gate);
+
+    const beacon = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 30, 16), warning);
+    beacon.position.set(0, 166, 0);
+    group.add(beacon);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 220;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#080612';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#ff2bd6';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 60px Arial';
+      ctx.fillStyle = '#ff6be8';
+      ctx.fillText('ROUTE 02 // EMERGENCY ESCAPE', 512, 82);
+      ctx.font = 'bold 34px Arial';
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillText('ESCAPE VECTOR // WORMHOLE GATE', 512, 152);
+    }
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(62, 13),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, side: THREE.DoubleSide })
+    );
+    sign.position.set(0, 112, 4);
+    group.add(sign);
+
+    // Long-range approach arrows make the second terminal unmistakable.
+    for (let i = 0; i < 5; i++) {
+      const arrow = new THREE.Mesh(new THREE.ConeGeometry(4.5, 12, 6), magenta);
+      arrow.rotation.x = Math.PI / 2;
+      arrow.position.set(0, 4, 30 + i * 26);
+      group.add(arrow);
+    }
+
+    return group;
   }
 
   /**
@@ -1724,10 +2030,10 @@ export class JunctionManager {
       ctx.textBaseline = 'middle';
       ctx.font = 'bold 68px Arial';
       ctx.fillStyle = '#67e8f9';
-      ctx.fillText('EVACUATION TOWER // SAFE ZONE', signCanvas.width / 2, 85);
+      ctx.fillText('ORBITAL LAUNCHER // ESCAPE GATE', signCanvas.width / 2, 85);
       ctx.font = 'bold 44px Arial';
       ctx.fillStyle = '#22c55e';
-      ctx.fillText('BASEMENT ACCESS RAMP ACTIVE', signCanvas.width / 2, 168);
+      ctx.fillText('MAGNETIC LOCK // LAUNCH SYSTEM ACTIVE', signCanvas.width / 2, 168);
     }
     const signTexture = new THREE.CanvasTexture(signCanvas);
     signTexture.needsUpdate = true;
@@ -1803,10 +2109,10 @@ export class JunctionManager {
       b3ctx.fillStyle = '#38bdf8';
       b3ctx.textAlign = 'center';
       b3ctx.textBaseline = 'middle';
-      b3ctx.fillText('EVACUATION LEVEL: B3', 256, 45);
+      b3ctx.fillText('ORBITAL LAUNCH SYSTEM', 256, 45);
       b3ctx.font = 'bold 26px Arial';
       b3ctx.fillStyle = '#22c55e';
-      b3ctx.fillText('SPACESHIP DOCKING HANGAR', 256, 88);
+      b3ctx.fillText('ACCELERATION RINGS // DOCKING BAY', 256, 88);
     }
     const b3Sign = new THREE.Mesh(
       new THREE.PlaneGeometry(24, 6),
@@ -1828,6 +2134,48 @@ export class JunctionManager {
     group.add(pLeft, pRight);
     this.finalCollapsePressureDoorLeft = pLeft;
     this.finalCollapsePressureDoorRight = pRight;
+
+    // 4.5 Quantum Launch Pro physical escape hardware. These are real scene
+    // objects placed along the same continuous corridor; they do not teleport
+    // the player and do not replace the existing black hole.
+    const launchRingMat = new THREE.MeshBasicMaterial({
+      color: 0x22d3ee,
+      transparent: true,
+      opacity: 0.72,
+      side: THREE.DoubleSide,
+    });
+    const launchCoreMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+    const launchRingZ = [-92, -118, -144];
+    launchRingZ.forEach((z, i) => {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(13.5 + i * 1.5, 0.75, 12, 64), launchRingMat.clone());
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(0, -5.5 - i * 2.5, z);
+      group.add(ring);
+
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 24, 12), launchCoreMat.clone());
+      core.rotation.z = Math.PI / 2;
+      core.position.set(0, -10 - i * 1.2, z);
+      group.add(core);
+    });
+
+    // Orbital gate / escape-vector frame before the station bay.
+    const gateMat = new THREE.MeshStandardMaterial({
+      color: 0x172554, metalness: 0.9, roughness: 0.2,
+      emissive: 0x4c1d95, emissiveIntensity: 1.1,
+    });
+    const gateLeft = new THREE.Mesh(new THREE.BoxGeometry(3, 24, 3), gateMat);
+    const gateRight = gateLeft.clone();
+    gateLeft.position.set(-16, -2, -164);
+    gateRight.position.set(16, -2, -164);
+    const gateTop = new THREE.Mesh(new THREE.BoxGeometry(35, 3, 3), gateMat);
+    gateTop.position.set(0, 10, -164);
+    const gateField = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 20),
+      new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+    );
+    gateField.position.set(0, -1, -164);
+    gateField.rotation.y = Math.PI;
+    group.add(gateLeft, gateRight, gateTop, gateField);
 
     // 5. Evacuation Hangar B3 (z = -145 to z = -225, floor at y = -14)
     const hangarFloor = new THREE.Mesh(new THREE.BoxGeometry(64, 1.5, 80), concreteMat);
@@ -1922,10 +2270,10 @@ export class JunctionManager {
       hctx.textBaseline = 'middle';
       hctx.font = 'bold 64px Arial';
       hctx.fillStyle = '#67e8f9';
-      hctx.fillText('[ BAY 07 ]', 256, 80);
+      hctx.fillText('[ STATION BAY 07 ]', 256, 80);
       hctx.font = 'bold 32px Arial';
       hctx.fillStyle = '#22c55e';
-      hctx.fillText('EVACUATION DOCK // SURVIVOR', 256, 160);
+      hctx.fillText('SHIP SECURED // ESCAPE COMPLETE', 256, 160);
     }
     const holoMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(12, 6),
@@ -2187,6 +2535,13 @@ export class JunctionManager {
   public selectRouteByDirection(direction: BranchRouteDirection): boolean {
     let jId = this.activeJunctionTelemetry?.junctionId;
     let junction = jId ? this.junctions.get(jId) : null;
+
+    // Submode 10 has exactly one common start and two terminal branches.
+    // Arrow selection is the controller: only LEFT (Route 01) and RIGHT
+    // (Route 02) are valid at this fork; there is no center continuation.
+    if (jId === this.finalCollapseJunctionId && direction !== 'LEFT' && direction !== 'RIGHT') {
+      return false;
+    }
     
     // If not detected via telemetry, find first approaching or active junction
     if (!junction) {
@@ -2328,6 +2683,10 @@ export class JunctionManager {
     sample: SamplePoint | null;
     lateralOffset: number;
     rejoinSplineT: number;
+    completedRouteId?: string;
+    terminalRoute?: boolean;
+    terminalPoint?: THREE.Vector3;
+    terminalTangent?: THREE.Vector3;
   } {
     const prp = this.playerRouteProgress;
     if (!prp.isInBranch || !prp.branchRouteInstance) {
@@ -2382,7 +2741,14 @@ export class JunctionManager {
         }
       }
 
-      this.feedbackMessage = `ROUTE COMPLETED: ${routeName} // MERGED TO MAIN LANE`;
+      const completedRouteId = routeInst.config.id;
+      const terminalRoute = routeInst.config.terminalRoute === true;
+      const terminalSample = routeInst.getSampleAt(1);
+      const terminalPoint = terminalSample.point.clone();
+      const terminalTangent = terminalSample.tangent.clone();
+      this.feedbackMessage = terminalRoute
+        ? `ROUTE COMPLETED: ${routeName} // TERMINAL END REACHED`
+        : `ROUTE COMPLETED: ${routeName} // MERGED TO MAIN LANE`;
       this.feedbackTimer = 3.0;
 
       prp.activeJunctionId = null;
@@ -2393,7 +2759,16 @@ export class JunctionManager {
       this.isSelectionLocked = false;
       this.activeJunctionTelemetry = null;
 
-      return { finishedBranch: true, sample: null, lateralOffset: 0, rejoinSplineT: rejoinT };
+      return {
+        finishedBranch: true,
+        sample: null,
+        lateralOffset: 0,
+        rejoinSplineT: rejoinT,
+        completedRouteId,
+        terminalRoute,
+        terminalPoint,
+        terminalTangent,
+      };
     }
 
     const branchSample = routeInst.getSampleAt(prp.progress);

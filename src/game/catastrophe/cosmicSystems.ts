@@ -15,6 +15,17 @@ export { COSMIC_40_EVENT_PAIRS };
  * CAUSE -> PHYSICAL EFFECT -> ENVIRONMENTAL RESPONSE -> PLAYER RESPONSE -> PERSISTENT AFTERMATH
  * Includes 2 real celestial elements with real appearance, revolution, collision, spaghettification, and completion strategy.
  */
+export type QuantumCinematicBeat =
+  | 'ESTABLISHING' | 'PLAYER_POV' | 'CHASE_OBJECT' | 'BLACK_HOLE_CLOSEUP'
+  | 'ROUTE_DESTRUCTION' | 'OBJECT_TRACKING' | 'GRAVITY_LENS'
+  | 'SLOW_MOTION_IMPACT' | 'SHOCKWAVE_SHAKE' | 'GAMEPLAY_RETURN'
+  | 'REAR_ESCAPE' | 'ORBITAL_LAUNCHER' | 'MAGNETIC_LOCK'
+  | 'ACCELERATION_RING_1' | 'ACCELERATION_RING_2' | 'ACCELERATION_RING_3'
+  | 'ORBITAL_GATE_REVEAL' | 'ESCAPE_VECTOR' | 'STATION_ARRIVAL'
+  | 'SHIP_SECURED' | 'OBSERVATION_WINDOW' | 'FINAL_COLLAPSE';
+
+export interface QuantumCinematicBeatDef { beat: QuantumCinematicBeat; duration: number; }
+
 export interface CosmicEventDefinition {
   index: number;
   id: string;
@@ -45,20 +56,21 @@ export interface CosmicEventDefinition {
   element2: CosmicEventElement;
   eventOccurrenceNarrative: string;
   completionStrategy: string;
+  cinematicBeats: QuantumCinematicBeatDef[];
 }
 
-const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' | 'eventOccurrenceNarrative' | 'completionStrategy'>[] = [
+const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' | 'eventOccurrenceNarrative' | 'completionStrategy' | 'cinematicBeats'>[] = [
   {
     index: 1,
     id: 'gravity_distortion',
-    name: 'GRAVITY DISTORTION',
-    title: 'EVENT 01 — GRAVITY DISTORTION',
-    subtitle: 'Gravitational deviation detected. Orbital paths slowly bending inward.',
+    name: 'BLACK HOLE ACTIVATION',
+    title: 'EVENT 01 — BLACK HOLE ACTIVATION',
+    subtitle: 'Black hole activates; gravitational lensing begins across the route.',
     cause: 'Initial black hole tidal gradient perturbation propagating into sector.',
     physicalEffect: 'Orbital vectors curve toward the singularity; asteroid trajectories bend.',
     environmentalResponse: 'Near-field asteroids drift off balance; route curvature becomes subtly unstable.',
     playerResponse: 'Steering resistance, subtle lateral force, navigation drift.',
-    triggerTime: 30,
+    triggerTime: 0,
     severity: 1.0,
     gravityParams: {
       gravityInfluenceRadius: 0.15,
@@ -78,14 +90,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 2,
     id: 'orbital_failure',
-    name: 'ORBITAL FAILURE',
-    title: 'EVENT 02 — ORBITAL FAILURE',
-    subtitle: 'Stable orbital systems losing equilibrium. Satellites and moons deviating.',
+    name: 'GRAVITATIONAL LENSING',
+    title: 'EVENT 02 — GRAVITATIONAL LENSING',
+    subtitle: 'Nearby stars and distant objects visibly bend around the same black hole.',
     cause: 'Tidal forces exceed station-keeping thruster thresholds.',
     physicalEffect: 'Moons deviate from Keplerian orbits; satellites lose stabilization.',
     environmentalResponse: 'Communications satellite array drifts; orbital rings experience structural stress.',
     playerResponse: 'Yaw perturbation, orbital cross-drift, compass jitter.',
-    triggerTime: 60,
+    triggerTime: 12,
     severity: 1.5,
     gravityParams: {
       gravityInfluenceRadius: 0.2,
@@ -105,14 +117,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 3,
     id: 'tidal_wave',
-    name: 'TIDAL WAVE',
-    title: 'EVENT 03 — TIDAL WAVE',
-    subtitle: 'Large-scale tidal forces propagating. Structures stretching along gravity gradient.',
+    name: 'ORBITAL INSTABILITY',
+    title: 'EVENT 03 — ORBITAL INSTABILITY',
+    subtitle: 'Debris loses stable orbits and begins drifting toward the singularity.',
     cause: 'Differential gravitational pull across megastructure spans.',
     physicalEffect: 'Bridges stretch and bend; towers lean; platform joints vibrate.',
     environmentalResponse: 'Lattice girders groan; tension cables snap; track segments flex.',
     playerResponse: 'Suspension heave, vertical resonance, camera vibration.',
-    triggerTime: 90,
+    triggerTime: 24,
     severity: 2.0,
     gravityParams: {
       gravityInfluenceRadius: 0.25,
@@ -132,14 +144,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 4,
     id: 'planetary_collision',
-    name: 'PLANETARY COLLISION',
-    title: 'EVENT 04 — PLANETARY COLLISION',
-    subtitle: 'Catastrophic celestial impact. Fragment field dispersing across sector.',
+    name: 'ACCRETION DISK FORMATION',
+    title: 'EVENT 04 — ACCRETION DISK FORMATION',
+    subtitle: 'The existing black hole accretion disk begins forming and brightening.',
     cause: 'Perturbed orbital paths cause twin planets to intersect trajectories.',
     physicalEffect: 'Hyper-velocity collision of two celestial bodies; crustal fragmentation.',
     environmentalResponse: 'Expanding shockwave ring, molten debris field permanently entering world.',
     playerResponse: 'Colossal impact shockwave, high-speed debris avoidance, intense camera shake.',
-    triggerTime: 120,
+    triggerTime: 36,
     severity: 3.0,
     gravityParams: {
       gravityInfluenceRadius: 0.35,
@@ -159,14 +171,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 5,
     id: 'accretion_surge',
-    name: 'ACCRETION SURGE',
-    title: 'EVENT 05 — ACCRETION SURGE',
-    subtitle: 'Accretion disk activity surging. Relativistic plasma streams accelerating.',
+    name: 'FRAME DRAGGING',
+    title: 'EVENT 05 — FRAME DRAGGING',
+    subtitle: 'Frame-dragging effects increase around the black hole.',
     cause: 'Inflow of collision crust into the outer accretion radius.',
     physicalEffect: 'Matter streams accelerate; superheated plasma illuminates sector.',
     environmentalResponse: 'Glowing plasma clouds expand; high-voltage energy conduits overload.',
     playerResponse: 'High-energy plasma turbulence, magnetic HUD flickering, roll disturbance.',
-    triggerTime: 150,
+    triggerTime: 48,
     severity: 3.5,
     gravityParams: {
       gravityInfluenceRadius: 0.4,
@@ -186,14 +198,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 6,
     id: 'destruction_front',
-    name: 'DESTRUCTION FRONT',
-    title: 'EVENT 06 — DESTRUCTION FRONT',
-    subtitle: 'Simulated destruction front advancing behind route. Erasing rear sector.',
+    name: 'GRAVITATIONAL WAVE',
+    title: 'EVENT 06 — GRAVITATIONAL WAVE',
+    subtitle: 'A gravitational-wave disturbance passes through the route.',
     cause: 'Cascading structural collapse reaches critical propagation speed.',
     physicalEffect: 'Physical destruction front moves along track: STABLE to CONSUMED.',
     environmentalResponse: 'Track sections drop into the abyss; trailing structures disintegrate.',
     playerResponse: 'Urgent forward acceleration; destruction proximity alert.',
-    triggerTime: 180,
+    triggerTime: 60,
     severity: 4.0,
     gravityParams: {
       gravityInfluenceRadius: 0.45,
@@ -213,14 +225,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 7,
     id: 'gravity_reversal',
-    name: 'GRAVITY REVERSAL',
-    title: 'EVENT 07 — GRAVITY REVERSAL',
-    subtitle: 'Localized gravity vectors undulating. Continuous harmonic acceleration.',
+    name: 'TIDAL STRETCHING',
+    title: 'EVENT 07 — TIDAL STRETCHING',
+    subtitle: 'Small objects begin visibly stretching along the gravitational gradient.',
     cause: 'Interference pattern of competing relativistic gravitational frame-dragging.',
     physicalEffect: 'Objects experience continuous changes in acceleration and direction.',
     environmentalResponse: 'Floating platform slabs rise, dip, and drift sideways smoothly (no teleport).',
     playerResponse: 'Vertical lift forces, traction oscillation, inverted inertia handling.',
-    triggerTime: 210,
+    triggerTime: 72,
     severity: 4.5,
     gravityParams: {
       gravityInfluenceRadius: 0.5,
@@ -240,14 +252,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 8,
     id: 'spaghettification_wave',
-    name: 'SPAGHETTIFICATION WAVE',
-    title: 'EVENT 08 — SPAGHETTIFICATION WAVE',
-    subtitle: 'Extreme tidal shear stretching corridor structures along gravitational vectors.',
+    name: 'ASTEROID FRAGMENTATION',
+    title: 'EVENT 08 — ASTEROID FRAGMENTATION',
+    subtitle: 'Asteroids begin fragmenting under increasing tidal stress.',
     cause: 'Strong tidal gravitational gradient across the flight corridor.',
     physicalEffect: 'Tensile stretching along the singularity axis; lateral compression.',
     environmentalResponse: 'Kilometer-long rail systems warp; asteroid chains elongate like beads.',
     playerResponse: 'Longitudinal craft stretching feedback, extreme steering stiffness.',
-    triggerTime: 240,
+    triggerTime: 84,
     severity: 5.0,
     gravityParams: {
       gravityInfluenceRadius: 0.55,
@@ -267,14 +279,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 9,
     id: 'station_collapse',
-    name: 'STATION COLLAPSE',
-    title: 'EVENT 09 — STATION COLLAPSE',
-    subtitle: 'Monolithic 1.8km orbital station failing. Docking rings detaching into infall.',
+    name: 'INWARD SPIRAL',
+    title: 'EVENT 09 — INWARD SPIRAL',
+    subtitle: 'Loose debris begins spiraling inward toward the same black hole.',
     cause: 'Centrifugal forces overcome by singularity tidal strain.',
     physicalEffect: 'Progressive structural failure: deformation -> separation -> inward acceleration.',
     environmentalResponse: 'Docking rings buckle; 400m station spires tumble into the void.',
     playerResponse: 'Collision avoidance with massive tumbling station hull wreckage.',
-    triggerTime: 270,
+    triggerTime: 96,
     severity: 5.5,
     gravityParams: {
       gravityInfluenceRadius: 0.6,
@@ -294,14 +306,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 10,
     id: 'debris_storm',
-    name: 'DEBRIS STORM',
-    title: 'EVENT 10 — DEBRIS STORM',
-    subtitle: 'Accumulated hyper-velocity debris storm sweeping across safe flight corridor.',
+    name: 'TIME DISTORTION',
+    title: 'EVENT 10 — TIME DISTORTION',
+    subtitle: 'Relativistic time-distortion effects intensify around the route.',
     cause: 'Accumulation of planetary, station, asteroid, and track fragments.',
     physicalEffect: 'Dense, multi-velocity debris field orbiting at relativistic speeds.',
     environmentalResponse: 'Thousands of instanced fragments fly past route; near hazards active.',
     playerResponse: 'Shield stress, rapid evasive maneuvers, audible hull scrapes.',
-    triggerTime: 300,
+    triggerTime: 108,
     severity: 6.0,
     gravityParams: {
       gravityInfluenceRadius: 0.65,
@@ -321,14 +333,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 11,
     id: 'event_horizon_influence',
-    name: 'EVENT-HORIZON INFLUENCE ESCALATION',
-    title: 'EVENT 11 — EVENT-HORIZON INFLUENCE ESCALATION',
-    subtitle: 'Severe gravitational lensing warping distant stars, light paths, and silhouettes.',
+    name: 'MAJOR TIDAL FORCE',
+    title: 'EVENT 11 — MAJOR TIDAL FORCE',
+    subtitle: 'A major tidal-force increase reaches the route.',
     cause: 'Proximity to singularity expands photon deflection cone.',
     physicalEffect: 'Optical space-time distortion bending background geodesics.',
     environmentalResponse: 'Curved light paths, distorted celestial silhouettes, lensing arcs.',
     playerResponse: 'Optical chromatic aberration, perspective distortion, visual disorientation.',
-    triggerTime: 330,
+    triggerTime: 120,
     severity: 6.5,
     gravityParams: {
       gravityInfluenceRadius: 0.7,
@@ -348,14 +360,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 12,
     id: 'gravitational_lockdown',
-    name: 'GRAVITATIONAL LOCKDOWN',
-    title: 'EVENT 12 — GRAVITATIONAL LOCKDOWN',
-    subtitle: 'Transportation corridors collapsing simultaneously. Alternate routes failing.',
+    name: 'UNSTABLE ASTEROID ORBIT',
+    title: 'EVENT 12 — UNSTABLE ASTEROID ORBIT',
+    subtitle: 'A large asteroid enters an unstable orbit around the black hole.',
     cause: 'Tidal disruption shears multi-route junctions and bypass elevated tracks.',
     physicalEffect: 'Multiple physical route branches become structurally compromised.',
     environmentalResponse: 'Routes transition: SAFE to UNSTABLE to COLLAPSING to CONSUMED.',
     playerResponse: 'Emergency route decision-making; steering to surviving track branches.',
-    triggerTime: 360,
+    triggerTime: 132,
     severity: 7.0,
     gravityParams: {
       gravityInfluenceRadius: 0.75,
@@ -375,14 +387,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 13,
     id: 'singularity_critical',
-    name: 'SINGULARITY CRITICAL',
-    title: 'EVENT 13 — SINGULARITY CRITICAL',
-    subtitle: 'Accretion boundary reaching critical relativistic state. Safe margins failing.',
+    name: 'ASTEROID DEFORMATION',
+    title: 'EVENT 13 — ASTEROID DEFORMATION',
+    subtitle: 'The large asteroid visibly deforms under differential gravity.',
     cause: 'Massive influx of matter supercharges accretion rotational shear.',
     physicalEffect: 'Extreme spacetime curvature; debris streams accelerate to near light-speed.',
     environmentalResponse: 'Interconnected mega-towers experience propagating joint failures.',
     playerResponse: 'Thruster output instability, intense camera shake, hull integrity warnings.',
-    triggerTime: 390,
+    triggerTime: 144,
     severity: 7.5,
     gravityParams: {
       gravityInfluenceRadius: 0.8,
@@ -402,14 +414,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 14,
     id: 'cosmic_collapse',
-    name: 'COSMIC COLLAPSE',
-    title: 'EVENT 14 — COSMIC COLLAPSE',
-    subtitle: 'Civilization megastructures in full collapse. Head for the evacuation facility.',
+    name: 'TIDAL DISRUPTION',
+    title: 'EVENT 14 — TIDAL DISRUPTION',
+    subtitle: 'Tidal disruption tears the asteroid structure apart.',
     cause: 'Global sector orbital infrastructure reaches total structural fatigue.',
     physicalEffect: 'Distant space becomes desolate; remaining track leads to evacuation tower.',
     environmentalResponse: 'Emergency beacons pulse; rear track actively disintegrates into infall.',
     playerResponse: 'Final approach to evacuation entrance; precise navigation alignment.',
-    triggerTime: 420,
+    triggerTime: 156,
     severity: 8.0,
     gravityParams: {
       gravityInfluenceRadius: 0.85,
@@ -429,14 +441,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 15,
     id: 'final_singularity_surge',
-    name: 'FINAL SINGULARITY SURGE',
-    title: 'EVENT 15 — FINAL SINGULARITY SURGE',
-    subtitle: 'Singularity boundary surge. Extreme gravitational wave propagation.',
+    name: 'DEBRIS STREAM',
+    title: 'EVENT 15 — DEBRIS STREAM',
+    subtitle: 'The asteroid breaks into a long debris stream feeding the black hole.',
     cause: 'Event horizon relativistic surge radiating outward.',
     physicalEffect: 'Relativistic space-time compression wave propagating through sector.',
     environmentalResponse: 'Remaining distant structures and debris streams surge toward singularity.',
     playerResponse: 'Extreme gravitational turbulence, cockpit shudder, warning alarms.',
-    triggerTime: 450,
+    triggerTime: 168,
     severity: 8.5,
     gravityParams: {
       gravityInfluenceRadius: 0.9,
@@ -456,14 +468,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 16,
     id: 'orbital_resonance_break',
-    name: 'ORBITAL RESONANCE BREAK',
-    title: 'EVENT 16 — ORBITAL RESONANCE BREAK',
-    subtitle: 'Resonant orbital locks breaking. Moons and station traffic colliding.',
+    name: 'ACCRETION SURGE',
+    title: 'EVENT 16 — ACCRETION SURGE',
+    subtitle: 'The accretion disk becomes violently active as matter falls inward.',
     cause: 'Tidal differential breaks Laplace resonance between orbiting celestial bodies.',
     physicalEffect: 'Moons alter eccentricity; orbital infrastructure collides on crossed orbits.',
     environmentalResponse: 'Secondary satellite collisions scatter flashing debris across view.',
     playerResponse: 'Cross-traffic hazards, evasive flight maneuvers, collision alarms.',
-    triggerTime: 480,
+    triggerTime: 180,
     severity: 8.6,
     gravityParams: {
       gravityInfluenceRadius: 0.91,
@@ -483,14 +495,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 17,
     id: 'roche_limit_breach',
-    name: 'ROCHE LIMIT BREACH',
-    title: 'EVENT 17 — ROCHE LIMIT BREACH',
-    subtitle: 'Moon enters Roche limit. Tidal gravity tearing celestial mantle apart.',
+    name: 'STATION STRETCHING',
+    title: 'EVENT 17 — STATION STRETCHING',
+    subtitle: 'Nearby station structures begin stretching along the tidal gradient.',
     cause: 'Closest moon crosses the critical tidal disruption radius.',
     physicalEffect: 'Self-gravitation overcome by black hole tides; body fractures into streams.',
     environmentalResponse: 'Enormous rocky tectonic fragments peel away into glowing ribbon streams.',
     playerResponse: 'Debris cloud traversal, visual spectacle of fracturing celestial body.',
-    triggerTime: 510,
+    triggerTime: 192,
     severity: 8.7,
     gravityParams: {
       gravityInfluenceRadius: 0.92,
@@ -510,14 +522,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 18,
     id: 'gravitational_wave_passage',
-    name: 'GRAVITATIONAL WAVE PASSAGE',
-    title: 'EVENT 18 — GRAVITATIONAL WAVE PASSAGE',
-    subtitle: 'Relativistic gravitational wave crest passing. Spacetime metric oscillating.',
+    name: 'SPAGHETTIFICATION',
+    title: 'EVENT 18 — SPAGHETTIFICATION',
+    subtitle: 'Spaghettification begins on exposed structures and debris.',
     cause: 'Asymmetric infall pulse generates high-amplitude quadrupole wave.',
     physicalEffect: 'Temporary spatial stretching and compression perpendicular to propagation.',
     environmentalResponse: 'Track route undulates like an ocean swell; stations oscillate.',
     playerResponse: 'Craft pitch-heave oscillations, navigation interference, HUD wave distortion.',
-    triggerTime: 540,
+    triggerTime: 204,
     severity: 8.8,
     gravityParams: {
       gravityInfluenceRadius: 0.93,
@@ -537,14 +549,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 19,
     id: 'orbital_debris_cascade',
-    name: 'ORBITAL DEBRIS CASCADE',
-    title: 'EVENT 19 — ORBITAL DEBRIS CASCADE',
-    subtitle: 'Kessler cascade active. Fragment impacts multiplying exponentially.',
+    name: 'ROUTE DIFFERENTIAL GRAVITY',
+    title: 'EVENT 19 — ROUTE DIFFERENTIAL GRAVITY',
+    subtitle: 'Route structures experience strong differential gravity.',
     cause: 'Hyper-velocity debris impacts generate secondary high-speed fragmentation.',
     physicalEffect: 'Fragment population density spikes; collision cross-section grows.',
     environmentalResponse: 'Dense cloud of metallic and mineral shards blankets the corridor.',
     playerResponse: 'Multiple incoming impact warnings, shield deflections, reduced forward visibility.',
-    triggerTime: 570,
+    triggerTime: 216,
     severity: 8.9,
     gravityParams: {
       gravityInfluenceRadius: 0.94,
@@ -564,14 +576,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 20,
     id: 'planetary_ring_disruption',
-    name: 'PLANETARY RING DISRUPTION',
-    title: 'EVENT 20 — PLANETARY RING DISRUPTION',
-    subtitle: 'Planetary ring plane destabilizing. Ice and rock particles raining inward.',
+    name: 'STRUCTURE TEAR',
+    title: 'EVENT 20 — STRUCTURE TEAR',
+    subtitle: 'A large structure tears apart and begins falling inward.',
     cause: 'Tidal forces warp the planar stability of planetary rings.',
     physicalEffect: 'Ring particles disperse into three-dimensional helical streams.',
     environmentalResponse: 'Enormous particulate streams cross the environment; silhouettes obscured.',
     playerResponse: 'Micro-particle sandblasting audio, luminescent ring crossing.',
-    triggerTime: 600,
+    triggerTime: 228,
     severity: 9.0,
     gravityParams: {
       gravityInfluenceRadius: 0.95,
@@ -591,14 +603,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 21,
     id: 'moon_fracture',
-    name: 'MOON FRACTURE',
-    title: 'EVENT 21 — MOON FRACTURE',
-    subtitle: 'Nearby moon splitting along tectonic rift. Core magma venting.',
+    name: 'MIDPOINT TIDAL CATASTROPHE',
+    title: 'EVENT 21 — MIDPOINT TIDAL CATASTROPHE',
+    subtitle: 'A massive tidal wave propagates through the environment.',
     cause: 'Internal tidal heating and extensional stresses rupture lunar crust.',
     physicalEffect: 'Moon divides into multiple large chunks; magma plumes vent into vacuum.',
     environmentalResponse: 'Massive glowing crustal blocks separate slowly; debris fields expand.',
     playerResponse: 'Sub-bass thermal rumble, avoidance of giant rotating lunar fragments.',
-    triggerTime: 630,
+    triggerTime: 240,
     severity: 9.05,
     gravityParams: {
       gravityInfluenceRadius: 0.95,
@@ -618,14 +630,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 22,
     id: 'orbital_ring_failure',
-    name: 'ORBITAL RING FAILURE',
-    title: 'EVENT 22 — ORBITAL RING FAILURE',
-    subtitle: 'Gigantic megastructure ring fracturing into disconnected 400m sections.',
+    name: 'PLANETARY FRAGMENT',
+    title: 'EVENT 22 — PLANETARY FRAGMENT',
+    subtitle: 'A planetary fragment enters the route from an unstable orbit.',
     cause: 'Buckling stress exceeds ultra-dense carbon nanotube tensile limits.',
     physicalEffect: 'Continuous ring snaps at multiple points; sections enter independent orbits.',
     environmentalResponse: 'Curved ring sections tumble across sector; glowing maintenance hubs shatter.',
     playerResponse: 'Flying beneath collapsing ring arches; hazard avoidance.',
-    triggerTime: 660,
+    triggerTime: 252,
     severity: 9.1,
     gravityParams: {
       gravityInfluenceRadius: 0.95,
@@ -645,14 +657,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 23,
     id: 'planetary_debris_infall',
-    name: 'PLANETARY DEBRIS INFALL',
-    title: 'EVENT 23 — PLANETARY DEBRIS INFALL',
-    subtitle: 'Billions of tons of planetary matter spiraling into lower accretion trajectories.',
+    name: 'PLANETARY DEFORMATION',
+    title: 'EVENT 23 — PLANETARY DEFORMATION',
+    subtitle: 'The planetary fragment begins severe tidal deformation.',
     cause: 'Angular momentum loss drags disrupted planetary mass inward.',
     physicalEffect: 'Colossal continuous debris rivers funneling toward event horizon.',
     environmentalResponse: 'Intense background illumination; debris impact cascades on outer infrastructure.',
     playerResponse: 'Steering through dense debris currents; high-velocity hazards.',
-    triggerTime: 690,
+    triggerTime: 264,
     severity: 9.15,
     gravityParams: {
       gravityInfluenceRadius: 0.96,
@@ -672,14 +684,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 24,
     id: 'gravitational_slingshot_cascade',
-    name: 'GRAVITATIONAL SLINGSHOT CASCADE',
-    title: 'EVENT 24 — GRAVITATIONAL SLINGSHOT CASCADE',
-    subtitle: 'Asteroids receiving relativistic gravitational assists. Hyper-velocity hazards.',
+    name: 'PLANETARY FRAGMENTATION',
+    title: 'EVENT 24 — PLANETARY FRAGMENTATION',
+    subtitle: 'The planetary fragment breaks into a massive debris field.',
     cause: 'Close passage around singularity slingshots orbital bodies at extreme angles.',
     physicalEffect: 'High kinetic energy trajectory changes across multiple celestial planes.',
     environmentalResponse: 'Asteroids streak across route at hyper-velocity with refractive trails.',
     playerResponse: 'Fast reaction windows, alert pings, emergency thruster adjustments.',
-    triggerTime: 720,
+    triggerTime: 276,
     severity: 9.2,
     gravityParams: {
       gravityInfluenceRadius: 0.96,
@@ -699,14 +711,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 25,
     id: 'celestial_trajectory_crossing',
-    name: 'CELESTIAL TRAJECTORY CROSSING',
-    title: 'EVENT 25 — CELESTIAL TRAJECTORY CROSSING',
-    subtitle: 'Multiple orbital planes converging. Massive intersection of celestial paths.',
+    name: 'DEBRIS STREAM WRAP',
+    title: 'EVENT 25 — DEBRIS STREAM WRAP',
+    subtitle: 'The debris stream wraps around the black hole and feeds its disk.',
     cause: 'Inward spiral forces previously separated orbital shells to intersect.',
     physicalEffect: 'Dense clusters of satellites, platforms, and asteroid swarms cross paths.',
     environmentalResponse: 'Secondary impacts light up background; debris density surges.',
     playerResponse: 'Navigating intersecting traffic corridors, high radar clutter.',
-    triggerTime: 750,
+    triggerTime: 288,
     severity: 9.25,
     gravityParams: {
       gravityInfluenceRadius: 0.96,
@@ -726,14 +738,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 26,
     id: 'structural_resonance_failure',
-    name: 'STRUCTURAL RESONANCE FAILURE',
-    title: 'EVENT 26 — STRUCTURAL RESONANCE FAILURE',
-    subtitle: 'Sustained physical oscillation tearing megastructure joints apart.',
+    name: 'EXTREME LENSING',
+    title: 'EVENT 26 — EXTREME LENSING',
+    subtitle: 'Extreme gravitational lensing distorts the entire visible sky.',
     cause: 'Gravitational wave frequency matches structural harmonic resonant frequency.',
     physicalEffect: 'Vibration -> fatigue -> cracking -> deformation -> separation -> collapse.',
     environmentalResponse: 'Suspension bridges undulate and snap; towers twist and fracture.',
     playerResponse: 'Deep acoustic groaning feedback, track deck vibration, camera roll.',
-    triggerTime: 780,
+    triggerTime: 300,
     severity: 9.3,
     gravityParams: {
       gravityInfluenceRadius: 0.97,
@@ -753,14 +765,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 27,
     id: 'debris_field_density_critical',
-    name: 'DEBRIS FIELD DENSITY CRITICAL',
-    title: 'EVENT 27 — DEBRIS FIELD DENSITY CRITICAL',
-    subtitle: 'Accumulated fragmentation reaching critical density. Forward flight obscured.',
+    name: 'ROUTE BENDING',
+    title: 'EVENT 27 — ROUTE BENDING',
+    subtitle: 'The physical route bends toward the black hole under the tidal field.',
     cause: 'Cumulative debris from all 26 prior events coalesces in the inner orbital plane.',
     physicalEffect: 'Extreme spatial particle density; optical path extinction.',
     environmentalResponse: 'Dense swarm of rotating wreckage and microscopic shards surrounds sector.',
     playerResponse: 'Shield drain, tactile controller vibration, headlight glare.',
-    triggerTime: 810,
+    triggerTime: 312,
     severity: 9.35,
     gravityParams: {
       gravityInfluenceRadius: 0.97,
@@ -780,14 +792,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 28,
     id: 'planetary_atmospheric_disturbance',
-    name: 'PLANETARY ATMOSPHERIC DISTURBANCE',
-    title: 'EVENT 28 — PLANETARY ATMOSPHERIC DISTURBANCE',
-    subtitle: 'Gas giant atmosphere elongated by tidal pull. Giant atmospheric plumes.',
+    name: 'EXPANDING SPAGHETTIFICATION',
+    title: 'EVENT 28 — EXPANDING SPAGHETTIFICATION',
+    subtitle: 'The spaghettification zone expands toward the player route.',
     cause: 'Tidal gravity draws upper planetary atmosphere into tidal teardrop bulge.',
     physicalEffect: 'Gaseous envelope strips into space along gravitational equipotential lines.',
     environmentalResponse: 'Enormous glowing atmospheric gas wisps stream toward singularity.',
     playerResponse: 'Gaseous atmospheric drag resistance, aerodynamic turbulence.',
-    triggerTime: 840,
+    triggerTime: 324,
     severity: 9.4,
     gravityParams: {
       gravityInfluenceRadius: 0.97,
@@ -807,14 +819,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 29,
     id: 'magnetospheric_disruption',
-    name: 'MAGNETOSPHERIC DISRUPTION',
-    title: 'EVENT 29 — MAGNETOSPHERIC DISRUPTION',
-    subtitle: 'Electromagnetic flux lines compressing. Auroral discharge ribbons.',
+    name: 'MULTI-STRUCTURE FRACTURE',
+    title: 'EVENT 29 — MULTI-STRUCTURE FRACTURE',
+    subtitle: 'Multiple structures stretch and fracture simultaneously.',
     cause: 'Planetary magnetic fields compressed and reconnected by accretion shock.',
     physicalEffect: 'Intense synchrotron radiation; violent charged-particle currents.',
     environmentalResponse: 'Glowing auroral ribbons twist across vacuum; electrical arcs snap between hulls.',
     playerResponse: 'HUD electromagnetic static interference, navigation needle spinning.',
-    triggerTime: 870,
+    triggerTime: 336,
     severity: 9.45,
     gravityParams: {
       gravityInfluenceRadius: 0.98,
@@ -834,14 +846,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 30,
     id: 'relativistic_debris_stream',
-    name: 'RELATIVISTIC DEBRIS STREAM',
-    title: 'EVENT 30 — RELATIVISTIC DEBRIS STREAM',
-    subtitle: 'Debris streams accelerating to relativistic velocity. Lorentz contracted.',
+    name: 'MASSIVE DEBRIS COLLISION',
+    title: 'EVENT 30 — MASSIVE DEBRIS COLLISION',
+    subtitle: 'A massive debris collision sends fragments toward the black hole.',
     cause: 'Infall approaching inner photon sphere imparts near-luminal speeds.',
     physicalEffect: 'Material travels with Lorentz factor gamma > 1.2; Doppler beamed.',
     environmentalResponse: 'Debris streams appear compressed and blue-shifted along vector of motion.',
     playerResponse: 'Ultra-fast projectile hazards; instant reaction required.',
-    triggerTime: 900,
+    triggerTime: 348,
     severity: 9.5,
     gravityParams: {
       gravityInfluenceRadius: 0.98,
@@ -861,14 +873,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 31,
     id: 'orbital_habitat_deformation',
-    name: 'ORBITAL HABITAT DEFORMATION',
-    title: 'EVENT 31 — ORBITAL HABITAT DEFORMATION',
-    subtitle: 'Large rotating toroidal habitats warping. Docking spines snapping.',
+    name: 'CRITICAL TIDAL PHASE',
+    title: 'EVENT 31 — CRITICAL TIDAL PHASE',
+    subtitle: 'The black hole enters the critical tidal phase.',
     cause: 'Unequal tidal acceleration across rotating habitat diameter.',
     physicalEffect: 'Habitat rings deform into ovals; internal atmosphere vents through ruptures.',
     environmentalResponse: 'Colossal residential torus buckles; escape pods eject into vacuum.',
     playerResponse: 'Visual tragedy of futuristic habitat collapse; collision avoidance.',
-    triggerTime: 930,
+    triggerTime: 360,
     severity: 9.55,
     gravityParams: {
       gravityInfluenceRadius: 0.98,
@@ -888,14 +900,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 32,
     id: 'multi_route_collapse',
-    name: 'MULTI-ROUTE COLLAPSE',
-    title: 'EVENT 32 — MULTI-ROUTE COLLAPSE',
-    subtitle: 'Simultaneous failure of parallel route branches. Dynamic path evaluation.',
+    name: 'MAXIMUM ACCRETION',
+    title: 'EVENT 32 — MAXIMUM ACCRETION',
+    subtitle: 'The existing accretion disk reaches maximum activity.',
     cause: 'Destruction front overtakes multiple junction anchors simultaneously.',
     physicalEffect: 'Elevated, lower, and bypass tracks collapse in real time.',
     environmentalResponse: 'Alternative route spans drop into the abyss; emergency signals flash.',
     playerResponse: 'Split-second branch selection; precision pilot input.',
-    triggerTime: 960,
+    triggerTime: 372,
     severity: 9.6,
     gravityParams: {
       gravityInfluenceRadius: 0.98,
@@ -915,14 +927,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 33,
     id: 'gravitational_trajectory_chaos',
-    name: 'GRAVITATIONAL TRAJECTORY CHAOS',
-    title: 'EVENT 33 — GRAVITATIONAL TRAJECTORY CHAOS',
-    subtitle: 'Chaotic three-body gravitational perturbation across all local matter.',
+    name: 'ROUTE CONSUMPTION',
+    title: 'EVENT 33 — ROUTE CONSUMPTION',
+    subtitle: 'Actual route segments begin disappearing inward toward the black hole.',
     cause: 'Overlapping gravitational wells of singularity, collapsing planet, and moon.',
     physicalEffect: 'Non-linear gravitational trajectories (continuous motion, zero teleportation).',
     environmentalResponse: 'All loose objects spiral along erratic yet continuous spatial paths.',
     playerResponse: 'Constant flight stick adjustments, variable weight sensation.',
-    triggerTime: 990,
+    triggerTime: 384,
     severity: 9.65,
     gravityParams: {
       gravityInfluenceRadius: 0.99,
@@ -942,14 +954,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 34,
     id: 'megastructure_fracture',
-    name: 'MEGASTRUCTURE FRACTURE',
-    title: 'EVENT 34 — MEGASTRUCTURE FRACTURE',
-    subtitle: 'Civilization-scale spine towers snapping. Trillions of tons tumbling.',
+    name: 'PLAYER TIDAL DEFORMATION',
+    title: 'EVENT 34 — PLAYER TIDAL DEFORMATION',
+    subtitle: 'Severe tidal deformation reaches the player route.',
     cause: 'Cumulative fatigue breaches catastrophic fracture toughness threshold.',
     physicalEffect: 'Microfractures -> vibration -> large cracks -> separation -> rotation -> infall.',
     environmentalResponse: '600m spine towers break in half; upper sections plunge inward.',
     playerResponse: 'Flying through fractured structural gap; high hazard exposure.',
-    triggerTime: 1020,
+    triggerTime: 396,
     severity: 9.7,
     gravityParams: {
       gravityInfluenceRadius: 0.99,
@@ -969,14 +981,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 35,
     id: 'cosmic_dust_veil',
-    name: 'COSMIC DUST VEIL',
-    title: 'EVENT 35 — COSMIC DUST VEIL',
-    subtitle: 'Vast pulverization cloud obscuring distant cosmos. Navigation lights required.',
+    name: 'EVENT HORIZON WARNING',
+    title: 'EVENT 35 — EVENT HORIZON WARNING',
+    subtitle: 'Event-horizon approach warning becomes critical.',
     cause: 'Continuous grinding collisions reduce millions of metric tons into dust.',
     physicalEffect: 'Rayleigh and Mie scattering through pervasive cosmic particulate veil.',
     environmentalResponse: 'Distant stars dim; black hole accretion glow creates diffuse eerie twilight.',
     playerResponse: 'Relying on HUD guidance markers and illumination beams in the dark.',
-    triggerTime: 1050,
+    triggerTime: 408,
     severity: 9.75,
     gravityParams: {
       gravityInfluenceRadius: 0.99,
@@ -996,14 +1008,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 36,
     id: 'collision_cascade',
-    name: 'COLLISION CASCADE',
-    title: 'EVENT 36 — COLLISION CASCADE',
-    subtitle: 'Multiple converging debris fields crashing into each other simultaneously.',
+    name: 'FINAL GRAVITATIONAL COLLAPSE',
+    title: 'EVENT 36 — FINAL GRAVITATIONAL COLLAPSE',
+    subtitle: 'The final gravitational collapse phase begins.',
     cause: 'Infalling matter streams collide as they bottleneck near the ISCO boundary.',
     physicalEffect: 'Secondary fragmentation surges; kinetic energy converts to thermal flash.',
     environmentalResponse: 'Sparks, metal vapor, and shattered hull plates explode outward.',
     playerResponse: 'Navigating through turbulent debris explosion zones.',
-    triggerTime: 1080,
+    triggerTime: 420,
     severity: 9.8,
     gravityParams: {
       gravityInfluenceRadius: 0.99,
@@ -1023,14 +1035,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 37,
     id: 'last_stable_orbits',
-    name: 'LAST STABLE ORBITS',
-    title: 'EVENT 37 — LAST STABLE ORBITS',
-    subtitle: 'Final surviving orbital infrastructure collapsing. Ruins of civilization.',
+    name: 'EXTREME SPAGHETTIFICATION',
+    title: 'EVENT 37 — EXTREME SPAGHETTIFICATION',
+    subtitle: 'Extreme spaghettification consumes structures behind the player.',
     cause: 'Only isolated high-density anchors temporarily resist final tidal pull.',
     physicalEffect: 'Stark, dismantled panorama of shattered civilization drifting together.',
     environmentalResponse: 'Planet fragments, station skeletons, collapsed tracks surround singularity.',
     playerResponse: 'Solemn realization of total civilizational destruction.',
-    triggerTime: 1110,
+    triggerTime: 435,
     severity: 9.85,
     gravityParams: {
       gravityInfluenceRadius: 1.0,
@@ -1050,14 +1062,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 38,
     id: 'evacuation_corridor_collapse',
-    name: 'EVACUATION CORRIDOR COLLAPSE',
-    title: 'EVENT 38 — EVACUATION CORRIDOR COLLAPSE',
-    subtitle: 'Final racing route crumbling behind you. Reach the evacuation facility.',
+    name: 'INWARD ACCELERATION',
+    title: 'EVENT 38 — INWARD ACCELERATION',
+    subtitle: 'Everything nearby begins accelerating inward toward the black hole.',
     cause: 'Destruction front eliminates all remaining track except the evacuation entry spur.',
     physicalEffect: 'Route segments collapse sequentially right at the player\'s exhaust trail.',
     environmentalResponse: 'Evacuation Tower sanctuary ahead shines beacon lights; blast doors waiting.',
     playerResponse: 'Full throttle, entering tower entrance, descending into basement.',
-    triggerTime: 1140,
+    triggerTime: 450,
     severity: 9.9,
     gravityParams: {
       gravityInfluenceRadius: 1.0,
@@ -1077,14 +1089,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 39,
     id: 'final_cosmic_compression',
-    name: 'FINAL COSMIC COMPRESSION',
-    title: 'EVENT 39 — FINAL COSMIC COMPRESSION',
-    subtitle: 'Remaining universe matter converging. Spacetime metric extreme warp.',
+    name: 'HORIZON BREAK',
+    title: 'EVENT 39 — HORIZON BREAK',
+    subtitle: 'Everything behind the spaceship breaks apart, detaches and falls into the black hole.',
     cause: 'Gravitational collapse accelerates all matter toward singularity origin.',
     physicalEffect: 'Stars stretch into arcs; debris fields funnel into the event horizon.',
     environmentalResponse: 'All remaining environment accelerates inward; immense tidal funnel.',
     playerResponse: 'Inside shelter: heavy hydraulic blast door sealing; outside: universe compressing.',
-    triggerTime: 1170,
+    triggerTime: 470,
     severity: 9.95,
     gravityParams: {
       gravityInfluenceRadius: 1.0,
@@ -1104,14 +1116,14 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   {
     index: 40,
     id: 'absolute_cosmic_end',
-    name: 'ABSOLUTE COSMIC END',
-    title: 'EVENT 40 — ABSOLUTE COSMIC END',
-    subtitle: 'The universe collapses into the singularity. Dark implosion climax.',
+    name: 'ABSOLUTE DESTRUCTION',
+    title: 'EVENT 40 — ABSOLUTE DESTRUCTION',
+    subtitle: 'The route, structures and debris are consumed in the final gravitational implosion.',
     cause: 'Final astrophysical collapse of all surrounding matter into the persistent black hole.',
     physicalEffect: 'Sequential cosmic climax: motion slows -> near silence -> dark pulse -> BOOM -> black screen.',
     environmentalResponse: 'NO WHITE FLASH. NO FIREBALL. Pure dark gravitational implosion & sudden silence.',
     playerResponse: 'Witnessing the ultimate physical collapse of a universe from the secured vault.',
-    triggerTime: 1200,
+    triggerTime: 480,
     severity: 10.0,
     gravityParams: {
       gravityInfluenceRadius: 1.0,
@@ -1130,6 +1142,8 @@ const RAW_COSMIC_40_EVENTS: Omit<CosmicEventDefinition, 'element1' | 'element2' 
   },
 ];
 
+const QUANTUM_CINEMATIC_BEATS: QuantumCinematicBeat[][] = [['ESTABLISHING', 'BLACK_HOLE_CLOSEUP', 'GRAVITY_LENS', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'GRAVITY_LENS', 'PLAYER_POV', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'OBJECT_TRACKING', 'GRAVITY_LENS', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'BLACK_HOLE_CLOSEUP', 'CHASE_OBJECT', 'SLOW_MOTION_IMPACT'], ['BLACK_HOLE_CLOSEUP', 'GRAVITY_LENS', 'PLAYER_POV', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'GRAVITY_LENS', 'SHOCKWAVE_SHAKE', 'PLAYER_POV'], ['CHASE_OBJECT', 'OBJECT_TRACKING', 'PLAYER_POV', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'CHASE_OBJECT', 'SLOW_MOTION_IMPACT', 'SHOCKWAVE_SHAKE'], ['OBJECT_TRACKING', 'BLACK_HOLE_CLOSEUP', 'GAMEPLAY_RETURN'], ['PLAYER_POV', 'GRAVITY_LENS', 'BLACK_HOLE_CLOSEUP', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'PLAYER_POV', 'SHOCKWAVE_SHAKE', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'OBJECT_TRACKING', 'GRAVITY_LENS', 'PLAYER_POV'], ['CHASE_OBJECT', 'OBJECT_TRACKING', 'SLOW_MOTION_IMPACT', 'GAMEPLAY_RETURN'], ['CHASE_OBJECT', 'SLOW_MOTION_IMPACT', 'SHOCKWAVE_SHAKE', 'PLAYER_POV'], ['OBJECT_TRACKING', 'BLACK_HOLE_CLOSEUP', 'ROUTE_DESTRUCTION', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'BLACK_HOLE_CLOSEUP', 'SLOW_MOTION_IMPACT', 'SHOCKWAVE_SHAKE'], ['ESTABLISHING', 'CHASE_OBJECT', 'ROUTE_DESTRUCTION', 'PLAYER_POV'], ['OBJECT_TRACKING', 'ROUTE_DESTRUCTION', 'BLACK_HOLE_CLOSEUP', 'SHOCKWAVE_SHAKE'], ['ESTABLISHING', 'GRAVITY_LENS', 'ROUTE_DESTRUCTION', 'GAMEPLAY_RETURN'], ['CHASE_OBJECT', 'ROUTE_DESTRUCTION', 'SLOW_MOTION_IMPACT', 'SHOCKWAVE_SHAKE'], ['ESTABLISHING', 'PLAYER_POV', 'SHOCKWAVE_SHAKE', 'ROUTE_DESTRUCTION'], ['ESTABLISHING', 'OBJECT_TRACKING', 'PLAYER_POV', 'GAMEPLAY_RETURN'], ['CHASE_OBJECT', 'OBJECT_TRACKING', 'SLOW_MOTION_IMPACT', 'SHOCKWAVE_SHAKE'], ['ESTABLISHING', 'OBJECT_TRACKING', 'ROUTE_DESTRUCTION', 'BLACK_HOLE_CLOSEUP'], ['OBJECT_TRACKING', 'BLACK_HOLE_CLOSEUP', 'GRAVITY_LENS', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'GRAVITY_LENS', 'BLACK_HOLE_CLOSEUP', 'PLAYER_POV'], ['ESTABLISHING', 'ROUTE_DESTRUCTION', 'GRAVITY_LENS', 'PLAYER_POV'], ['ESTABLISHING', 'ROUTE_DESTRUCTION', 'BLACK_HOLE_CLOSEUP', 'SHOCKWAVE_SHAKE'], ['ESTABLISHING', 'CHASE_OBJECT', 'ROUTE_DESTRUCTION', 'PLAYER_POV'], ['CHASE_OBJECT', 'SLOW_MOTION_IMPACT', 'SHOCKWAVE_SHAKE', 'ROUTE_DESTRUCTION'], ['ESTABLISHING', 'PLAYER_POV', 'GRAVITY_LENS', 'SHOCKWAVE_SHAKE'], ['BLACK_HOLE_CLOSEUP', 'OBJECT_TRACKING', 'SLOW_MOTION_IMPACT', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'ROUTE_DESTRUCTION', 'OBJECT_TRACKING', 'BLACK_HOLE_CLOSEUP'], ['PLAYER_POV', 'ROUTE_DESTRUCTION', 'SHOCKWAVE_SHAKE', 'GAMEPLAY_RETURN'], ['ESTABLISHING', 'BLACK_HOLE_CLOSEUP', 'PLAYER_POV', 'SHOCKWAVE_SHAKE'], ['ESTABLISHING', 'ROUTE_DESTRUCTION', 'BLACK_HOLE_CLOSEUP', 'REAR_ESCAPE'], ['REAR_ESCAPE', 'ROUTE_DESTRUCTION', 'PLAYER_POV', 'SHOCKWAVE_SHAKE'], ['REAR_ESCAPE', 'OBJECT_TRACKING', 'BLACK_HOLE_CLOSEUP', 'GRAVITY_LENS'], ['REAR_ESCAPE', 'ROUTE_DESTRUCTION', 'SHOCKWAVE_SHAKE', 'FINAL_COLLAPSE'], ['REAR_ESCAPE', 'ROUTE_DESTRUCTION', 'BLACK_HOLE_CLOSEUP', 'FINAL_COLLAPSE']];
+
 export const COSMIC_40_EVENTS: CosmicEventDefinition[] = RAW_COSMIC_40_EVENTS.map(raw => {
   const pair = COSMIC_40_EVENT_PAIRS[raw.index];
   return {
@@ -1138,6 +1152,7 @@ export const COSMIC_40_EVENTS: CosmicEventDefinition[] = RAW_COSMIC_40_EVENTS.ma
     element2: pair.element2,
     eventOccurrenceNarrative: pair.eventOccurrenceNarrative,
     completionStrategy: pair.completionStrategy,
+    cinematicBeats: (QUANTUM_CINEMATIC_BEATS[raw.index - 1] ?? ['ESTABLISHING', 'GAMEPLAY_RETURN']).map((beat, i, arr) => ({ beat, duration: i === arr.length - 1 ? 0.9 : 1.1 })),
   };
 });
 
@@ -1208,10 +1223,11 @@ export class PersistentDestructionRegistry {
 export class CosmicEventScheduler {
   public currentEventIndex = 0;
   public activeEvent: CosmicEventDefinition | null = null;
-  public nextEventTime = 30;
+  public nextEventTime = 0.1;
   public phase: 'WARNING' | 'BUILDUP' | 'CINEMATIC' | 'GAMEPLAY' = 'GAMEPLAY';
   public phaseTimer = 0;
   public eventHistory: string[] = [];
+  public activeCinematicBeatIndex = 0;
 
   public update(elapsedSeconds: number, dt: number): CosmicEventDefinition | null {
     // Check for next threshold crossing
@@ -1225,6 +1241,12 @@ export class CosmicEventScheduler {
     // Advance phase timer
     if (this.activeEvent) {
       this.phaseTimer += dt;
+      const beats = this.activeEvent.cinematicBeats;
+      if (beats.length) {
+        const beatT = Math.min(beats.reduce((sum, b) => sum + b.duration, 0) - 1e-4, this.phaseTimer);
+        let accum = 0; this.activeCinematicBeatIndex = 0;
+        for (let i = 0; i < beats.length; i++) { accum += beats[i].duration; if (beatT < accum) { this.activeCinematicBeatIndex = i; break; } }
+      }
       if (this.phase === 'WARNING' && this.phaseTimer >= 3.0) {
         this.phase = 'BUILDUP';
       } else if (this.phase === 'BUILDUP' && this.phaseTimer >= 5.5) {
@@ -1242,6 +1264,7 @@ export class CosmicEventScheduler {
     this.activeEvent = def;
     this.phase = 'WARNING';
     this.phaseTimer = 0;
+    this.activeCinematicBeatIndex = 0;
     this.eventHistory.push(def.id);
     this.nextEventTime = def.index < 40 ? COSMIC_40_EVENTS[def.index].triggerTime : 1200;
   }
@@ -1258,10 +1281,11 @@ export class CosmicEventScheduler {
   public reset(): void {
     this.currentEventIndex = 0;
     this.activeEvent = null;
-    this.nextEventTime = 30;
+    this.nextEventTime = 0.1;
     this.phase = 'GAMEPLAY';
     this.phaseTimer = 0;
     this.eventHistory = [];
+    this.activeCinematicBeatIndex = 0;
   }
 }
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { sound } from './audio';
 import { PathSegment } from './extendedPath/extendedPathTypes';
+import { COSMIC_40_EVENTS } from './catastrophe/cosmicSystems';
 
 /**
  * 3. Evacuation State Machine
@@ -54,12 +55,11 @@ export type TrackSegmentCollapseState =
   | 'CONSUMED';
 
 /**
- * Catastrophe Event Definition for Mode 21 / Submode 10.
- * Exactly 10 scripted astrophysical events run during the 50-minute Submode 10 gameplay countdown.
+ * 5 & 17–31. Catastrophe Event Definition (Exact 15 Events at 120s cadence)
  */
 export interface CatastropheEventDef {
   index: number;
-  triggerTime: number; // in seconds from 50:00 gameplay start (0, 300, ... 2700)
+  triggerTime: number; // in seconds from 00:00 evacuation start
   name: string;
   title: string;
   subtitle: string;
@@ -129,6 +129,7 @@ export interface EvacuationTelemetry {
   activeEventTitle: string | null;
   activeEventSubtitle: string | null;
   eventPhase: 'WARNING' | 'BUILDUP' | 'CINEMATIC' | 'GAMEPLAY' | null;
+  hazardEscalation: number;
   eventHistory: string[];
   safeZoneDistanceM: number;
   safeZoneWarning: string;
@@ -250,18 +251,19 @@ export class EvacuationManager {
 
 /* =========================================================================
    SUB-SYSTEM 2: CatastropheEventManager
-   Exact Catastrophe Clock for Mode 21 / Submode 10:
+   5. Exact Catastrophe Clock:
    EVACUATION_ELAPSED_TIME += dt
    Threshold crossing: previousElapsed < eventTime && currentElapsed >= eventTime
-   Exactly 40 deterministic astrophysical events, all before 05:00.
+   Exactly 40 events across the 08:00 catastrophe window. There is no Event 41.
    ========================================================================= */
 export class CatastropheEventManager {
   public currentEventIndex = 0;
-  public nextEventTime = 0; // Event 01 at 50:00
+  public nextEventTime = 0.1; // 00:00.1 (Event 01)
   public activeEvent: CatastropheEventDef | null = null;
   public eventHistory: string[] = [];
   public previousElapsed = 0;
   public currentElapsed = 0;
+  public timelineElapsed = 0;
   public absoluteCollapse = false;
 
   // Escalation parameters
@@ -277,37 +279,44 @@ export class CatastropheEventManager {
   public infallRate = 0.2;
   public orbitalInstability = 0.2;
   public navigationInterference = 0;
+  // Continuous hazard escalation only — no named difficulty tiers.
+  public hazardEscalation = 1.0;
 
-  // Exactly 10 real-phenomenon gameplay events for the 50-minute Submode 10 countdown.
-  // Event 01 fires immediately when player control begins, then every 5 minutes.
-  public readonly eventCatalog: Omit<CatastropheEventDef, 'phase' | 'phaseTimer'>[] = [
-    { index: 1, triggerTime: 0, name: 'GRAVITATIONAL LENSING', title: 'EVENT 01 — GRAVITATIONAL LENSING', subtitle: 'Strong gravity bends and magnifies background light, visibly distorting the route and sky.', severity: 1.0 },
-    { index: 2, triggerTime: 300, name: 'ACCRETION-DISK FLARE', title: 'EVENT 02 — ACCRETION-DISK FLARE', subtitle: 'Hot infalling plasma brightens and produces a powerful high-energy flare around the black hole.', severity: 1.7 },
-    { index: 3, triggerTime: 600, name: 'RELATIVISTIC DOPPLER BEAMING', title: 'EVENT 03 — RELATIVISTIC DOPPLER BEAMING', subtitle: 'Rapidly orbiting disk material produces asymmetric brightening, blueshift and redshift.', severity: 2.1 },
-    { index: 4, triggerTime: 900, name: 'FRAME DRAGGING', title: 'EVENT 04 — FRAME DRAGGING', subtitle: 'A rotating black hole twists nearby spacetime and changes the apparent orientation of orbital paths.', severity: 2.5 },
-    { index: 5, triggerTime: 1200, name: 'MAGNETIC RECONNECTION', title: 'EVENT 05 — MAGNETIC RECONNECTION', subtitle: 'Stressed magnetic fields in hot plasma reconnect and release stored magnetic energy.', severity: 2.9 },
-    { index: 6, triggerTime: 1500, name: 'RELATIVISTIC JET BURST', title: 'EVENT 06 — RELATIVISTIC JET BURST', subtitle: 'A compact enhancement in the polar plasma outflow surges outward at relativistic speed.', severity: 3.3 },
-    { index: 7, triggerTime: 1800, name: 'TIDAL DISRUPTION EVENT', title: 'EVENT 07 — TIDAL DISRUPTION EVENT', subtitle: 'A star passing too close is stretched by differential gravity and its debris begins feeding the accretion flow.', severity: 3.8 },
-    { index: 8, triggerTime: 2100, name: 'STELLAR DEBRIS STREAM', title: 'EVENT 08 — STELLAR DEBRIS STREAM', subtitle: 'Torn stellar material forms elongated streams that return toward the black hole.', severity: 4.1 },
-    { index: 9, triggerTime: 2400, name: 'TIDAL-DEBRIS SHOCK', title: 'EVENT 09 — TIDAL-DEBRIS SHOCK', subtitle: 'Returning debris streams collide and convert orbital energy into heat and radiation.', severity: 4.5 },
-    { index: 10, triggerTime: 2700, name: 'RELATIVISTIC INFALL', title: 'EVENT 10 — RELATIVISTIC INFALL', subtitle: 'Inner accretion material loses orbital support and accelerates toward the event-horizon region.', severity: 4.9 },
-  ];
+  // Quantum Launch Pro — shared 40-event catastrophe catalog.
+  // The canonical environment/effects data lives in COSMIC_40_EVENTS; this
+  // manager mirrors only the fields needed by the physical collapse state.
+  public readonly eventCatalog: Omit<CatastropheEventDef, 'phase' | 'phaseTimer'>[] =
+    COSMIC_40_EVENTS.map((event) => ({
+      index: event.index,
+      triggerTime: event.triggerTime,
+      name: event.name,
+      title: event.title,
+      subtitle: event.subtitle,
+      severity: event.severity,
+    }));
 
-  public update(dt: number, evacuation: EvacuationManager): void {
-    // The event clock runs during the 50-minute playable countdown.
-    // Once evacuation begins, no new scheduled events are introduced.
-    if (evacuation.evacuationActive || evacuation.evacuationSuccess || evacuation.evacuationFailed) {
-      return;
-    }
+  public update(dt: number, evacuation: EvacuationManager, timelineElapsed?: number): void {
+    // Quantum Launch Pro's 40-event timeline runs during the visible 08:00
+    // countdown. Evacuation starts at 00:00 and must not restart the clock.
+    if (evacuation.evacuationSuccess || evacuation.evacuationFailed) return;
 
     this.previousElapsed = this.currentElapsed;
-    this.currentElapsed += Math.max(0, Math.min(dt, 0.25));
+    this.currentElapsed = timelineElapsed ?? evacuation.evacuationElapsedTime;
+    this.timelineElapsed = this.currentElapsed;
 
-    // Check threshold crossing for the exact 10 five-minute gameplay events
+    // Continuous escalation only. There are no named difficulty tiers.
+    // Hazard density, velocity, tidal force and route pressure increase smoothly
+    // throughout the 08:00 window so the world becomes progressively denser
+    // and more dangerous without switching between artificial difficulty bands.
+    const progress = THREE.MathUtils.clamp(this.currentElapsed / 480, 0, 1);
+    this.hazardEscalation = 1.0 + 1.2 * Math.pow(progress, 1.35);
+
+    // Check every crossed threshold so no one of the 40 events can be skipped
+    // if a frame/update arrives late. The last crossed event becomes the active
+    // HUD/cinematic event, while each crossed event is still recorded and fired.
     for (const def of this.eventCatalog) {
-      if ((def.triggerTime === 0 && this.previousElapsed === 0 && this.currentElapsed >= 0) || (this.previousElapsed < def.triggerTime && this.currentElapsed >= def.triggerTime)) {
+      if (this.previousElapsed < def.triggerTime && this.currentElapsed >= def.triggerTime) {
         this.triggerEvent(def);
-        break;
       }
     }
 
@@ -330,7 +339,7 @@ export class CatastropheEventManager {
 
   public triggerEvent(def: Omit<CatastropheEventDef, 'phase' | 'phaseTimer'>): void {
     this.currentEventIndex = def.index;
-    this.nextEventTime = def.index < this.eventCatalog.length ? this.eventCatalog[def.index].triggerTime : 3000;
+    this.nextEventTime = def.index < 40 ? this.eventCatalog[def.index].triggerTime : 480;
     this.activeEvent = {
       ...def,
       phase: 'WARNING',
@@ -338,10 +347,8 @@ export class CatastropheEventManager {
     };
     this.eventHistory.push(`EVENT_${def.index.toString().padStart(2, '0')}`);
 
-    // Event 10 is the strongest scheduled gameplay phenomenon; the actual
-    // terminal collapse remains tied to the 50:00 countdown reaching zero.
-    if (def.index === this.eventCatalog.length) {
-      this.absoluteCollapse = false;
+    if (def.index === 40) {
+      this.absoluteCollapse = true;
     }
 
     // Progressive escalation of physical parameters
@@ -356,15 +363,26 @@ export class CatastropheEventManager {
     this.infallRate = Math.min(1.0, 0.15 + def.index * 0.022);
     this.orbitalInstability = Math.min(1.0, 0.15 + def.index * 0.022);
     this.navigationInterference = Math.min(1.0, def.index >= 12 ? (def.index - 11) * 0.035 : 0);
+    this.gravityStrength = Math.min(1.0, this.gravityStrength * this.hazardEscalation);
+    this.tidalForce = Math.min(1.0, this.tidalForce * this.hazardEscalation);
+    this.debrisVelocity = Math.min(180, this.debrisVelocity * this.hazardEscalation);
+    this.routeCollapseSpeed = Math.min(150, this.routeCollapseSpeed * this.hazardEscalation);
+    this.navigationInterference = Math.min(1.0, this.navigationInterference + (this.hazardEscalation - 1) * 0.12);
 
     // Authentic audio cues
     if (def.index === 1) {
       sound.playEmergencyAlarm();
       sound.playGravitationalRumble(3.0);
-    } else if (def.index === 7 || def.index === 9) {
+    } else if (def.index === 4) {
+      sound.playPlanetaryCollision();
+      sound.playHeavyImpact();
+    } else if (def.index === 18) {
       sound.playDarkGravitationalShockwave();
-    } else if (def.index === this.eventCatalog.length) {
-      sound.playGravitationalRumble(5.0);
+    } else if (def.index === 26) {
+      sound.playStructureCreak();
+    } else if (def.index === 40) {
+      sound.playFinalCosmicCollapse();
+      sound.playGravitationalRumble(6.0);
     } else {
       sound.playGravitationalRumble(3.2);
     }
@@ -435,11 +453,12 @@ export class CatastropheEventManager {
 
   public reset(): void {
     this.currentEventIndex = 0;
-    this.nextEventTime = 0;
+    this.nextEventTime = 0.1;
     this.activeEvent = null;
     this.eventHistory = [];
     this.previousElapsed = 0;
     this.currentElapsed = 0;
+    this.timelineElapsed = 0;
     this.absoluteCollapse = false;
     this.gravityStrength = 0.2;
     this.tidalForce = 0.15;
@@ -467,48 +486,9 @@ export class EvacuationTowerManager {
   public isSealed = false;
 
   public initialize(scene: THREE.Scene, entrancePos: THREE.Vector3, bay07Pos: THREE.Vector3): void {
-    if (this.towerRoot) {
-      scene.remove(this.towerRoot);
-      this.towerRoot.traverse(object => {
-        const mesh = object as THREE.Mesh;
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) {
-          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          materials.forEach(material => material.dispose());
-        }
-      });
-    }
     this.entranceCenter.copy(entrancePos);
     this.bay07Center.copy(bay07Pos);
     this.isSealed = false;
-
-    const root = new THREE.Group();
-    root.name = 'Submode10_EvacuationTower_B3_Parking';
-    root.position.copy(entrancePos);
-    const towerMat = new THREE.MeshStandardMaterial({ color: 0x17243a, emissive: 0x07101c, metalness: 0.82, roughness: 0.32 });
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x2e8ca8, emissive: 0x063746, metalness: 0.9, roughness: 0.2 });
-    const warningMat = new THREE.MeshStandardMaterial({ color: 0x32151a, emissive: 0x6b1018, metalness: 0.55, roughness: 0.4 });
-
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(34, 42, 120, 12), towerMat); tower.position.y = 60; root.add(tower);
-    const roof = new THREE.Mesh(new THREE.CylinderGeometry(39, 39, 4, 12), frameMat); roof.position.y = 121; root.add(roof);
-    const entrance = new THREE.Mesh(new THREE.BoxGeometry(34, 12, 20), frameMat); entrance.position.set(0, 6, 34); root.add(entrance);
-    const blastDoor = new THREE.Mesh(new THREE.BoxGeometry(30, 9, 2.5), warningMat); blastDoor.position.set(0, 5, 30); root.add(blastDoor);
-
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(18, 5, 105), towerMat); ramp.position.set(0, -7, -28); ramp.rotation.x = -0.12; root.add(ramp);
-    const basement = new THREE.Mesh(new THREE.BoxGeometry(72, 8, 130), towerMat); basement.position.set(0, -16, -72); root.add(basement);
-    const hangar = new THREE.Mesh(new THREE.BoxGeometry(58, 12, 70), towerMat); hangar.position.set(0, -9, -135); root.add(hangar);
-
-    const bay = new THREE.Mesh(new THREE.BoxGeometry(18, 0.6, 42), frameMat); bay.position.set(0, -2.5, -185); root.add(bay);
-    for (const x of [-9, 9]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 42), frameMat); rail.position.set(x, -1.7, -185); root.add(rail); }
-    const bayNumber = new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.MeshBasicMaterial({ color: 0x00eaff })); bayNumber.rotation.x = -Math.PI / 2; bayNumber.position.set(0, -1.95, -185); root.add(bayNumber);
-
-    const clampMat = new THREE.MeshStandardMaterial({ color: 0x5b6575, emissive: 0x15202e, metalness: 0.95, roughness: 0.2 });
-    const clampPositions: [number, number, number][] = [[-7.5,-1,-185],[7.5,-1,-185],[0,-1,-203],[0,-1,-167]];
-    clampPositions.forEach(([x,y,z], i) => { const clamp = new THREE.Mesh(new THREE.BoxGeometry(i < 2 ? 2.4 : 7, 2, i < 2 ? 7 : 2.4), clampMat); clamp.position.set(x,y,z); clamp.name = `PARKING_CLAMP_${i === 0 ? 'LEFT' : i === 1 ? 'RIGHT' : i === 2 ? 'FRONT' : 'REAR'}`; root.add(clamp); });
-
-    for (const x of [-24, 24]) { const pylon = new THREE.Mesh(new THREE.BoxGeometry(2, 16, 2), frameMat); pylon.position.set(x, 0, -150); root.add(pylon); const lamp = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 1), new THREE.MeshBasicMaterial({ color: 0x00eaff })); lamp.position.set(x, 8, -150); root.add(lamp); }
-    scene.add(root);
-    this.towerRoot = root;
   }
 
   public seal(): void {
@@ -543,7 +523,7 @@ export class EvacuationRouteManager {
   ): void {
     if (!evacuation.evacuationActive) {
       this.warningText = '';
-      this.objectiveText = evacuation.evacuationSuccess ? 'SAFE ZONE SECURED' : 'SURVIVE THE FIVE-MINUTE RACE';
+      this.objectiveText = evacuation.evacuationSuccess ? 'SAFE ZONE SECURED' : 'SURVIVE THE EIGHT-MINUTE QUANTUM COLLAPSE WINDOW';
       return;
     }
 
@@ -579,28 +559,28 @@ export class EvacuationRouteManager {
     // Objective chain
     switch (evacuation.evacuationState) {
       case 'TOWER_APPROACHING':
-        this.objectiveText = this.distanceToTowerM <= 160 ? 'REACH THE EVACUATION TOWER' : 'REACH THE SAFE ZONE';
+        this.objectiveText = this.distanceToTowerM <= 160 ? 'REACH THE ORBITAL LAUNCHER' : 'REACH THE QUANTUM LAUNCH ROUTE';
         break;
       case 'TOWER_ENTERED':
-        this.objectiveText = shelterZ <= -32 ? 'DESCEND TO BASEMENT B3' : 'ENTERED TOWER THRESHOLD';
+        this.objectiveText = shelterZ <= -32 ? 'MAGNETIC LOCK // ACCELERATION RING 1' : 'ORBITAL LAUNCHER ENTERED';
         break;
       case 'BASEMENT_ENTERED':
-        this.objectiveText = 'FOLLOW ACCESS RAMP TO HANGAR';
+        this.objectiveText = 'ACCELERATION RING 1 // BUILDING VELOCITY';
         break;
       case 'HANGAR_ENTERED':
-        this.objectiveText = 'LOCATE EVACUATION BAY 07';
+        this.objectiveText = 'ACCELERATION RING 2 // RING 3 AHEAD';
         break;
       case 'PARKING_BAY_ENTERED':
-        this.objectiveText = 'ALIGN SHIP WITH PARKING MARKER';
+        this.objectiveText = 'ACCELERATION RING 3 // FINAL BOOST';
         break;
       case 'SHIP_ALIGNED':
-        this.objectiveText = 'ALIGNMENT CONFIRMED — REDUCE SPEED';
+        this.objectiveText = 'ORBITAL GATE // ESCAPE VECTOR CALCULATING';
         break;
       case 'SHIP_PARKED':
-        this.objectiveText = 'SECURING SHIP // CLAMPS ENGAGING';
+        this.objectiveText = 'ESCAPE VECTOR // DOCKING BAY APPROACH';
         break;
       case 'SHIP_SECURED':
-        this.objectiveText = 'SAFE ZONE SECURED // EVACUATION COMPLETE';
+        this.objectiveText = 'SHIP SECURED // ORBITAL ESCAPE COMPLETE';
         break;
     }
   }
@@ -1170,9 +1150,9 @@ export class FinalCollapseManager {
   public readonly aiEvacuation: AIEvacuationController;
 
   // Backward compatibility fields with previous system
-  public phase = 'FIVE_MINUTE_RACE';
+  public phase = 'EIGHT_MINUTE_QUANTUM_LAUNCH';
   public elapsed = 0;
-  public readonly raceDuration = 3000;
+  public readonly raceDuration = 480;
   public collapseProgress = 0;
   public destructionFrontDistance = Number.POSITIVE_INFINITY;
   public safeZoneActive = false;
@@ -1197,7 +1177,7 @@ export class FinalCollapseManager {
   }
 
   public start(): void {
-    this.phase = 'FIFTY_MINUTE_RACE';
+    this.phase = 'EIGHT_MINUTE_QUANTUM_LAUNCH';
     this.elapsed = 0;
     this.collapseProgress = 0;
     this.destructionFrontDistance = 2500;
@@ -1221,7 +1201,7 @@ export class FinalCollapseManager {
   }
 
   public onZeroCountdown(): void {
-    this.phase = 'EVACUATION_PROTOCOL';
+    this.phase = 'QUANTUM_LAUNCH_ACTIVE';
     this.safeZoneActive = true;
     this.evacuation.startEvacuation();
   }
@@ -1253,7 +1233,7 @@ export class FinalCollapseManager {
     this.elapsed += delta;
 
     if (this.evacuation.evacuationActive) {
-      this.collapseProgress = Math.min(1.0, this.evacuation.evacuationElapsedTime / 300);
+      this.collapseProgress = Math.min(1.0, this.evacuation.evacuationElapsedTime / 480);
     }
 
     if (!playerContext) {
@@ -1269,8 +1249,9 @@ export class FinalCollapseManager {
     // 1. Update Evacuation Lifecycle
     this.evacuation.update(delta);
 
-    // 2. Update Catastrophe Events (Exact 15 threshold events)
-    this.catastrophe.update(delta, this.evacuation);
+    // 2. Update Catastrophe Events against the same 08:00 QLP clock used by HUD.
+    const qlpTimeline = Math.min(this.raceDuration, this.elapsed);
+    this.catastrophe.update(delta, this.evacuation, qlpTimeline);
 
     // 3. Update Destruction Front
     const frontCaughtPlayer = this.destructionFront.update(
@@ -1313,7 +1294,7 @@ export class FinalCollapseManager {
     if (this.evacuation.evacuationActive && !this.evacuation.evacuationSuccess && !this.evacuation.evacuationFailed) {
       if (this.tower.isSealed && !this.evacuation.towerEntryReached) {
         this.triggerFailure('TOWER_ENTRANCE_SEALED', false, playerContext.position);
-      } else if (this.evacuation.evacuationElapsedTime >= 300) {
+      } else if (this.evacuation.evacuationElapsedTime >= 480) {
         if (!this.evacuation.towerEntryReached) {
           this.triggerFailure('EVACUATION_DEADLINE_EXPIRED', false, playerContext.position);
         } else if (!this.evacuation.basementEntryReached) {
@@ -1552,6 +1533,7 @@ export class FinalCollapseManager {
       activeEventTitle: this.catastrophe.activeEvent?.title ?? null,
       activeEventSubtitle: this.catastrophe.activeEvent?.subtitle ?? null,
       eventPhase: this.catastrophe.activeEvent?.phase ?? null,
+      hazardEscalation: Math.round(this.catastrophe.hazardEscalation * 100) / 100,
       eventHistory: [...this.catastrophe.eventHistory],
       safeZoneDistanceM: this.routeManager.distanceToTowerM,
       safeZoneWarning: this.routeManager.warningText,

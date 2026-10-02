@@ -68,6 +68,15 @@ export class RaceIntroManager {
     this.director.skip();
   }
 
+  /**
+   * Recovery path that preserves the mandatory 3-2-1-GO race countdown.
+   * Used only when a non-critical cinematic/visual setup fails.
+   */
+  public forceCountdown() {
+    this.isControlsLocked = true;
+    this.director.setPhase('COUNTDOWN');
+  }
+
   public getGridSlot(racerId: string) {
     return this.director.startingGridManager.getSlot(racerId);
   }

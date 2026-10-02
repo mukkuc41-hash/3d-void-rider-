@@ -64,6 +64,12 @@ export const FinalCollapseResultsModal: React.FC<FinalCollapseResultsModalProps>
               : 'YOU DID NOT REACH THE SAFE ZONE'}
           </p>
 
+          {isSurvived && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-950/30 px-4 py-2 text-xs font-black tracking-[0.2em] text-cyan-200">
+              40 / 40 EVENTS SURVIVED • ESCAPE SUCCESSFUL • SHIP SECURED
+            </div>
+          )}
+
           {!isSurvived && stats.failureCause && (
             <div className="mt-2 text-xs font-bold text-red-300 bg-red-950/50 py-1 px-3 rounded-lg border border-red-500/40 inline-block">
               FAILURE CAUSE: <span className="text-white">{stats.failureCause.replace(/_/g, ' ')}</span>

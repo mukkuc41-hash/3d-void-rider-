@@ -44,6 +44,9 @@ export interface Mode21BlackHoleConfig {
   escapeRouteRequired: boolean;
   timeLimitSeconds?: number;
   finalFiveMinuteSequence?: boolean;
+  /** Submode 10 only: hazards continuously increase with the 08:00 clock; no difficulty tiers. */
+  continuousHazardEscalation?: { startMultiplier: number; endMultiplier: number; curveExponent: number };
+  terminalRouteCount?: number;
 }
 
 const sector = (
@@ -263,19 +266,21 @@ export const MODE21_BLACK_HOLE_CONFIGS: Record<
     submodeId: 'FINAL_COLLAPSE',
     submodeNumber: 10,
     displayName: '10 — THE FINAL COLLAPSE',
-    objective: 'Survive exactly five minutes, then reach the emergency evacuation tower and sealed safe zone before the final collapse.',
-    trackTheme: 'Five-minute collapsing universe and emergency evacuation route',
+    objective: 'Survive the 08:00 Quantum Launch Pro collapse window, then physically reach the Orbital Launcher and secure the ship in the station bay before absolute destruction.',
+    trackTheme: 'Eight-minute collapsing universe with Orbital Launcher escape architecture',
     trackLengthMeters: 18000,
     minimumSectors: 6,
-    sectors: baseSectors(['Countdown Sector', 'Tidal Sector', 'Collapse Sector', 'Planetary Drift', 'Evacuation Route', 'Tower Approach'], 1.65).map((s, i) => i === 5 ? { ...s, safeRoute: 'EMERGENCY-TOWER-BASEMENT', riskyRoute: 'COLLAPSE-FRONT' } : s),
+    sectors: baseSectors(['Quantum Launch', 'Tidal Sector', 'Planetary Collision', 'Collapsing Route', 'Orbital Launcher', 'Station Escape'], 1.65).map((s, i) => i === 4 ? { ...s, safeRoute: 'ORBITAL-LAUNCHER', riskyRoute: 'COLLAPSE-FRONT' } : i === 5 ? { ...s, safeRoute: 'STATION-DOCK', riskyRoute: 'HORIZON-PULL' } : s),
     dangerStates: ['SAFE', 'WARNING', 'DANGER', 'CRITICAL', 'COLLAPSE'],
     blackHoleRadius: 1450,
     eventHorizonRadius: 760,
     gravityStrength: 2.0,
     aiIntensity: 1.35,
     escapeRouteRequired: true,
-    timeLimitSeconds: 300,
+    timeLimitSeconds: 480,
     finalFiveMinuteSequence: true,
+    terminalRouteCount: 2,
+    continuousHazardEscalation: { startMultiplier: 1.0, endMultiplier: 2.2, curveExponent: 1.35 },
   },
 };
 

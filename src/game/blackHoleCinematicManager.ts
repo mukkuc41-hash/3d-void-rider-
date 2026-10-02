@@ -154,6 +154,12 @@ export interface BlackHoleCinematicTelemetry {
   towerApproach?: TowerApproachTelemetry;
   stats?: FinalCollapseStats;
   evacuation?: EvacuationTelemetry;
+  /** Submode 10 only: canonical 40-event alert data. */
+  quantumEventIndex?: number;
+  quantumEventTitle?: string | null;
+  quantumEventSubtitle?: string | null;
+  quantumEventPhase?: string | null;
+  quantumEventSeverity?: number;
 }
 
 export interface BlackHoleCinematicOptions {
@@ -232,8 +238,13 @@ export class BlackHoleCinematicManager {
   public readonly blackHoleCenter: THREE.Vector3;
   public blackHoleStatus: 'STABLE' | 'CRITICAL' | 'COLLAPSED' = 'STABLE';
 
-  private finalCountdownInitial = 3000;
+  private finalCountdownInitial = 480;
   private completed = false;
+  private quantumEventIndex = 0;
+  private quantumEventTitle: string | null = null;
+  private quantumEventSubtitle: string | null = null;
+  private quantumEventPhase: string | null = null;
+  private quantumEventSeverity = 0;
 
   /** Final Collapse 5-minute stage state. */
   public finalCollapseStage = 1;
@@ -297,27 +308,29 @@ export class BlackHoleCinematicManager {
     if (event === 'FINAL_SINGULARITY' || event === 'FINAL_SINGULARITY_WARNING') {
       this.trackCollapseProgress = 0;
     }
-    if (event === 'EVACUATION' || event === 'TOWER_ENTRY') {
+    if (event === 'EVACUATION' || event === 'TOWER_ENTRY' || event === 'ESCAPE_SEQUENCE') {
       this.escapeRouteActive = true;
-      this.objective = 'REACH THE SAFE ZONE';
+      this.objective = event === 'ESCAPE_SEQUENCE'
+        ? 'HORIZON BREAK // REACH ORBITAL LAUNCHER'
+        : 'REACH THE QUANTUM LAUNCH ROUTE';
     }
     if (event === 'TOWER_APPROACH') {
-      this.objective = 'SAFE ZONE REACHED // EVACUATION TOWER AHEAD';
+      this.objective = 'ORBITAL LAUNCHER AHEAD // MAGNETIC LOCK';
     }
     if (event === 'BASEMENT_ENTRY') {
-      this.objective = 'EVACUATION IN PROGRESS // ENTER BASEMENT';
+      this.objective = 'MAGNETIC LOCK // ACCELERATION RING 1';
     }
     if (event === 'BASEMENT_DESCENT') {
-      this.objective = 'DESCENDING TO EVACUATION LEVEL: B3';
+      this.objective = 'ACCELERATION RING 1 // RING 2 AHEAD';
     }
     if (event === 'HANGAR_ENTRY' || event === 'PARKING_ALIGNMENT') {
-      this.objective = 'EVACUATION BAY 07 // ALIGN SHIP WITH PARKING MARKER';
+      this.objective = 'ACCELERATION RING 3 // ORBITAL GATE AHEAD';
     }
     if (event === 'SHIP_PARKING') {
-      this.objective = 'SHIP PARKING CONFIRMED';
+      this.objective = 'ORBITAL GATE // ESCAPE VECTOR LOCKED';
     }
     if (event === 'SHIP_SECURED') {
-      this.objective = 'SHIP SECURED // CLAMPS LOCKED';
+      this.objective = 'SHIP SECURED // ESCAPE COMPLETE';
     }
     if (event === 'SHELTER_SEALED') {
       this.objective = 'SAFE ZONE SEALED // SHELTER STATUS: SECURE';
@@ -368,20 +381,28 @@ export class BlackHoleCinematicManager {
     this.blackHoleStatus = 'STABLE';
   }
 
-  /** Starts the exact 50:00 (3000 seconds) countdown for submode 10. */
+  /** Starts the exact 08:00 (480 seconds) Quantum Launch Pro countdown for submode 10. */
   public startFinalFiveMinuteCountdown(): void {
-    this.finalCountdownSeconds = 3000;
+    // Keep this timer independent from the cinematic event state. Starting
+    // PRE_RACE/other presentation events must never hide or reset the clock.
+    this.finalCountdownInitial = 480;
+    this.finalCountdownSeconds = this.finalCountdownInitial;
     this.event = 'NONE';
     this.eventElapsed = 0;
     this.danger = 'SAFE';
     this.trackCollapseProgress = 0;
     this.destructionFrontDistance = null;
-    this.objective = 'SURVIVE THE FIVE-MINUTE RACE';
+    this.objective = 'SURVIVE THE EIGHT-MINUTE QUANTUM COLLAPSE WINDOW';
     this.escapeRouteActive = false;
     this.completed = false;
     this.finalCollapseStage = 1;
     this.finalCollapseStageElapsed = 0;
     this.blackHoleStatus = 'STABLE';
+    this.quantumEventIndex = 0;
+    this.quantumEventTitle = null;
+    this.quantumEventSubtitle = null;
+    this.quantumEventPhase = null;
+    this.quantumEventSeverity = 0;
     this.cameraOverride = false;
     this.gameplayLocked = false;
   }
@@ -402,13 +423,13 @@ export class BlackHoleCinematicManager {
     this.elapsed += delta;
     this.eventElapsed += delta;
 
-    // 50-minute countdown management
+    // 8-minute countdown management
     if (this.finalCountdownSeconds !== null && this.finalCountdownSeconds > 0) {
       this.finalCountdownSeconds = Math.max(0, this.finalCountdownSeconds - delta);
       this.finalCollapseStageElapsed += delta;
 
       // STRICT REQUIREMENT:
-      // "For the first 5 minutes: Normal racing...
+      // "During the full 08:00 window: normal racing continues while catastrophe events progressively intensify...
       //  Do NOT start the catastrophe before 00:00."
       if (this.finalCountdownSeconds <= 0) {
         // EXACTLY 00:00 — Trigger the catastrophe!
@@ -566,6 +587,15 @@ export class BlackHoleCinematicManager {
 
   public isEventComplete(): boolean { return this.completed; }
 
+  /** Injects the authoritative Submode-10 40-event state for HUD alerts. */
+  public setQuantumEventTelemetry(data: { index: number; title: string | null; subtitle: string | null; phase: string | null; severity: number }): void {
+    this.quantumEventIndex = data.index;
+    this.quantumEventTitle = data.title;
+    this.quantumEventSubtitle = data.subtitle;
+    this.quantumEventPhase = data.phase;
+    this.quantumEventSeverity = data.severity;
+  }
+
   public getTelemetry(): BlackHoleCinematicTelemetry {
     const duration = EVENT_DURATIONS[this.event] || 0;
     return {
@@ -592,6 +622,11 @@ export class BlackHoleCinematicManager {
       towerApproach: this.towerApproachTelemetry ?? undefined,
       stats: this.finalCollapseStats ?? undefined,
       evacuation: this.evacuationTelemetry ?? undefined,
+      quantumEventIndex: this.quantumEventIndex,
+      quantumEventTitle: this.quantumEventTitle,
+      quantumEventSubtitle: this.quantumEventSubtitle,
+      quantumEventPhase: this.quantumEventPhase,
+      quantumEventSeverity: this.quantumEventSeverity,
     };
   }
 

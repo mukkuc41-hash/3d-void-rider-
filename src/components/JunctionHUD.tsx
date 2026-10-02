@@ -28,6 +28,7 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
   if (!telemetry || telemetry.status === 'PASSED') return null;
 
   const isApproaching = telemetry.status === 'APPROACHING' || telemetry.isApproaching;
+  const isFinalCollapseFork = telemetry.junctionId === 'final_collapse_tower_access';
   const selectedRoute = telemetry.availableRoutes.find(r => r.id === telemetry.selectedRouteId);
 
   // If in branch, show current route progress bar
@@ -246,90 +247,125 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
         </div>
       )}
 
-      {/* DEDICATED LEFT / CENTER / RIGHT BUTTONS STRIP */}
-      <div
-        id="dedicated-route-selection-strip"
-        className="w-full max-w-xl flex items-center justify-center gap-2 mb-2 px-1"
-      >
-        {/* Dedicated LEFT button */}
-        <button
-          id="btn-route-select-left"
-          type="button"
-          onPointerDown={(e) => handleSelect('LEFT', e)}
-          onClick={(e) => handleSelect('LEFT', e)}
-          className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
-            isLeftSelected
-              ? 'bg-cyan-500 text-slate-950 border-cyan-300 shadow-[0_0_25px_rgba(0,240,255,0.7)] scale-[1.02] ring-2 ring-white'
-              : 'bg-slate-950/90 text-cyan-300 border-cyan-500/40 hover:border-cyan-400 hover:bg-cyan-950/50'
-          }`}
+      {/* FINAL COLLAPSE: one common start -> two separate terminal ends.
+          The large arrow controls are the route controller; clicking one selects
+          the corresponding physical branch. No CENTER route or confirm button is
+          offered for Submode 10. */}
+      {isFinalCollapseFork ? (
+        <div
+          id="final-collapse-two-route-arrow-controller"
+          className="w-full max-w-2xl flex items-stretch justify-center gap-3 mb-2 px-1"
         >
-          <ArrowLeft className="w-4 h-4 stroke-[3]" />
-          <span>LEFT</span>
-          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isLeftSelected ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>
-            A
-          </span>
-        </button>
+          <button
+            id="btn-final-collapse-route-1"
+            type="button"
+            onClick={(e) => handleSelect('LEFT', e)}
+            aria-label="Select Route 1 Orbital Launcher"
+            className={`flex-1 min-h-16 sm:min-h-20 py-3 px-3 rounded-2xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
+              isLeftSelected
+                ? 'bg-cyan-500 text-slate-950 border-cyan-200 shadow-[0_0_35px_rgba(0,240,255,0.8)] scale-[1.02] ring-2 ring-white'
+                : 'bg-slate-950/95 text-cyan-300 border-cyan-400/70 hover:border-cyan-200 hover:bg-cyan-950/70'
+            }`}
+          >
+            <ArrowLeft className="w-7 h-7 sm:w-9 sm:h-9 stroke-[3]" />
+            <span className="flex flex-col items-start">
+              <span className="text-[10px] sm:text-xs opacity-80">ROUTE 01</span>
+              <span>ORBITAL LAUNCHER</span>
+            </span>
+          </button>
 
-        {/* Dedicated CENTER button */}
-        <button
-          id="btn-route-select-center"
-          type="button"
-          onPointerDown={(e) => handleSelect('CENTER', e)}
-          onClick={(e) => handleSelect('CENTER', e)}
-          className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
-            isCenterSelected
-              ? 'bg-sky-500 text-slate-950 border-sky-300 shadow-[0_0_25px_rgba(56,189,248,0.7)] scale-[1.02] ring-2 ring-white'
-              : 'bg-slate-950/90 text-sky-300 border-sky-500/40 hover:border-sky-400 hover:bg-sky-950/50'
-          }`}
+          <button
+            id="btn-final-collapse-route-2"
+            type="button"
+            onClick={(e) => handleSelect('RIGHT', e)}
+            aria-label="Select Route 2 Emergency Escape"
+            className={`flex-1 min-h-16 sm:min-h-20 py-3 px-3 rounded-2xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
+              isRightSelected
+                ? 'bg-fuchsia-500 text-slate-950 border-fuchsia-200 shadow-[0_0_35px_rgba(217,70,239,0.8)] scale-[1.02] ring-2 ring-white'
+                : 'bg-slate-950/95 text-fuchsia-300 border-fuchsia-400/70 hover:border-fuchsia-200 hover:bg-fuchsia-950/70'
+            }`}
+          >
+            <span className="flex flex-col items-end">
+              <span className="text-[10px] sm:text-xs opacity-80">ROUTE 02</span>
+              <span>EMERGENCY ESCAPE</span>
+            </span>
+            <ArrowRight className="w-7 h-7 sm:w-9 sm:h-9 stroke-[3]" />
+          </button>
+        </div>
+      ) : (
+        <div
+          id="dedicated-route-selection-strip"
+          className="w-full max-w-xl flex items-center justify-center gap-2 mb-2 px-1"
         >
-          <ArrowUp className="w-4 h-4 stroke-[3]" />
-          <span>CENTER</span>
-          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isCenterSelected ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>
-            W
-          </span>
-        </button>
+          {/* Dedicated LEFT button */}
+          <button
+            id="btn-route-select-left"
+            type="button"
+            onClick={(e) => handleSelect('LEFT', e)}
+            className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
+              isLeftSelected
+                ? 'bg-cyan-500 text-slate-950 border-cyan-300 shadow-[0_0_25px_rgba(0,240,255,0.7)] scale-[1.02] ring-2 ring-white'
+                : 'bg-slate-950/90 text-cyan-300 border-cyan-500/40 hover:border-cyan-400 hover:bg-cyan-950/50'
+            }`}
+          >
+            <ArrowLeft className="w-4 h-4 stroke-[3]" />
+            <span>LEFT</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isLeftSelected ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>A</span>
+          </button>
 
-        {/* Dedicated RIGHT button */}
-        <button
-          id="btn-route-select-right"
-          type="button"
-          onPointerDown={(e) => handleSelect('RIGHT', e)}
-          onClick={(e) => handleSelect('RIGHT', e)}
-          className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
-            isRightSelected
-              ? 'bg-fuchsia-500 text-slate-950 border-fuchsia-300 shadow-[0_0_25px_rgba(217,70,239,0.7)] scale-[1.02] ring-2 ring-white'
-              : 'bg-slate-950/90 text-fuchsia-300 border-fuchsia-500/40 hover:border-fuchsia-400 hover:bg-fuchsia-950/50'
-          }`}
-        >
-          <span>RIGHT</span>
-          <ArrowRight className="w-4 h-4 stroke-[3]" />
-          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isRightSelected ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>
-            D
-          </span>
-        </button>
+          {/* Dedicated CENTER button */}
+          <button
+            id="btn-route-select-center"
+            type="button"
+            onClick={(e) => handleSelect('CENTER', e)}
+            className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
+              isCenterSelected
+                ? 'bg-sky-500 text-slate-950 border-sky-300 shadow-[0_0_25px_rgba(56,189,248,0.7)] scale-[1.02] ring-2 ring-white'
+                : 'bg-slate-950/90 text-sky-300 border-sky-500/40 hover:border-sky-400 hover:bg-sky-950/50'
+            }`}
+          >
+            <ArrowUp className="w-4 h-4 stroke-[3]" />
+            <span>CENTER</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isCenterSelected ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>W</span>
+          </button>
 
-        {/* Dedicated LOCK/CONFIRM button */}
-        <button
-          id="btn-route-confirm-lock"
-          type="button"
-          onPointerDown={handleCommit}
-          onClick={handleCommit}
-          className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl border-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-ui font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_20px_rgba(245,158,11,0.5)] active:scale-95 transition-all"
-        >
-          <Lock className="w-3.5 h-3.5 fill-slate-950" />
-          <span className="hidden sm:inline">LOCK</span>
-          <span className="text-[10px] font-mono bg-slate-950/30 px-1 py-0.5 rounded text-slate-950 font-bold">
-            E
-          </span>
-        </button>
-      </div>
+          {/* Dedicated RIGHT button */}
+          <button
+            id="btn-route-select-right"
+            type="button"
+            onClick={(e) => handleSelect('RIGHT', e)}
+            className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
+              isRightSelected
+                ? 'bg-fuchsia-500 text-slate-950 border-fuchsia-300 shadow-[0_0_25px_rgba(217,70,239,0.7)] scale-[1.02] ring-2 ring-white'
+                : 'bg-slate-950/90 text-fuchsia-300 border-fuchsia-500/40 hover:border-fuchsia-400 hover:bg-fuchsia-950/50'
+            }`}
+          >
+            <span>RIGHT</span>
+            <ArrowRight className="w-4 h-4 stroke-[3]" />
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isRightSelected ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>D</span>
+          </button>
+
+          {/* Dedicated LOCK/CONFIRM button */}
+          <button
+            id="btn-route-confirm-lock"
+            type="button"
+            onClick={handleCommit}
+            className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl border-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-ui font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_20px_rgba(245,158,11,0.5)] active:scale-95 transition-all"
+          >
+            <Lock className="w-3.5 h-3.5 fill-slate-950" />
+            <span className="hidden sm:inline">LOCK</span>
+            <span className="text-[10px] font-mono bg-slate-950/30 px-1 py-0.5 rounded text-slate-950 font-bold">E</span>
+          </button>
+        </div>
+      )}
 
       {/* Full Detailed Route Choice Cards */}
       <div className="flex items-stretch justify-center gap-2 sm:gap-3 max-w-3xl w-full">
         {telemetry.availableRoutes.map((route: BranchRouteConfig) => {
           const isSelected = route.id === telemetry.selectedRouteId;
           const theme = getRouteTheme(route.direction, route.isShortcut || !!route.hasShortcut);
-          const riskInfo = getRiskBadge(route.riskLevel || (route as any).difficulty || 'MEDIUM');
+          const isFinalCollapseTerminal = route.id.startsWith('bh10_');
+          const riskInfo = getRiskBadge(route.riskLevel || 'MEDIUM');
           const boostPads =
             route.boostPadCount ??
             (route.boostPadFractions?.length || (route.hasBoostPads ? 2 : 0));
@@ -393,9 +429,13 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
                 {/* Tactical Badges */}
                 <div className="flex flex-wrap items-center gap-1 mt-1">
                   <span
-                    className={`text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded border ${riskInfo.color}`}
+                    className={`text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded border ${
+                      isFinalCollapseTerminal
+                        ? 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/40'
+                        : riskInfo.color
+                    }`}
                   >
-                    {riskInfo.label}
+                    {isFinalCollapseTerminal ? 'DYNAMIC HAZARDS' : riskInfo.label}
                   </span>
                   <span
                     className={`text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded border ${

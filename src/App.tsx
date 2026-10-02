@@ -66,6 +66,7 @@ import { championshipManager } from './game/championshipManager';
 import { CinematicIntroOverlay } from './components/CinematicIntroOverlay';
 import { IntroHUDTelemetry } from './game/cinematicIntro/cinematicTypes';
 import { CinematicEventHUD } from './components/CinematicEventHUD';
+import { QuantumEventAlertHUD } from './components/QuantumEventAlertHUD';
 import { ActiveCinematicState, ExtendedPathTelemetry } from './game/extendedPath/extendedPathTypes';
 import { FinishCinematicOverlay } from './components/FinishCinematicOverlay';
 import { FinishCinematicTelemetry } from './game/fullRouteCinematic/finishCinematicManager';
@@ -516,7 +517,8 @@ export default function App() {
           dir = 'LEFT';
         } else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
           dir = 'RIGHT';
-        } else if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        } else if ((e.code === 'KeyW' || e.code === 'ArrowUp') &&
+                   engineRef.current.junctionManager.activeJunctionTelemetry?.junctionId !== 'final_collapse_tower_access') {
           dir = 'CENTER';
         } else if (e.code === 'KeyE') {
           engineRef.current.junctionManager.commitRoute();
@@ -1394,7 +1396,7 @@ export default function App() {
             blackHoleCinematicTelemetry.event !== 'SURVIVAL_RESULTS' && (
             <div className="fixed inset-x-0 top-3 z-[65] flex flex-col items-center px-3 pointer-events-none">
             {blackHoleCinematicTelemetry.finalCountdown !== null && blackHoleCinematicTelemetry.finalCountdown > 0 ? (
-              /* Phase 1: 5-Minute Race Normal Countdown */
+              /* Phase 1: 8-Minute Quantum Launch Pro Countdown */
               <div className="w-full max-w-xl rounded-2xl border border-cyan-500/50 bg-[#040814]/90 px-5 py-3 text-center shadow-[0_0_35px_rgba(6,182,212,0.25)] backdrop-blur-md">
                 <div className="flex items-center justify-between gap-2 border-b border-cyan-500/20 pb-1.5 text-[10px] font-mono font-black tracking-[0.25em] text-cyan-300">
                   <span>SINGULARITY COLLAPSE</span>
@@ -1417,7 +1419,7 @@ export default function App() {
                   <button
                     onClick={() => engineRef.current?.triggerFinalCollapseImmediately()}
                     className="pointer-events-auto rounded-lg border border-amber-500/60 bg-amber-950/40 px-2 py-0.5 text-[9px] font-bold text-amber-300 hover:bg-amber-900/60 transition-colors"
-                    title="Skip the 5-minute race timer and trigger 00:00 Singularity Collapse immediately for testing"
+                    title="Skip the 8-minute race timer and trigger 00:00 Singularity Collapse immediately for testing"
                   >
                     ⏩ SKIP TO 00:00 (TRIGGER COLLAPSE)
                   </button>
@@ -1622,6 +1624,14 @@ export default function App() {
 
       {/* Arcade Collision Feedback HUD */}
       {appState === 'RACING' && <CollisionHUD feedback={collisionFeedback} />}
+
+      {/* Mode 21 / Black Hole / Submode 10 — 40-event warnings & alerts */}
+      {appState === 'RACING' && (
+        <QuantumEventAlertHUD
+          telemetry={blackHoleCinematicTelemetry}
+          isRacing={appState === 'RACING'}
+        />
+      )}
 
       {/* Mode 21 — The Final Collapse Failure Cinematic Overlay */}
       {blackHoleCinematicTelemetry?.evacuation && (

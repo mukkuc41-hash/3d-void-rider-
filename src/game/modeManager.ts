@@ -123,7 +123,7 @@ export class ModeManager {
   // Mode 21: Black Hole / Quantum Launch Pro
   public blackHoleSubmode = 1;
   public blackHoleDanger: 'SAFE' | 'WARNING' | 'DANGER' | 'CRITICAL' | 'COLLAPSE' = 'SAFE';
-  public finalSingularityCountdown = 3000;
+  public finalSingularityCountdown = 480;
 
   constructor(mode: GameMode = 'NEON_CIRCUIT') {
     this.setMode(mode);
@@ -152,7 +152,7 @@ export class ModeManager {
     this.championshipPoints = 0;
     this.blackHoleSubmode = 1;
     this.blackHoleDanger = 'SAFE';
-    this.finalSingularityCountdown = 3000;
+    this.finalSingularityCountdown = 480;
   }
 
   public update(dt: number, shipSpeed: number, isBoosting: boolean, isDrifting: boolean): ModeHUDTelemetry {
@@ -447,7 +447,7 @@ export class ModeManager {
 
       case 'BLACK_HOLE': {
         // Mode 21 uses one main mode with ten Quantum Launch Pro submodes.
-        // Submode 10 is the mandatory five-minute Final Collapse.
+        // Submode 10 is the mandatory eight-minute Final Collapse.
         const submodeNames = [
           '01 — SINGULARITY DESCENT',
           '02 — GRAVITY SLINGSHOT',
@@ -462,7 +462,7 @@ export class ModeManager {
         ];
 
         if (this.blackHoleSubmode === 10) {
-          this.finalSingularityCountdown = Math.max(0, 3000 - this.modeTimer);
+          this.finalSingularityCountdown = Math.max(0, 480 - this.modeTimer);
           if (this.finalSingularityCountdown <= 0) {
             this.blackHoleDanger = 'COLLAPSE';
           } else {
@@ -483,7 +483,7 @@ export class ModeManager {
           secondaryMetricLabel: 'DANGER STATE',
           secondaryMetricValue: this.blackHoleDanger,
           progressPercent: this.blackHoleSubmode === 10
-            ? Math.min(100, (this.modeTimer / 3000) * 100)
+            ? Math.min(100, (this.modeTimer / 480) * 100)
             : Math.min(100, (this.modeTimer / 90) * 100),
           warningAlert: this.blackHoleDanger === 'CRITICAL' || this.blackHoleDanger === 'COLLAPSE'
             ? 'CRITICAL SINGULARITY // ESCAPE ROUTE ACTIVE'
@@ -529,7 +529,7 @@ export class ModeManager {
     this.blackHoleSubmode = Math.max(1, Math.min(10, Math.floor(submode)));
     this.modeTimer = 0;
     this.blackHoleDanger = 'SAFE';
-    this.finalSingularityCountdown = 3000;
+    this.finalSingularityCountdown = 480;
   }
 
   public setBlackHoleDanger(state: 'SAFE' | 'WARNING' | 'DANGER' | 'CRITICAL' | 'COLLAPSE') {
