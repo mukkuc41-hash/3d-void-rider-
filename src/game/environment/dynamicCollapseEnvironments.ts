@@ -72,6 +72,19 @@ export class DynamicCollapseEnvironmentsManager {
   private planetA: THREE.Mesh | null = null;
   private moon1: THREE.Mesh | null = null;
 
+  // Submode 10 planetary collection / spaghettification set. These bodies are
+  // pulled toward the singularity and stretched along the local gravity axis.
+  private collectedPlanets: {
+    group: THREE.Group;
+    core: THREE.Mesh;
+    atmosphere: THREE.Mesh;
+    orbitRadius: number;
+    orbitAngle: number;
+    baseScale: THREE.Vector3;
+    seed: number;
+    collected: boolean;
+  }[] = [];
+
   // Single Majestic Background Arch (framing the sky without blocking track)
   private majesticArch: THREE.Mesh | null = null;
 
@@ -126,6 +139,7 @@ export class DynamicCollapseEnvironmentsManager {
     // Build curated, decluttered world elements
     this.buildStreamlinedDebrisSystem();
     this.buildCleanCelestialLandmarks();
+    this.buildPlanetaryCollectionSystem();
     this.buildSingleMajesticArch();
     this.buildDistantOrbitalStation();
     this.buildSubtleSpaceDust();
@@ -226,6 +240,74 @@ export class DynamicCollapseEnvironmentsManager {
     group.add(this.moon1);
 
     this.envGroups.set(2, group);
+    this.root.add(group);
+  }
+
+  /* =========================================================================
+     2B. PLANETARY COLLECTION + SPAGHETTIFICATION (SUBMODE 10)
+     ========================================================================= */
+  private buildPlanetaryCollectionSystem(): void {
+    const group = new THREE.Group();
+    group.name = 'Submode10_PlanetaryCollection';
+
+    const planetSpecs = [
+      { radius: 180, distance: 2100, angle: 0.35, color: 0x2dd4bf, seed: 0.7 },
+      { radius: 120, distance: 2750, angle: 2.1, color: 0xa78bfa, seed: 1.4 },
+      { radius: 150, distance: 3300, angle: 4.0, color: 0xf59e0b, seed: 2.2 },
+      { radius: 95, distance: 3900, angle: 5.35, color: 0x38bdf8, seed: 3.1 },
+    ];
+
+    for (const spec of planetSpecs) {
+      const planetGroup = new THREE.Group();
+      planetGroup.name = 'CollectedPlanet';
+
+      const core = new THREE.Mesh(
+        new THREE.SphereGeometry(spec.radius, 24, 18),
+        new THREE.MeshStandardMaterial({
+          color: spec.color,
+          roughness: 0.72,
+          metalness: 0.08,
+          emissive: spec.color,
+          emissiveIntensity: 0.08,
+        })
+      );
+
+      const atmosphere = new THREE.Mesh(
+        new THREE.SphereGeometry(spec.radius * 1.08, 20, 16),
+        new THREE.MeshBasicMaterial({
+          color: spec.color,
+          transparent: true,
+          opacity: 0.10,
+          side: THREE.BackSide,
+        })
+      );
+
+      planetGroup.add(core);
+      planetGroup.add(atmosphere);
+
+      const offset = new THREE.Vector3(
+        Math.cos(spec.angle) * spec.distance,
+        220 + Math.sin(spec.angle * 1.7) * 650,
+        this.blackHoleCenter.z + Math.sin(spec.angle) * spec.distance
+      );
+      offset.x += this.blackHoleCenter.x;
+      offset.y += this.blackHoleCenter.y;
+      planetGroup.position.copy(offset);
+      group.add(planetGroup);
+
+      this.collectedPlanets.push({
+        group: planetGroup,
+        core,
+        atmosphere,
+        orbitRadius: spec.distance,
+        orbitAngle: spec.angle,
+        baseScale: new THREE.Vector3(1, 1, 1),
+        seed: spec.seed,
+        collected: false,
+      });
+    }
+
+    this.envGroups.set(11, group);
     this.root.add(group);
   }
 
@@ -425,6 +507,10 @@ export class DynamicCollapseEnvironmentsManager {
       this.moon1.position.z += Math.sin(this.elapsedSeconds * 0.1) * delta * 15;
     }
 
+    // 2B. Planetary collection and progressive tidal spaghettification.
+    // Collection begins mid-collapse and intensifies through the final events.
+    this.updatePlanetaryCollection(delta, activeEventIndex);
+
     // 3. Majestic Arch subtle tidal flex
     if (this.majesticArch && activeEventIndex >= 3) {
       const bend = Math.min(0.12, (activeEventIndex - 2) * 0.008);
@@ -476,6 +562,63 @@ export class DynamicCollapseEnvironmentsManager {
   /* -------------------------------------------------------------------------
      Subsystem Updaters
      ------------------------------------------------------------------------- */
+  private updatePlanetaryCollection(dt: number, activeEvent: number): void {
+    if (this.collectedPlanets.length === 0) return;
+
+    // Keep the first events scenic; planetary collection becomes visible as the
+    // black hole reaches the planetary-fragment phase (events 22+).
+    const collectionProgress = THREE.MathUtils.clamp((activeEvent - 21) / 19, 0, 1);
+    const tidalProgress = THREE.MathUtils.clamp((activeEvent - 23) / 17, 0, 1);
+
+    this.collectedPlanets.forEach((planet, index) => {
+      const phase = planet.seed + this.elapsedSeconds * (0.035 + index * 0.006);
+      const pull = collectionProgress * collectionProgress;
+      const orbitRadius = THREE.MathUtils.lerp(planet.orbitRadius, 420 + index * 75, pull);
+      const angle = planet.orbitAngle + this.elapsedSeconds * (0.06 + index * 0.012) * (1 + pull * 2.5);
+
+      const target = new THREE.Vector3(
+        this.blackHoleCenter.x + Math.cos(angle) * orbitRadius,
+        this.blackHoleCenter.y + 180 + Math.sin(angle * 1.4 + phase) * (260 + 420 * (1 - pull)),
+        this.blackHoleCenter.z + Math.sin(angle) * orbitRadius
+      );
+
+      planet.group.position.lerp(target, Math.min(1, dt * (0.35 + pull * 1.8)));
+      planet.group.rotation.y += dt * (0.12 + pull * 0.8);
+      planet.group.rotation.z += dt * (0.04 + pull * 0.3);
+
+      // Differential tidal stretch: longitudinal scale grows while the two
+      // transverse axes compress, creating a clear non-graphic spaghetti shape.
+      const stretch = 1 + tidalProgress * (2.5 + index * 0.35);
+      const squeeze = Math.max(0.18, 1 - tidalProgress * 0.62);
+      const wobble = 1 + Math.sin(this.elapsedSeconds * 4 + phase) * tidalProgress * 0.08;
+      planet.core.scale.set(stretch * wobble, squeeze, squeeze);
+      planet.atmosphere.scale.set(stretch * 1.05, squeeze * 1.08, squeeze * 1.08);
+
+      // Spin-up as the body is collected.
+      planet.core.rotation.x += dt * (0.18 + pull * 1.8);
+
+      if (collectionProgress > 0.72) {
+        planet.collected = true;
+        const fade = THREE.MathUtils.clamp((collectionProgress - 0.72) / 0.28, 0, 1);
+        const coreMat = planet.core.material as THREE.MeshStandardMaterial;
+        const atmosphereMat = planet.atmosphere.material as THREE.MeshBasicMaterial;
+        coreMat.emissiveIntensity = 0.08 + fade * 0.35;
+        atmosphereMat.opacity = 0.10 + fade * 0.10;
+      }
+
+      // Near the singularity, convert the planet into a stretched infall stream
+      // and recycle it to the far collection arc rather than deleting it.
+      if (planet.group.position.distanceTo(this.blackHoleCenter) < 520) {
+        planet.group.position.copy(this.blackHoleCenter).add(new THREE.Vector3(
+          Math.cos(angle + Math.PI) * (900 + index * 120),
+          240 + index * 80,
+          Math.sin(angle + Math.PI) * (900 + index * 120)
+        ));
+        planet.collected = false;
+      }
+    });
+  }
+
   private updateStreamlinedDebris(dt: number, activeEvent: number): void {
     if (!this.debrisInstancedMesh) return;
     const dummy = new THREE.Object3D();
@@ -629,6 +772,7 @@ export class DynamicCollapseEnvironmentsManager {
     this.envGroups.clear();
     this.nearObstacles = [];
     this.collapsibleRouteSegments = [];
+    this.collectedPlanets = [];
     this.eventPairVisualizer.dispose();
   }
 }

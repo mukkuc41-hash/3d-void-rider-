@@ -1408,6 +1408,8 @@ export class JunctionManager {
   public finalCollapseDoorLeft: THREE.Mesh | null = null;
   public finalCollapseDoorRight: THREE.Mesh | null = null;
   public finalCollapseDoorOpenFraction = 0; // 0 = closed, 1 = open
+  /** Submode 10: terminal routes unlock only after the player completes one normal lap. */
+  public finalCollapseRoutesUnlocked = false;
 
   // Secondary Pressure Doors & Hangar Shield
   public finalCollapsePressureDoorLeft: THREE.Mesh | null = null;
@@ -1514,6 +1516,7 @@ export class JunctionManager {
 
   public initJunctions(trackId: TrackId) {
     this.junctions.clear();
+    this.finalCollapseRoutesUnlocked = false;
     while (this.junctionMeshGroup.children.length > 0) {
       this.junctionMeshGroup.remove(this.junctionMeshGroup.children[0]);
     }
@@ -1553,7 +1556,8 @@ export class JunctionManager {
       if (cfg.id === this.finalCollapseJunctionId) {
         // Submode 10 has two genuinely separate terminal ends. The launcher
         // shelter is anchored to Route 01's endpoint; Route 02 has its own
-        // independent emergency-escape endpoint.
+        // independent emergency-escape endpoint. Both are locked until the
+        // player completes the first normal lap.
         const launcherEnd = jInst.routeInstances.get('bh10_launcher_route')?.getSampleAt(1);
         if (launcherEnd) jInst.exitSample = launcherEnd;
         this.finalCollapseShelter = this.buildFinalCollapseShelter(jInst);
@@ -1563,6 +1567,7 @@ export class JunctionManager {
           this.finalCollapseEscapeTerminal = this.buildFinalCollapseEscapeTerminal(escapeRoute);
           this.junctionMeshGroup.add(this.finalCollapseEscapeTerminal);
         }
+        this.setFinalCollapseRoutesUnlocked(false);
       }
     });
   }
@@ -1717,6 +1722,36 @@ export class JunctionManager {
     this.junctionMeshGroup.add(group);
   }
 
+  /**
+   * Submode 10 route gate: Route 01/Route 02 become visible, selectable and
+   * physically accessible only after the first normal lap is completed.
+   */
+  public setFinalCollapseRoutesUnlocked(unlocked: boolean): void {
+    this.finalCollapseRoutesUnlocked = unlocked;
+    const junction = this.junctions.get(this.finalCollapseJunctionId);
+    if (!junction) return;
+
+    const visible = unlocked;
+    junction.gantryGroup.visible = visible;
+    junction.routeInstances.forEach(routeInst => {
+      routeInst.meshGroup.visible = visible;
+    });
+    if (this.finalCollapseShelter) this.finalCollapseShelter.visible = visible;
+    if (this.finalCollapseEscapeTerminal) this.finalCollapseEscapeTerminal.visible = visible;
+    if (unlocked) this.setFinalCollapseLauncherPreview(true);
+    else this.setFinalCollapseLauncherPreview(false);
+
+    if (!unlocked) {
+      junction.selectedRouteId = null;
+      this.playerRouteProgress.activeRouteId = null;
+      this.playerRouteProgress.activeJunctionId = null;
+      this.isSelectionLocked = true;
+      this.activeJunctionTelemetry = null;
+    } else {
+      this.isSelectionLocked = false;
+    }
+  }
+
   public setFinalCollapseMode(active: boolean): void {
     if (this.finalCollapseMode === active) return;
 
@@ -1750,9 +1785,9 @@ export class JunctionManager {
       id: this.finalCollapseJunctionId,
       name: 'QUANTUM LAUNCH SPLIT // TWO TERMINAL ENDS',
       trackId,
-      approachT: 0.72,
-      junctionStartT: 0.80,
-      junctionEndT: 0.94,
+      approachT: 0.10,
+      junctionStartT: 0.18,
+      junctionEndT: 0.23,
       defaultRouteId: 'bh10_launcher_route',
       bannerText: 'FINAL COLLAPSE // SELECT TERMINAL ROUTE',
       routes: [
@@ -2393,6 +2428,10 @@ export class JunctionManager {
       }
 
       const cfg = junction.config;
+      // Submode 10's terminal fork is locked until lap 1 is completed.
+      if (cfg.id === this.finalCollapseJunctionId && !this.finalCollapseRoutesUnlocked) {
+        continue;
+      }
       const startT = cfg.junctionStartT;
       const endT = cfg.junctionEndT;
       const approachT = cfg.approachT;
@@ -2470,6 +2509,7 @@ export class JunctionManager {
     }
 
     if (!jId) return false;
+    if (jId === this.finalCollapseJunctionId && !this.finalCollapseRoutesUnlocked) return false;
     const junction = this.junctions.get(jId);
     if (!junction) return false;
 
@@ -2808,8 +2848,10 @@ export class JunctionManager {
       const { junction, distanceM, isApproaching, isInJunction } = detected;
       const isCommitmentZone = isApproaching && distanceM <= this.commitmentDistanceMeters;
 
-      // Auto-commit default route if player reached commitment zone without selecting
-      if (isCommitmentZone || isInJunction) {
+      // Submode 10 is explicitly arrow-controlled: do not auto-commit a route.
+      // The player must choose LEFT (Route 01) or RIGHT (Route 02).
+      const isFinalCollapseFork = junction.config.id === this.finalCollapseJunctionId;
+      if (!isFinalCollapseFork && (isCommitmentZone || isInJunction)) {
         if (!this.isSelectionLocked) {
           const autoRouteId = junction.selectedRouteId || this.playerRouteProgress.activeRouteId || this.getDefaultRoute(junction).id;
           this.commitRoute(autoRouteId);

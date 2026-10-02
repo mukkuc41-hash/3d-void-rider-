@@ -1009,7 +1009,18 @@ export class GameEngine {
   }
 
   private buildTrackGeometry() {
-    const samples = this.track.samples;
+    const allSamples = this.track.samples;
+    // Submode 10 is a single-start fork, not a loop with a hidden third
+    // continuation.  Stop rendering the shared track exactly at the fork so
+    // only Route 01 and Route 02 continue beyond it.  Other modes retain the
+    // original closed-track rendering.
+    const isFinalCollapse =
+      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+    const forkT = 0.80;
+    const cutoffIndex = isFinalCollapse
+      ? Math.max(2, Math.floor((allSamples.length - 1) * forkT))
+      : allSamples.length - 1;
+    const samples = isFinalCollapse ? allSamples.slice(0, cutoffIndex + 1) : allSamples;
     const count = samples.length;
     const halfW = this.track.width / 2;
 
@@ -1064,8 +1075,8 @@ export class GameEngine {
       );
     }
 
-    const leftRailCurve = new THREE.CatmullRomCurve3(leftRailPoints, true);
-    const rightRailCurve = new THREE.CatmullRomCurve3(rightRailPoints, true);
+    const leftRailCurve = new THREE.CatmullRomCurve3(leftRailPoints, !isFinalCollapse);
+    const rightRailCurve = new THREE.CatmullRomCurve3(rightRailPoints, !isFinalCollapse);
 
     const railGeoLeft = new THREE.TubeGeometry(leftRailCurve, 320, 0.35, 8, true);
     const railGeoRight = new THREE.TubeGeometry(rightRailCurve, 320, 0.35, 8, true);
@@ -1096,14 +1107,14 @@ export class GameEngine {
       );
     }
 
-    const centerCurve = new THREE.CatmullRomCurve3(centerPoints, true);
+    const centerCurve = new THREE.CatmullRomCurve3(centerPoints, !isFinalCollapse);
     const centerRail = new THREE.Mesh(
       new THREE.TubeGeometry(centerCurve, 260, 0.18, 6, true),
       new THREE.MeshBasicMaterial({ color: 0x00f0ff })
     );
 
-    const leftLaneCurve = new THREE.CatmullRomCurve3(leftLanePoints, true);
-    const rightLaneCurve = new THREE.CatmullRomCurve3(rightLanePoints, true);
+    const leftLaneCurve = new THREE.CatmullRomCurve3(leftLanePoints, !isFinalCollapse);
+    const rightLaneCurve = new THREE.CatmullRomCurve3(rightLanePoints, !isFinalCollapse);
 
     const laneMarkerMat = new THREE.MeshStandardMaterial({
       color: 0xff00aa,
@@ -1122,6 +1133,41 @@ export class GameEngine {
     );
 
     this.trackMeshGroup.add(centerRail, leftLaneRail, rightLaneRail);
+
+    if (isFinalCollapse) {
+      const forkSample = allSamples[cutoffIndex];
+      const forkBlocker = new THREE.Group();
+      forkBlocker.name = 'Submode10_No_Through_Route_Barrier';
+      forkBlocker.position.copy(forkSample.point);
+      const blockerRot = new THREE.Matrix4();
+      blockerRot.makeBasis(forkSample.binormal, forkSample.normal, forkSample.tangent.clone().negate());
+      forkBlocker.quaternion.setFromRotationMatrix(blockerRot);
+
+      const barrier = new THREE.Mesh(
+        new THREE.BoxGeometry(this.track.width + 10, 8, 3),
+        new THREE.MeshStandardMaterial({
+          color: 0x180612,
+          emissive: 0xff2bd6,
+          emissiveIntensity: 1.6,
+          metalness: 0.75,
+          roughness: 0.2,
+        })
+      );
+      barrier.position.y = 4;
+      forkBlocker.add(barrier);
+
+      for (let i = -4; i <= 4; i++) {
+        const warningLight = new THREE.Mesh(
+          new THREE.SphereGeometry(0.7, 8, 8),
+          new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xff2bd6 : 0xff5b35 })
+        );
+        warningLight.position.set(i * 3.5, 6.5, 0);
+        forkBlocker.add(warningLight);
+      }
+
+      this.trackMeshGroup.add(forkBlocker);
+    }
+
     this.scene.add(this.trackMeshGroup);
   }
 
@@ -1656,13 +1702,11 @@ export class GameEngine {
       // Mode 21 / Submode 10: enable the real evacuation tower + basement
       // junction only for THE FINAL COLLAPSE. All other modes keep the
       // existing junction configuration unchanged.
+      // Submode 10 always exposes its physical fork and both terminal routes.
+      // The countdown controls hazards/collapse, not whether the routes exist.
       const isFinalCollapse =
         this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
-      // The evacuation tower/branch becomes physical only when the Final
-      // Collapse countdown actually reaches 00:00.
-      this.junctionManager.setFinalCollapseMode(
-        isFinalCollapse && this.finalCollapseCatastropheActive
-      );
+      this.junctionManager.setFinalCollapseMode(isFinalCollapse);
     }
     if (this.minimapManager) {
       this.minimapManager.initTrack(this.track.curve, this.track.checkpoints, this.track.id || 'SECTOR ALPHA');
@@ -1786,6 +1830,7 @@ export class GameEngine {
     this.isPaused = false;
 
     if (this.activeGameMode === 'BLACK_HOLE') {
+      this.blackHoleCinematicManager?.setSubmode10Presentation(this.modeManager.blackHoleSubmode === 10);
       // Quantum Launch Pro always begins with a complete 08:00 playable window.
       // Start the countdown only when player control begins, so the full clock
       // is visible during gameplay rather than being consumed by the intro.
@@ -1797,7 +1842,8 @@ export class GameEngine {
       // beginning of the run. It is only a visual landmark; the terminal
       // routes remain locked until the evacuation phase at 00:00.
       if (this.modeManager.blackHoleSubmode === 10) {
-        this.junctionManager?.setFinalCollapseLauncherPreview(true);
+        // Submode 10: Route 01/Route 02 unlock only after one complete lap.
+        this.junctionManager?.setFinalCollapseRoutesUnlocked(false);
       }
       // Push the initial 08:00 telemetry immediately. This guarantees that
       // React renders the Quantum Launch Pro clock even before the next
@@ -1850,7 +1896,7 @@ export class GameEngine {
     this.checkpointsPassedThisLap.clear();
     this.junctionManager?.clearLapJunctions();
     if (this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10) {
-      this.junctionManager?.setFinalCollapseLauncherPreview(true);
+      this.junctionManager?.setFinalCollapseRoutesUnlocked(false);
     } else {
       this.junctionManager?.setFinalCollapseLauncherPreview(false);
     }
@@ -2489,6 +2535,21 @@ export class GameEngine {
       this.input.recover = false;
     }
 
+    // Final Collapse has one physical start/fork and two terminal ends.
+    // Stop the ship at the fork until the player chooses LEFT or RIGHT; this
+    // prevents the old main-track loop from carrying the player past the fork.
+    const isQLPSubmode10Fork =
+      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+    const forkT = 0.18;
+    const forkWindow = 0.012;
+    if (isQLPSubmode10Fork &&
+        !this.junctionManager.playerRouteProgress.isInBranch &&
+        !this.junctionManager.playerRouteProgress.activeRouteId &&
+        this.splineT >= forkT - forkWindow && this.splineT < forkT) {
+      this.currentSpeed = Math.max(0, Math.min(this.currentSpeed, 6));
+      this.isWrongWay = false;
+    }
+
     if (this.junctionManager.playerRouteProgress.isInBranch) {
       const activeBranchRouteId = this.junctionManager.playerRouteProgress.activeRouteId;
       const isQLPSubmode10 = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
@@ -2537,12 +2598,10 @@ export class GameEngine {
         // Submode 10 terminal routes do NOT rejoin the main track. Route 01
         // ends at the launcher/shelter; Route 02 ends at its own escape gate.
         if (isQLPSubmode10 && terminalRoute && branchUpdate.terminalPoint) {
-          this.playerShipGroup.position.copy(branchUpdate.terminalPoint);
-          if (branchUpdate.terminalTangent) {
-            const tangent = branchUpdate.terminalTangent.clone().normalize();
-            const yaw = Math.atan2(-tangent.x, -tangent.z);
-            this.playerShipGroup.rotation.set(0, yaw, 0);
-          }
+          // The ship is already physically at the branch endpoint because the
+          // branch sample is applied every frame. Never snap/copy the player
+          // to a terminal point here; doing so caused the launcher to appear
+          // as a teleport into the parking bay.
           this.currentSpeed = Math.max(0, Math.min(this.currentSpeed, 110));
           this.lateralOffset = 0;
           this.isWrongWay = false;
@@ -3035,9 +3094,11 @@ export class GameEngine {
 
             case 'COSMIC_LIGHT_EVENT':
             case 'FLASHBANG':
-              this.supermassiveBlackHole?.triggerCollapse();
-              sound.playFlashbangBoom();
-              this.cameraShake = Math.max(this.cameraShake, 3.5);
+              if (!isQLPSubmode10) {
+                this.supermassiveBlackHole?.triggerCollapse();
+                sound.playFlashbangBoom();
+                this.cameraShake = Math.max(this.cameraShake, 3.5);
+              }
               break;
 
             case 'REBUILDING_MAP':
@@ -3132,24 +3193,22 @@ export class GameEngine {
             this.junctionManager.setFinalCollapseDoorOpen(openFrac);
           }
 
-          // Auto-select center route into evacuation tower
-          if (
-            this.junctionManager.activeJunctionTelemetry?.junctionId ===
-              this.junctionManager.finalCollapseJunctionId &&
-            !this.junctionManager.playerRouteProgress.isInBranch &&
-            this.junctionManager.playerRouteProgress.activeRouteId !== 'bh10_launcher_route' &&
-            this.junctionManager.playerRouteProgress.activeRouteId !== 'bh10_escape_route'
-          ) {
-            // Route 01 is the default launcher terminal; Route 02 is selected
-            // explicitly by the player and never gets auto-selected.
-            this.junctionManager.selectRouteByDirection('LEFT');
-          }
+          // No automatic route selection here. Submode 10 remains explicitly
+          // controlled by the player's LEFT/RIGHT arrow choice.
 
           // Transition player to physical shelter navigation when crossing into entrance
+          // Only Route 01's actual terminal can enter the launcher/shelter.
+          // Do not switch to the shelter's local coordinate system while the
+          // player is still travelling down the branch; that caused a visible
+          // snap/teleport into the parking bay.
           const prp = this.junctionManager.playerRouteProgress;
-          if ((distToEntrance < 22 || (prp.isInBranch && prp.progress >= 0.94)) && !this.shelterNavigationActive) {
+          const launcherTerminalReached =
+            this.finalCollapseShelterEntered &&
+            !prp.isInBranch &&
+            distToEntrance < 22;
+          if (launcherTerminalReached && !this.shelterNavigationActive) {
             this.shelterNavigationActive = true;
-            this.shelterZ = Math.min(distToEntrance, 12);
+            this.shelterZ = 0;
             this.shelterX = THREE.MathUtils.clamp(this.lateralOffset, -9, 9);
             this.currentSpeed = Math.min(this.currentSpeed, 28);
           }
@@ -3600,10 +3659,9 @@ export class GameEngine {
     // The physical TOWER BASEMENT ACCESS branch is the only completion point.
     const isFinalCollapse =
       this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
-    if (isFinalCollapse) {
-      // Final Collapse completion is handled by the physical shelter branch
-      // and the post-seal collapse sequence above. Never use Gate 0 as a
-      // finish line for this submode.
+    if (isFinalCollapse && this.currentLap >= 2) {
+      // After the first normal lap, Submode 10 no longer uses the main-track
+      // finish line. Route 01/Route 02 are now the only terminal choices.
       return;
     }
 
@@ -3664,6 +3722,13 @@ export class GameEngine {
         } else {
           this.currentLap++;
           this.callbacks.onLapUpdate(this.currentLap, this.totalLaps);
+          if (isFinalCollapse && this.currentLap >= 2) {
+            // The first normal lap is the gate. Open both physical terminal
+            // routes and expose their LEFT/RIGHT arrow controls now.
+            this.junctionManager.setFinalCollapseRoutesUnlocked(true);
+            this.junctionManager.feedbackMessage = 'ROUTE 01 / ROUTE 02 UNLOCKED — SELECT WITH LEFT / RIGHT ARROW';
+            this.junctionManager.feedbackTimer = 5.0;
+          }
         }
       }
     }
@@ -5066,7 +5131,8 @@ export class GameEngine {
         if (!this.holographicWarnings) {
           this.holographicWarnings = new HolographicWarningSystem(this.scene);
         }
-        if (!this.collapseEnvironments) {
+        // The Final Collapse physical environment is exclusive to Quantum Launch Pro Submode 10.
+        if (this.modeManager.blackHoleSubmode === 10 && !this.collapseEnvironments) {
           const bhPos = this.supermassiveBlackHole?.root.position ?? new THREE.Vector3(0, 180, -3500);
           this.collapseEnvironments = new DynamicCollapseEnvironmentsManager(this.scene, bhPos);
         }
@@ -5237,6 +5303,7 @@ export class GameEngine {
 
             if (selectedSubmode) {
               this.modeManager.setBlackHoleSubmode(selectedSubmode.number);
+              this.blackHoleCinematicManager?.setSubmode10Presentation(selectedSubmode.number === 10);
               if (selectedSubmode.number === 10) {
                 this.finalCollapseManager?.start();
                 this.blackHoleCinematicManager?.stop();

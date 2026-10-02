@@ -237,6 +237,8 @@ export class BlackHoleCinematicManager {
   public finalCountdownSeconds: number | null = null;
   public readonly blackHoleCenter: THREE.Vector3;
   public blackHoleStatus: 'STABLE' | 'CRITICAL' | 'COLLAPSED' = 'STABLE';
+  /** Submode 10 only: skip the generic white-flash/cosmic-light ending. */
+  public suppressTerminalFlashEvents = false;
 
   private finalCountdownInitial = 480;
   private completed = false;
@@ -259,6 +261,11 @@ export class BlackHoleCinematicManager {
   }
 
   public start(event: BlackHoleCinematicEvent): void {
+    // Submode 10 uses the dedicated Final Collapse ending rather than the
+    // generic white-flash / COSMIC LIGHT EVENT presentation.
+    if (this.suppressTerminalFlashEvents && (event === 'COSMIC_LIGHT_EVENT' || event === 'FLASHBANG')) {
+      event = 'SILENCE';
+    }
     this.event = event;
     this.eventElapsed = 0;
     this.completed = false;
@@ -545,6 +552,10 @@ export class BlackHoleCinematicManager {
 
   public setObjective(objective: string | null): void {
     this.objective = objective;
+  }
+
+  public setSubmode10Presentation(enabled: boolean): void {
+    this.suppressTerminalFlashEvents = enabled;
   }
 
   public setDangerState(state: BlackHoleDangerState): void { this.danger = state; }
