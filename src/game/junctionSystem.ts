@@ -1738,8 +1738,13 @@ export class JunctionManager {
     });
     if (this.finalCollapseShelter) this.finalCollapseShelter.visible = visible;
     if (this.finalCollapseEscapeTerminal) this.finalCollapseEscapeTerminal.visible = visible;
-    if (unlocked) this.setFinalCollapseLauncherPreview(true);
-    else this.setFinalCollapseLauncherPreview(false);
+    if (unlocked) {
+      this.setFinalCollapseDoorOpen(1.0);
+      this.setFinalCollapsePressureDoorOpen(1.0);
+      this.setFinalCollapseLauncherPreview(true);
+    } else {
+      this.setFinalCollapseLauncherPreview(false);
+    }
 
     if (!unlocked) {
       junction.selectedRouteId = null;
@@ -1770,6 +1775,9 @@ export class JunctionManager {
     };
 
     this.initJunctions(this.currentTrackId);
+    if (active) {
+      this.setFinalCollapseRoutesUnlocked(false);
+    }
   }
 
   /**
@@ -2180,7 +2188,7 @@ export class JunctionManager {
       side: THREE.DoubleSide,
     });
     const launchCoreMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
-    const launchRingZ = [-92, -118, -144];
+    const launchRingZ = [-40, -80, -115];
     launchRingZ.forEach((z, i) => {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(13.5 + i * 1.5, 0.75, 12, 64), launchRingMat.clone());
       ring.rotation.x = Math.PI / 2;
@@ -2428,7 +2436,7 @@ export class JunctionManager {
       }
 
       const cfg = junction.config;
-      // Submode 10's terminal fork is locked until lap 1 is completed.
+      // In Submode 10, the terminal fork to Route 01 / Route 02 is locked until lap 1 is completed
       if (cfg.id === this.finalCollapseJunctionId && !this.finalCollapseRoutesUnlocked) {
         continue;
       }
@@ -2738,7 +2746,7 @@ export class JunctionManager {
 
     // Advance progress along branch curve preserving real velocity
     const advance = (currentSpeed * dt) / routeInst.totalLength;
-    prp.progress += advance;
+    prp.progress = Math.max(0, prp.progress + advance);
     prp.transitionBlend = Math.min(1.0, prp.transitionBlend + dt * 2.5);
 
     // Incremental real-time checkpoint validation during branch travel

@@ -190,36 +190,15 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
     >
       {/* Top Banner Alert & Junction Distance Telemetry */}
       <div className="flex flex-col items-center mb-2">
-        <div className="bg-slate-950/95 backdrop-blur-md border-2 border-cyan-400/90 rounded-2xl px-4 sm:px-6 py-1.5 sm:py-2 shadow-[0_0_35px_rgba(0,240,255,0.45)] flex items-center gap-3">
+        <div className="bg-slate-950/95 backdrop-blur-md border-2 border-cyan-400/90 rounded-2xl px-5 sm:px-7 py-2 shadow-[0_0_35px_rgba(0,240,255,0.45)] flex items-center gap-3">
           <GitBranch className="w-5 h-5 text-cyan-400 animate-pulse flex-shrink-0" />
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] sm:text-[11px] font-mono tracking-widest text-cyan-300 uppercase font-bold">
-                {isApproaching ? 'APPROACHING JUNCTION' : 'JUNCTION ZONE ACTIVE'}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-ui uppercase font-black text-white px-2 py-0.5 rounded bg-cyan-900/80 border border-cyan-400/50">
-                {telemetry.junctionName || telemetry.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-300 mt-0.5">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-xs sm:text-sm font-ui font-black tracking-widest text-cyan-300 uppercase">
+              {isFinalCollapseFork ? 'JUNCTION APPROACH' : (isApproaching ? 'APPROACHING JUNCTION' : 'JUNCTION ZONE ACTIVE')}
+            </span>
+            <div className="flex items-center gap-2 text-xs font-mono font-bold text-white mt-0.5">
               <span>
-                DISTANCE: <strong className="text-cyan-400">{distanceM}m</strong>
-              </span>
-              <span className="text-slate-500">•</span>
-              <span className="flex items-center gap-1">
-                <Timer className="w-3 h-3 text-amber-400" />
-                <span>
-                  WINDOW:{' '}
-                  <strong
-                    className={
-                      Number(decisionSec) < 2
-                        ? 'text-rose-400 animate-ping'
-                        : 'text-amber-400'
-                    }
-                  >
-                    {decisionSec}s
-                  </strong>
-                </span>
+                DISTANCE TO JUNCTION: <strong className="text-cyan-400 font-extrabold">{distanceM}m</strong>
               </span>
             </div>
           </div>
@@ -232,16 +211,26 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
           id="junction-route-feedback-banner"
           className="mb-2 transition-all duration-200"
         >
-          <div className="bg-slate-950/95 backdrop-blur-md border-2 border-cyan-400 rounded-xl px-4 py-1 shadow-[0_0_25px_rgba(0,240,255,0.6)] flex items-center gap-2">
+          <div className="bg-slate-950/95 backdrop-blur-md border-2 border-cyan-400 rounded-xl px-4 py-1.5 shadow-[0_0_25px_rgba(0,240,255,0.6)] flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-cyan-400 animate-bounce flex-shrink-0" />
-            <span className="text-[11px] sm:text-xs font-mono font-black uppercase tracking-wider text-white">
-              ROUTE ACTIVE:{' '}
-              <span className="text-cyan-300 font-extrabold">
-                {telemetry.selectedRouteDirection === 'SHORTCUT'
-                  ? 'SHORTCUT (RIGHT)'
-                  : (telemetry.selectedRouteDirection || 'CENTER')}
-              </span>
-              {selectedRoute ? ` — ${selectedRoute.name}` : ''}
+            <span className="text-xs sm:text-sm font-mono font-black uppercase tracking-wider text-white">
+              {isFinalCollapseFork ? (
+                telemetry.selectedRouteDirection === 'LEFT'
+                  ? 'ROUTE SELECTED: ORBITAL LAUNCHER'
+                  : telemetry.selectedRouteDirection === 'RIGHT'
+                  ? 'ROUTE SELECTED: EMERGENCY ESCAPE'
+                  : `ROUTE SELECTED: ${telemetry.selectedRouteDirection}`
+              ) : (
+                <>
+                  ROUTE ACTIVE:{' '}
+                  <span className="text-cyan-300 font-extrabold">
+                    {telemetry.selectedRouteDirection === 'SHORTCUT'
+                      ? 'SHORTCUT (RIGHT)'
+                      : (telemetry.selectedRouteDirection || 'CENTER')}
+                  </span>
+                  {selectedRoute ? ` — ${selectedRoute.name}` : ''}
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -252,6 +241,7 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
           the corresponding physical branch. No CENTER route or confirm button is
           offered for Submode 10. */}
       {isFinalCollapseFork ? (
+        <>
         <div
           id="final-collapse-two-route-arrow-controller"
           className="w-full max-w-2xl flex items-stretch justify-center gap-3 mb-2 px-1"
@@ -292,6 +282,10 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
             <ArrowRight className="w-7 h-7 sm:w-9 sm:h-9 stroke-[3]" />
           </button>
         </div>
+        <div className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-300 bg-black/80 border border-slate-700/80 px-3 py-1 rounded-full mb-1">
+          A / LEFT = ROUTE 01 &nbsp;•&nbsp; D / RIGHT = ROUTE 02
+        </div>
+      </>
       ) : (
         <div
           id="dedicated-route-selection-strip"

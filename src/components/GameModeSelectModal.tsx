@@ -681,9 +681,14 @@ export const GameModeSelectModal: React.FC<GameModeSelectModalProps> = ({
                     );
                   })()}
 
-                  <div className="mt-3 p-3 rounded-xl bg-purple-950/25 border border-purple-500/30 text-[10px] text-purple-200 font-mono leading-relaxed">
-                    QUANTUM LAUNCH PRO: Gravity fields, event-horizon hazards,
-                    collapsing routes and emergency escape routing are active for Mode 21.
+                  <div className="mt-3 p-3 rounded-xl bg-purple-950/25 border border-purple-500/30 text-[10px] text-purple-200 font-mono leading-relaxed space-y-1.5">
+                    <div className="text-cyan-300 font-bold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                      <span>QUANTUM LAUNCH PRO EXPANSION:</span>
+                    </div>
+                    <div>• <strong className="text-white">Expanded Routes:</strong> 3 connected branches (Orbital Accelerator with +120 km/h Boost Gates, Accretion Chasm with Plasma Hazards, and Megastructure Hyper-Tunnel).</div>
+                    <div>• <strong className="text-white">Dynamic Environments:</strong> 4 Cosmic Biomes (Cryo-Nebula, Solar Flare Inferno, Magnetar Supernova, Event Horizon Redshift) with in-race toggle [E].</div>
+                    <div>• <strong className="text-white">Quantum Countdown Clock:</strong> Real-time millisecond countdown HUD, audible danger alerts, and 3D in-world holographic track gantries.</div>
                   </div>
 
                   <button

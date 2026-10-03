@@ -38,6 +38,9 @@ import {
   MinimapTelemetry,
   AIDebugTelemetry,
   CosmicPairLiveTelemetry,
+  QuantumCountdownTelemetry,
+  CosmicBiomeDefinition,
+  COSMIC_BIOMES,
 } from './types';
 import { DEFAULT_BEAM_CUSTOMIZATION, DEFAULT_BEAM_UPGRADES } from './game/beamSystem';
 import { ActiveJunctionTelemetry, BranchRouteDirection } from './game/junctionSystem';
@@ -184,6 +187,10 @@ export default function App() {
   const [cinematicState, setCinematicState] = useState<ActiveCinematicState | null>(null);
   const [pathTelemetry, setPathTelemetry] = useState<ExtendedPathTelemetry | null>(null);
   const [cosmicPairTelemetry, setCosmicPairTelemetry] = useState<CosmicPairLiveTelemetry | null>(null);
+  const [quantumCountdownTelemetry, setQuantumCountdownTelemetry] = useState<QuantumCountdownTelemetry | null>(null);
+  const [activeCosmicBiome, setActiveCosmicBiome] = useState<CosmicBiomeDefinition>(COSMIC_BIOMES.CRYO_NEBULA);
+  const [activeRouteBranchName, setActiveRouteBranchName] = useState<string>('MAIN ACCRETION CORRIDOR');
+  const [isCountdownMuted, setIsCountdownMuted] = useState<boolean>(false);
 
   // Keyboard & Mouse input tracking
   const keysPressed = useRef<{ [key: string]: boolean }>({});
@@ -293,6 +300,9 @@ export default function App() {
       onFinishCinematicTelemetry: telemetry => setFinishTelemetry(telemetry),
       onBlackHoleCinematicTelemetry: telemetry => setBlackHoleCinematicTelemetry(telemetry),
       onCosmicPairTelemetry: telemetry => setCosmicPairTelemetry(telemetry),
+      onQuantumCountdownUpdate: telemetry => setQuantumCountdownTelemetry(telemetry),
+      onCosmicBiomeUpdate: biome => setActiveCosmicBiome(biome),
+      onActiveRouteBranchUpdate: routeName => setActiveRouteBranchName(routeName),
       onCountdownTick: count => {
         setCountdown(count);
         sound.playCountdownTick();
@@ -463,6 +473,13 @@ export default function App() {
         if (engineRef.current && appState === 'RACING') {
           const nextMode = engineRef.current.toggleWholeBlackHoleCamera();
           setCameraMode(nextMode);
+        }
+      }
+
+      if (e.code === 'KeyE') {
+        if (engineRef.current && appState === 'RACING') {
+          const nextBiomeId = engineRef.current.cycleCosmicBiome();
+          setActiveCosmicBiome(COSMIC_BIOMES[nextBiomeId]);
         }
       }
 
@@ -1208,6 +1225,26 @@ export default function App() {
               setCameraMode(m);
             }
           }}
+          cosmicPairTelemetry={cosmicPairTelemetry}
+          quantumCountdownTelemetry={quantumCountdownTelemetry}
+          activeCosmicBiome={activeCosmicBiome}
+          activeRouteBranchName={activeRouteBranchName}
+          onSetCountdownDuration={sec => {
+            engineRef.current?.setQuantumCountdownDuration(sec);
+          }}
+          onCycleCosmicBiome={() => {
+            if (engineRef.current) {
+              const b = engineRef.current.cycleCosmicBiome();
+              setActiveCosmicBiome(COSMIC_BIOMES[b]);
+            }
+          }}
+          onToggleCountdownMute={() => {
+            if (engineRef.current) {
+              const muted = engineRef.current.toggleQuantumCountdownMute();
+              setIsCountdownMuted(muted);
+            }
+          }}
+          isCountdownMuted={isCountdownMuted}
           onInputChange={inp => {
             if (engineRef.current) {
               if (inp.fireMissile) {
@@ -1275,24 +1312,26 @@ export default function App() {
             />
           )}
 
-          {/* White Flash Bang with Boom - Whole screen goes pure white & fades into void */}
+          {/* Colored Plasma Shockwave & Singularity Implosion — No white flashbang, pure sci-fi colored energy */}
           {(blackHoleCinematicTelemetry.event === 'FLASHBANG' ||
-            blackHoleCinematicTelemetry.event === 'COSMIC_LIGHT_EVENT' ||
-            (blackHoleCinematicTelemetry.event === 'SILENCE' && blackHoleCinematicTelemetry.eventElapsed < 1.4)) && (
+            blackHoleCinematicTelemetry.event === 'COSMIC_LIGHT_EVENT') && (
             <div
-              className="fixed inset-0 z-[98] bg-white pointer-events-none flex items-center justify-center transition-opacity duration-700"
+              className="fixed inset-0 z-[98] pointer-events-none flex flex-col items-center justify-center transition-opacity duration-700 bg-gradient-to-t from-black via-purple-950/40 to-black"
               style={{
-                opacity:
-                  blackHoleCinematicTelemetry.event === 'SILENCE'
-                    ? Math.max(0, 1.0 - blackHoleCinematicTelemetry.eventElapsed / 1.4)
-                    : 1.0,
+                boxShadow: 'inset 0 0 120px rgba(217, 70, 239, 0.6), inset 0 0 80px rgba(6, 182, 212, 0.6)',
               }}
             >
-              {blackHoleCinematicTelemetry.event !== 'SILENCE' && (
-                <div className="text-black/80 font-mono font-black text-2xl sm:text-4xl tracking-[0.35em] uppercase animate-pulse">
-                  COSMIC LIGHT EVENT
+              <div className="flex flex-col items-center text-center p-6 rounded-3xl bg-black/80 border border-purple-500/70 backdrop-blur-xl shadow-[0_0_60px_rgba(168,85,247,0.7)] animate-pulse">
+                <span className="text-[11px] font-mono font-black text-rose-400 tracking-[0.3em] uppercase mb-1">
+                  CRITICAL TIDAL DISRUPTION
+                </span>
+                <div className="text-2xl sm:text-4xl font-ui font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-amber-400">
+                  FINAL GRAVITATIONAL COLLAPSE
                 </div>
-              )}
+                <div className="mt-2 text-xs font-mono font-bold text-cyan-300 tracking-wider">
+                  PLASMA DETONATIONS ACTIVE // EMERGENCY ESCAPE VECTOR ARMED
+                </div>
+              </div>
             </div>
           )}
 

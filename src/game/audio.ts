@@ -142,22 +142,28 @@ class SoundSystem {
     if (!this.ctx || !this.engineOsc || !this.engineFilter || !this.engineGain) return;
     try {
       const now = this.ctx.currentTime;
-      const safeNorm = isNaN(speedNorm) || !isFinite(speedNorm) ? 0 : Math.max(0, Math.min(3, speedNorm));
+      const isReverse = speedNorm < 0;
+      const absNorm = isNaN(speedNorm) || !isFinite(speedNorm) ? 0 : Math.max(0, Math.min(3, Math.abs(speedNorm)));
+      const safeNorm = isReverse ? absNorm * 0.65 : absNorm;
       
-      // Pitch scales with normalized speed (0.0 to 1.5+)
-      const targetFreq = 70 + safeNorm * 180 + (isBoosting ? 90 : 0);
+      // Pitch scales with normalized speed; reverse uses a lower, deeper tactical resonance
+      const targetFreq = isReverse
+        ? (55 + safeNorm * 75)
+        : (70 + safeNorm * 180 + (isBoosting ? 90 : 0));
       this.engineOsc.frequency.setTargetAtTime(targetFreq, now, 0.05);
 
-      const filterFreq = 300 + safeNorm * 800 + (isBoosting ? 600 : 0);
+      const filterFreq = isReverse
+        ? (240 + safeNorm * 300)
+        : (300 + safeNorm * 800 + (isBoosting ? 600 : 0));
       this.engineFilter.frequency.setTargetAtTime(filterFreq, now, 0.05);
 
       const targetGain = this.sfxEnabled ? (0.05 + safeNorm * 0.12) * this.volume : 0;
       this.engineGain.gain.setTargetAtTime(targetGain, now, 0.05);
 
       if (this.boostGain && this.boostOsc) {
-        const boostTarget = (this.sfxEnabled && isBoosting) ? 0.18 * this.volume : 0;
+        const boostTarget = (this.sfxEnabled && isBoosting && !isReverse) ? 0.18 * this.volume : 0;
         this.boostGain.gain.setTargetAtTime(boostTarget, now, 0.05);
-        if (isBoosting) {
+        if (isBoosting && !isReverse) {
           this.boostOsc.frequency.setTargetAtTime(360 + Math.sin(now * 25) * 40, now, 0.03);
         }
       }
@@ -2273,6 +2279,202 @@ class SoundSystem {
 
       osc.start(now);
       osc.stop(now + 1.45);
+    } catch (_) {}
+  }
+
+  /** Quantum Countdown Clock Tick */
+  public playQuantumCountdownTick(isCritical: boolean = false) {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = isCritical ? 'sawtooth' : 'triangle';
+      const freq = isCritical ? 987.77 : 587.33; // B5 for critical, D5 for normal
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.92, now + 0.04);
+
+      gain.gain.setValueAtTime((isCritical ? 0.22 : 0.08) * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (isCritical ? 0.09 : 0.045));
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } catch (_) {}
+  }
+
+  /** Quantum Countdown Emergency Urgent Alarm (Pulsing double chime) */
+  public playCountdownUrgentAlarm() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      [0, 0.12].forEach((offset, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(idx === 0 ? 880 : 1174.66, now + offset); // A5 -> D6
+        gain.gain.setValueAtTime(0.18 * this.volume, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.09);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.1);
+      });
+    } catch (_) {}
+  }
+
+  /** Quantum Acceleration Boost Gate Transit */
+  public playQuantumGateBoost() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(1760, now + 0.25);
+
+      gain.gain.setValueAtTime(0.24 * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.38);
+    } catch (_) {}
+  }
+
+  /** Quantum Relic Core Collected */
+  public playQuantumRelicCollected() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      [0, 0.08, 0.16, 0.24].forEach((offset, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const tones = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6 arpeggio
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(tones[idx], now + offset);
+        gain.gain.setValueAtTime(0.2 * this.volume, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.18);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.2);
+      });
+    } catch (_) {}
+  }
+
+  /** Environment Biome Shift Ambient Whoosh */
+  public playEnvironmentShiftWhoosh() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      const bufferSize = this.ctx.sampleRate * 0.8;
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const whiteNoise = this.ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(250, now);
+      filter.frequency.exponentialRampToValueAtTime(1400, now + 0.4);
+      filter.frequency.exponentialRampToValueAtTime(320, now + 0.8);
+      filter.Q.setValueAtTime(4.0, now);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.25 * this.volume, now + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+      whiteNoise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      whiteNoise.start(now);
+      whiteNoise.stop(now + 0.82);
+    } catch (_) {}
+  }
+
+  /** Orbital Launcher Magnetic Lock Clamping Sound */
+  public playMagneticLock() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Heavy sub-bass lock impulse
+      const oscSub = this.ctx.createOscillator();
+      const gainSub = this.ctx.createGain();
+      oscSub.type = 'sine';
+      oscSub.frequency.setValueAtTime(140, now);
+      oscSub.frequency.exponentialRampToValueAtTime(35, now + 0.28);
+      gainSub.gain.setValueAtTime(0.35 * this.volume, now);
+      gainSub.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      oscSub.connect(gainSub);
+      gainSub.connect(this.ctx.destination);
+      oscSub.start(now);
+      oscSub.stop(now + 0.35);
+
+      // Resonant electromagnetic clamping hiss
+      const oscHum = this.ctx.createOscillator();
+      const gainHum = this.ctx.createGain();
+      oscHum.type = 'sawtooth';
+      oscHum.frequency.setValueAtTime(420, now + 0.05);
+      oscHum.frequency.exponentialRampToValueAtTime(210, now + 0.4);
+      gainHum.gain.setValueAtTime(0.18 * this.volume, now + 0.05);
+      gainHum.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      oscHum.connect(gainHum);
+      gainHum.connect(this.ctx.destination);
+      oscHum.start(now + 0.05);
+      oscHum.stop(now + 0.48);
+    } catch (_) {}
+  }
+
+  /** Orbital Launcher Kinetic Acceleration Ring Pass (rings 1, 2, 3) */
+  public playAccelerationRingPass(ringIndex: number = 1) {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      const baseFreq = 300 + ringIndex * 180; // 480Hz, 660Hz, 840Hz
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 2.8, now + 0.22);
+
+      gain.gain.setValueAtTime(0.28 * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.32);
     } catch (_) {}
   }
 }

@@ -156,6 +156,9 @@ export interface AIRaceConfig {
 export type { EnergyBarrier } from './game/trackData';
 export type { CosmicPairLiveTelemetry } from './game/catastrophe/cosmicEventPairVisualizer';
 export type { CosmicEventElement, CosmicElementType } from './game/catastrophe/cosmicEventElementsCatalog';
+export type { QuantumCountdownTelemetry } from './game/environment/quantumCountdownClock';
+export type { CosmicBiomeDefinition, CosmicBiomeId } from './game/environment/cosmicEnvironmentDirector';
+export { COSMIC_BIOMES } from './game/environment/cosmicEnvironmentDirector';
 
 export type ShipDecalType =
   | 'none'

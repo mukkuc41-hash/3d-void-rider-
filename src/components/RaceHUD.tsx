@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Wind,
   ChevronsUp,
+  ChevronsDown,
   Wrench,
   Radio,
   Hourglass,
@@ -36,8 +37,12 @@ import {
   MinimapTelemetry,
   GameMode,
   CosmicPairLiveTelemetry,
+  QuantumCountdownTelemetry,
+  CosmicBiomeDefinition,
+  COSMIC_BIOMES,
 } from '../types';
 import { ActiveJunctionTelemetry, BranchRouteDirection } from '../game/junctionSystem';
+import { COSMIC_40_EVENTS } from '../game/catastrophe/cosmicSystems';
 import { JunctionHUD } from './JunctionHUD';
 import { InteractiveMinimap } from './InteractiveMinimap';
 import { ModeHUDTelemetry } from '../game/modeManager';
@@ -99,6 +104,13 @@ interface RaceHUDProps {
   onToggleAIDebug?: () => void;
   isIntroActive?: boolean;
   cosmicPairTelemetry?: CosmicPairLiveTelemetry | null;
+  quantumCountdownTelemetry?: QuantumCountdownTelemetry | null;
+  activeCosmicBiome?: CosmicBiomeDefinition | null;
+  activeRouteBranchName?: string;
+  onSetCountdownDuration?: (seconds: number) => void;
+  onCycleCosmicBiome?: () => void;
+  onToggleCountdownMute?: () => void;
+  isCountdownMuted?: boolean;
 }
 
 const SECTOR_NAMES: Record<string, string> = {
@@ -167,6 +179,13 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   onToggleAIDebug,
   isIntroActive,
   cosmicPairTelemetry,
+  quantumCountdownTelemetry,
+  activeCosmicBiome = COSMIC_BIOMES.CRYO_NEBULA,
+  activeRouteBranchName = 'MAIN ACCRETION CORRIDOR',
+  onSetCountdownDuration,
+  onCycleCosmicBiome,
+  onToggleCountdownMute,
+  isCountdownMuted = false,
 }) => {
   // Joystick State
   const [stickPos, setStickPos] = useState({ x: 0, y: 0 });
@@ -214,6 +233,30 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
     }
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length > 0) {
+      setTouchActive(true);
+      const touch = e.touches[0];
+      updateJoystick(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      updateJoystick(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    setTouchActive(false);
+    setStickPos({ x: 0, y: 0 });
+    onInputChange?.({ steer: 0, throttle: 0 });
+  };
+
   const updateJoystick = (clientX: number, clientY: number) => {
     if (!joystickRef.current) return;
     const rect = joystickRef.current.getBoundingClientRect();
@@ -252,46 +295,57 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   const sectorTitle = SECTOR_NAMES[trackId] || 'SECTOR ALPHA';
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20 select-none p-3 sm:p-5 flex flex-col justify-between overflow-hidden">
+    <div className="absolute inset-0 pointer-events-none z-20 select-none safe-pad p-2 sm:p-4 flex flex-col justify-between overflow-hidden">
       {/* ================= TOP TELEMETRY SECTION ================= */}
-      <div className="flex items-start justify-between w-full">
+      <div className="flex flex-wrap lg:flex-nowrap items-start justify-between gap-2 w-full">
         {/* Top Left: Logo & Position / Lap Card */}
         <div className="flex flex-col items-start select-none">
-          <div className="text-[#00f0ff] font-ui font-black italic tracking-widest text-lg sm:text-xl drop-shadow-[0_0_12px_rgba(0,240,255,0.85)] leading-tight">
+          <div className="text-[#00f0ff] font-ui font-black italic tracking-widest text-base sm:text-xl drop-shadow-[0_0_12px_rgba(0,240,255,0.85)] leading-tight">
             VOID-RIDER 3D
           </div>
-          <div className="text-[#ff00e5] font-ui font-bold italic tracking-wider text-[10px] sm:text-xs drop-shadow-[0_0_8px_rgba(255,0,229,0.7)] mt-[-1px]">
-            RACE BEYOND LIMITS
-          </div>
+          {gameMode === 'BLACK_HOLE' ? (
+            <div className="flex flex-col mt-0.5">
+              <span className="text-[#ff00e5] font-ui font-black italic tracking-wider text-[9px] sm:text-xs drop-shadow-[0_0_8px_rgba(255,0,229,0.7)]">
+                BLACK HOLE MODE // QUANTUM LAUNCH PRO
+              </span>
+              <span className="text-amber-400 font-mono font-black text-[8px] sm:text-[10px] tracking-widest uppercase">
+                SUBMODE 10: THE FINAL COLLAPSE
+              </span>
+            </div>
+          ) : (
+            <div className="text-[#ff00e5] font-ui font-bold italic tracking-wider text-[9px] sm:text-xs drop-shadow-[0_0_8px_rgba(255,0,229,0.7)] mt-[-1px]">
+              RACE BEYOND LIMITS
+            </div>
+          )}
 
           {/* Position & Lap Box */}
-          <div className="mt-2.5 flex flex-col bg-[#050b14]/90 border border-cyan-500/40 rounded-2xl p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_15px_rgba(0,240,255,0.2)]">
-            <div className="flex items-center gap-3">
+          <div className="mt-2 flex flex-col bg-[#050b14]/90 border border-cyan-500/40 rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 backdrop-blur-md shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+            <div className="flex items-center gap-2 sm:gap-3">
               {/* Position */}
               <div className="flex flex-col">
-                <span className="text-[9px] font-mono font-bold text-cyan-400/80 tracking-wider">
+                <span className="text-[8px] sm:text-[9px] font-mono font-bold text-cyan-400/80 tracking-wider">
                   POSITION
                 </span>
                 <div className="flex items-baseline mt-0.5">
-                  <span className="text-cyan-300 bg-cyan-950/90 border border-cyan-400/70 rounded px-1.5 py-0.5 font-ui font-black text-xl sm:text-2xl leading-none">
+                  <span className="text-cyan-300 bg-cyan-950/90 border border-cyan-400/70 rounded px-1.5 py-0.5 font-ui font-black text-lg sm:text-2xl leading-none">
                     {String(rank || 6).padStart(2, '0')}
                   </span>
-                  <span className="text-xs font-mono font-bold text-cyan-500/70 ml-1">
+                  <span className="text-[10px] sm:text-xs font-mono font-bold text-cyan-500/70 ml-1">
                     /{String(totalPlayers || 1).padStart(2, '0')}
                   </span>
                 </div>
               </div>
 
               {/* Lap */}
-              <div className="flex flex-col border-l border-slate-800 pl-3">
-                <span className="text-[9px] font-mono font-bold text-slate-400 tracking-wider">
+              <div className="flex flex-col border-l border-slate-800 pl-2 sm:pl-3">
+                <span className="text-[8px] sm:text-[9px] font-mono font-bold text-slate-400 tracking-wider">
                   LAP
                 </span>
                 <div className="flex items-baseline mt-0.5">
-                  <span className="text-white bg-slate-800/90 border border-slate-600/70 rounded px-1.5 py-0.5 font-ui font-black text-xl sm:text-2xl leading-none">
+                  <span className="text-white bg-slate-800/90 border border-slate-600/70 rounded px-1.5 py-0.5 font-ui font-black text-lg sm:text-2xl leading-none">
                     {String(Math.min(currentLap, totalLaps) || 1).padStart(2, '0')}
                   </span>
-                  <span className="text-xs font-mono font-bold text-slate-400 ml-1">
+                  <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-400 ml-1">
                     /{String(totalLaps || 2).padStart(2, '0')}
                   </span>
                 </div>
@@ -299,13 +353,13 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
             </div>
 
             {/* 4 horizontal indicator segments */}
-            <div className="flex items-center gap-1.5 mt-2">
+            <div className="flex items-center gap-1 sm:gap-1.5 mt-1.5 sm:mt-2">
               {[0, 1, 2, 3].map(seg => {
                 const activeSeg = Math.floor((checkpoint / Math.max(1, totalCheckpoints)) * 4);
                 return (
                   <div
                     key={seg}
-                    className={`h-0.5 w-4 rounded-full transition-all duration-300 ${
+                    className={`h-0.5 w-3 sm:w-4 rounded-full transition-all duration-300 ${
                       seg <= activeSeg
                         ? 'bg-cyan-400 shadow-[0_0_6px_#00f0ff]'
                         : 'bg-slate-700/60'
@@ -317,7 +371,7 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
           </div>
 
           {/* Hull & Systems Damage Card */}
-          <div className="mt-2 flex flex-col bg-[#050b14]/90 border border-slate-700/60 rounded-xl p-2 backdrop-blur-md min-w-[150px]">
+          <div className="mt-1.5 sm:mt-2 flex flex-col bg-[#050b14]/90 border border-slate-700/60 rounded-xl p-1.5 sm:p-2 backdrop-blur-md min-w-[130px] sm:min-w-[150px]">
             <div className="flex items-center justify-between text-[8px] font-mono font-bold text-slate-400">
               <span>HULL INTEGRITY</span>
               <span className={hullHealth < 35 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}>
@@ -333,17 +387,17 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
               />
             </div>
             {damageZones && (
-              <div className="grid grid-cols-4 gap-1 mt-1.5 text-[7px] font-mono text-center">
-                <div className={`px-1 py-0.5 rounded ${damageZones.frontHull > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
+              <div className="grid grid-cols-4 gap-1 mt-1 text-[7px] font-mono text-center">
+                <div className={`px-0.5 sm:px-1 py-0.5 rounded ${damageZones.frontHull > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
                   NOSE
                 </div>
-                <div className={`px-1 py-0.5 rounded ${damageZones.leftWing > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
+                <div className={`px-0.5 sm:px-1 py-0.5 rounded ${damageZones.leftWing > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
                   L-WING
                 </div>
-                <div className={`px-1 py-0.5 rounded ${damageZones.rightWing > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
+                <div className={`px-0.5 sm:px-1 py-0.5 rounded ${damageZones.rightWing > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
                   R-WING
                 </div>
-                <div className={`px-1 py-0.5 rounded ${damageZones.rearEngine > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
+                <div className={`px-0.5 sm:px-1 py-0.5 rounded ${damageZones.rearEngine > 40 ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 animate-pulse' : 'bg-slate-900/60 text-slate-400'}`}>
                   ENG
                 </div>
               </div>
@@ -351,8 +405,107 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
           </div>
         </div>
 
-        {/* Top Center: Mode & Singularity Telemetry Banner */}
-        {singularityTelemetry ? (
+        {/* Top Center: Quantum Launch Pro Message & Integrated Countdown Clock */}
+        {gameMode === 'BLACK_HOLE' ? (() => {
+          const currentEventIdx = cosmicPairTelemetry?.eventIndex || 1;
+          const currentEventDef = COSMIC_40_EVENTS[currentEventIdx - 1];
+          const nextEventDef = currentEventIdx < 40 ? COSMIC_40_EVENTS[currentEventIdx] : null;
+          const gravityStress = Math.min(100, Math.round(singularityTelemetry?.tidalStress ? singularityTelemetry.tidalStress * 100 : (currentEventIdx * 2.45)));
+          const eventHorizonDist = Math.max(10, Math.round(singularityTelemetry?.distanceToHorizon ?? (3800 - currentEventIdx * 85)));
+          const junctionDistanceVal = junctionTelemetry?.distanceToJunction ? `${Math.round(junctionTelemetry.distanceToJunction)}M` : (currentLap === 1 ? 'LOCKED (LAP 1)' : 'APPROACHING');
+          const currentRouteVal = activeRouteBranchName || (currentLap === 1 ? 'STANDARD CIRCUIT' : 'APPROACHING FORK');
+
+          return (
+            <div className="flex flex-col items-center pointer-events-auto bg-[#030712]/95 border-2 border-purple-500/70 rounded-2xl px-2.5 sm:px-5 py-1.5 sm:py-2.5 backdrop-blur-xl shadow-[0_0_35px_rgba(168,85,247,0.45)] w-full max-w-xl mx-auto text-center order-3 lg:order-2">
+              {/* Header row: Mode & Protocol Status + Integrated Countdown Clock */}
+              <div className="w-full flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-3 border-b border-purple-500/30 pb-1.5 mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                  <span className="text-[9.5px] sm:text-[11px] font-mono font-black text-cyan-300 tracking-wider sm:tracking-widest uppercase">
+                    QUANTUM LAUNCH PRO // SUBMODE 10
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="text-slate-400 font-mono text-[9px] sm:text-[10px] font-bold hidden sm:inline">TIME REMAINING</span>
+                  <span className="px-2 py-0.5 rounded-md font-mono font-black text-xs sm:text-sm tracking-wider bg-purple-950/80 border border-purple-400/50 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.4)]">
+                    {quantumCountdownTelemetry ? `T-${quantumCountdownTelemetry.formattedTime}` : 'T-08:00.00'}
+                  </span>
+                  <span
+                    className="px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-extrabold uppercase tracking-wider"
+                    style={{
+                      backgroundColor: `${quantumCountdownTelemetry?.statusColor || '#00f0ff'}20`,
+                      borderColor: quantumCountdownTelemetry?.statusColor || '#00f0ff',
+                      color: quantumCountdownTelemetry?.statusColor || '#00f0ff',
+                      borderWidth: '1px',
+                    }}
+                  >
+                    {quantumCountdownTelemetry?.statusBadge || 'PROTOCOL ACTIVE'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Current Event & Next Event Row */}
+              <div className="w-full grid grid-cols-2 gap-2 text-left bg-purple-950/30 border border-purple-500/30 rounded-xl p-2 mb-1 text-[10px] font-mono">
+                <div>
+                  <span className="text-cyan-400 font-extrabold block text-[9px] uppercase tracking-wider">
+                    CURRENT EVENT [#{String(currentEventIdx).padStart(2, '0')}/40]:
+                  </span>
+                  <span className="text-white font-bold truncate block text-xs">
+                    {currentEventDef?.name || 'BLACK HOLE ACTIVATION'}
+                  </span>
+                </div>
+                <div className="border-l border-purple-800/60 pl-2">
+                  <span className="text-fuchsia-400 font-extrabold block text-[9px] uppercase tracking-wider">
+                    NEXT EVENT:
+                  </span>
+                  <span className="text-slate-200 font-bold truncate block text-xs">
+                    {nextEventDef ? `[#${String(nextEventDef.index).padStart(2, '0')}] ${nextEventDef.name}` : '00:00 ABSOLUTE DESTRUCTION'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar across collapse timeline */}
+              <div className="w-full bg-slate-900/90 h-1.5 rounded-full overflow-hidden my-1 border border-purple-900/50">
+                <div
+                  className="h-full transition-all duration-150"
+                  style={{
+                    width: `${Math.min(100, (quantumCountdownTelemetry?.progressRatio || 0) * 100)}%`,
+                    backgroundColor: quantumCountdownTelemetry?.statusColor || '#00f0ff',
+                    boxShadow: `0 0 10px ${quantumCountdownTelemetry?.statusColor || '#00f0ff'}`,
+                  }}
+                />
+              </div>
+
+              {/* Specific Submode 10 Telemetry: Gravity Stress, Event Horizon Distance, Junction Distance, Current Route */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-1.5 w-full mt-1 text-[8.5px] sm:text-[9px] font-mono text-slate-300 px-1 pt-1 border-t border-purple-500/20">
+                <div className="flex flex-col items-start">
+                  <span className="text-slate-500 text-[8px]">GRAV STRESS</span>
+                  <strong className={gravityStress > 70 ? 'text-rose-400 font-black animate-pulse' : gravityStress > 40 ? 'text-amber-400 font-bold' : 'text-cyan-300 font-bold'}>
+                    {gravityStress}%
+                  </strong>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-slate-500 text-[8px]">HORIZON DIST</span>
+                  <strong className={eventHorizonDist < 800 ? 'text-rose-400 font-black animate-pulse' : 'text-purple-300 font-bold'}>
+                    {eventHorizonDist}M
+                  </strong>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-slate-500 text-[8px]">JUNCTION DIST</span>
+                  <strong className="text-cyan-300 font-bold truncate max-w-[85px]">
+                    {junctionDistanceVal}
+                  </strong>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-slate-500 text-[8px]">CURRENT ROUTE</span>
+                  <strong className="text-fuchsia-300 font-bold truncate max-w-[85px]">
+                    {currentRouteVal}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          );
+        })() : singularityTelemetry ? (
           <div className="flex flex-col items-center pointer-events-none bg-[#050b14]/95 border border-purple-500/80 rounded-2xl px-3.5 py-1.5 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.35)] min-w-[200px]">
             <div className="flex items-center gap-1.5 text-[10px] font-mono font-black text-purple-300 tracking-wider">
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
@@ -439,6 +592,16 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
               >
                 <Eye className="w-3.5 h-3.5 text-purple-300" />
                 <span className="hidden sm:inline">WHOLE BLACK HOLE</span>
+              </button>
+            )}
+            {gameMode === 'BLACK_HOLE' && onCycleCosmicBiome && (
+              <button
+                onClick={onCycleCosmicBiome}
+                className="h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-md cursor-pointer text-xs font-mono font-bold bg-[#060c18]/85 border-cyan-500/40 text-cyan-300 hover:text-white hover:border-cyan-400"
+                title="Change Cosmic Environment Biome [E]"
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeCosmicBiome?.badgeColor || '#00f0ff' }} />
+                <span className="hidden sm:inline">{activeCosmicBiome?.name.split(' ')[0] || 'BIOME'} [E]</span>
               </button>
             )}
             <button
@@ -558,6 +721,43 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
             <span>{activeEvent.title}</span>
           </div>
         )}
+
+        {/* 40-Event Collapse Warning / Caution / Alert Notification */}
+        {cosmicPairTelemetry && (() => {
+          const evtIndex = cosmicPairTelemetry.eventIndex;
+          const cosmicDef = COSMIC_40_EVENTS[evtIndex - 1];
+          const alertBadge = evtIndex >= 35 ? 'CRITICAL' :
+                             evtIndex >= 21 ? 'ALERT' :
+                             evtIndex >= 11 ? 'WARNING' : 'CAUTION';
+          const alertBadgeClass = evtIndex >= 35
+            ? 'bg-rose-950/90 border-rose-500 text-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.6)]'
+            : evtIndex >= 21
+            ? 'bg-amber-950/90 border-amber-500 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)]'
+            : evtIndex >= 11
+            ? 'bg-orange-950/90 border-orange-500 text-orange-300 shadow-[0_0_20px_rgba(249,115,22,0.5)]'
+            : 'bg-purple-950/90 border-purple-500 text-purple-300 shadow-[0_0_20px_rgba(168,85,247,0.4)]';
+
+          return (
+            <div className={`w-full max-w-xl mx-auto px-4 py-2 rounded-2xl border font-mono backdrop-blur-md flex items-center justify-between gap-3 animate-pulse shadow-xl ${alertBadgeClass}`}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black tracking-widest text-cyan-300 uppercase">
+                    EVENT {String(evtIndex).padStart(2, '0')}
+                  </span>
+                  <span className="font-ui font-black text-xs sm:text-sm uppercase text-white tracking-wider">
+                    {cosmicDef?.name || cosmicPairTelemetry.element1.name}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] sm:text-xs font-black tracking-wider uppercase">
+                  <span className="underline decoration-2">{alertBadge}:</span> {cosmicDef?.subtitle || 'GRAVITATIONAL ANOMALY'}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 2-Element Cosmic Event Live Status & Spaghettification Telemetry Card */}
         {cosmicPairTelemetry && (
@@ -883,37 +1083,41 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
       </div>
 
       {/* ================= BOTTOM CONTROLS & TELEMETRY ================= */}
-      <div className="flex items-end justify-between w-full">
+      <div className="flex items-end justify-between w-full safe-pad-b gap-2">
         {/* Bottom Left: Mode Pill & Steering Joystick */}
         <div className="flex flex-col items-start pointer-events-auto select-none">
           {/* Mode Pill */}
-          <div className="mb-2 px-2.5 py-0.5 rounded-full bg-[#060e1b]/90 border border-fuchsia-500/60 text-fuchsia-300 text-[9px] font-mono font-bold tracking-wider flex items-center gap-1 shadow-[0_0_10px_rgba(217,70,239,0.3)]">
-            <span className="text-[10px]">🎛</span>
-            <span>MODE: JOYSTICK</span>
+          <div className="mb-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-[#060e1b]/90 border border-fuchsia-500/60 text-fuchsia-300 text-[8px] sm:text-[9px] font-mono font-bold tracking-wider flex items-center gap-1 shadow-[0_0_10px_rgba(217,70,239,0.3)]">
+            <span className="text-[9px] sm:text-[10px]">🎛</span>
+            <span>JOYSTICK: FWD / REV / STEER</span>
           </div>
 
-          {/* Virtual Steering Joystick */}
+          {/* Virtual Steering & Throttle Joystick */}
           <div
             ref={joystickRef}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
-            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-[#040914]/90 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_25px_rgba(0,240,255,0.2)] touch-none cursor-grab active:cursor-grabbing"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            className="relative w-26 h-26 sm:w-32 sm:h-32 rounded-full bg-[#040914]/90 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_25px_rgba(0,240,255,0.2)] touch-none cursor-grab active:cursor-grabbing select-none"
           >
-            {/* Directional Chevrons */}
-            <div className="absolute top-1 text-cyan-500/50 text-xs font-mono font-bold">▲</div>
-            <div className="absolute bottom-1 text-cyan-500/50 text-xs font-mono font-bold">▼</div>
+            {/* Directional Indicators */}
+            <div className="absolute top-1 text-cyan-400 font-mono text-[8px] sm:text-[9px] font-black tracking-widest">FWD ▲</div>
+            <div className="absolute bottom-1 text-amber-400 font-mono text-[8px] sm:text-[9px] font-black tracking-widest">▼ REV</div>
             <div className="absolute left-1.5 text-cyan-500/50 text-xs font-mono font-bold">◀</div>
             <div className="absolute right-1.5 text-cyan-500/50 text-xs font-mono font-bold">▶</div>
 
             {/* Concentric Guide Rings */}
-            <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full border border-cyan-500/20" />
-            <div className="w-12 h-12 rounded-full border border-cyan-500/30" />
+            <div className="w-18 h-18 sm:w-22 sm:h-22 rounded-full border border-cyan-500/20" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-cyan-500/30" />
 
             {/* Movable Thumbstick Knob */}
             <div
-              className={`absolute w-12 h-12 rounded-full border-2 border-cyan-300 shadow-[0_0_18px_#00f0ff] transition-transform duration-75 flex items-center justify-center ${
+              className={`absolute w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-cyan-300 shadow-[0_0_18px_#00f0ff] transition-transform duration-75 flex items-center justify-center ${
                 touchActive
                   ? 'bg-gradient-to-b from-cyan-400 to-blue-600 scale-95'
                   : 'bg-gradient-to-b from-cyan-500/85 to-blue-700/85 scale-100'
@@ -922,15 +1126,15 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                 transform: `translate(${stickPos.x}px, ${stickPos.y}px)`,
               }}
             >
-              <div className="w-6 h-6 rounded-full border border-cyan-200/60 flex items-center justify-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-cyan-200 shadow-[0_0_6px_#fff]" />
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-cyan-200/60 flex items-center justify-center">
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-cyan-200 shadow-[0_0_6px_#fff]" />
               </div>
             </div>
           </div>
 
           {/* Joystick Label */}
-          <div className="text-[10px] font-mono font-bold text-cyan-400/90 tracking-widest mt-1.5 pl-1">
-            STEER // JOYSTICK
+          <div className="text-[9px] sm:text-[10px] font-mono font-bold text-cyan-400/90 tracking-widest mt-1 pl-1">
+            STEER // FWD & REV
           </div>
         </div>
 
@@ -941,11 +1145,15 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
               e.preventDefault();
               onRecover?.();
             }}
-            className="w-10 h-10 rounded-xl bg-[#060e1b]/90 border border-slate-700 text-slate-400 hover:text-white active:bg-cyan-500 active:text-slate-950 flex flex-col items-center justify-center shadow-lg transition-all active:scale-95 cursor-pointer"
+            onTouchStart={e => {
+              e.preventDefault();
+              onRecover?.();
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#060e1b]/90 border border-slate-700 text-slate-400 hover:text-white active:bg-cyan-500 active:text-slate-950 flex flex-col items-center justify-center shadow-lg transition-all active:scale-95 cursor-pointer touch-none"
             title="Reset Orientation [R]"
           >
-            <RotateCcw className="w-4 h-4 text-cyan-400" />
-            <span className="text-[7px] font-mono font-bold tracking-wider text-slate-400 mt-0.5 uppercase">
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400" />
+            <span className="text-[6.5px] sm:text-[7px] font-mono font-bold tracking-wider text-slate-400 mt-0.5 uppercase">
               RESET
             </span>
           </button>
@@ -954,12 +1162,12 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
         {/* Bottom Right: Velocity, Boost Fuel, Drift & Boost Buttons */}
         <div className="flex flex-col items-end pointer-events-auto select-none">
           {/* Speedometer Digital Readout */}
-          <div className="flex flex-col items-end mb-2">
+          <div className="flex flex-col items-end mb-1.5 sm:mb-2">
             <div className="flex items-baseline">
-              <div className="w-7 h-9 rounded-md bg-cyan-950/90 border-2 border-cyan-400 shadow-[0_0_12px_#00f0ff] flex items-center justify-center text-2xl font-ui font-black text-cyan-300 leading-none">
-                {speed}
+              <div className="min-w-[4rem] sm:min-w-[4.5rem] px-2 h-8 sm:h-9 rounded-md bg-cyan-950/90 border-2 border-cyan-400 shadow-[0_0_12px_#00f0ff] flex items-center justify-center text-lg sm:text-2xl font-ui font-black text-cyan-300 leading-none">
+                {speed < 0 ? `REV ${Math.abs(speed)}` : speed}
               </div>
-              <span className="text-[10px] font-mono font-bold text-cyan-400 ml-1.5 tracking-wider">
+              <span className="text-[9px] sm:text-[10px] font-mono font-bold text-cyan-400 ml-1.5 tracking-wider">
                 KM/H
               </span>
             </div>
@@ -1085,7 +1293,19 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                 onPointerLeave={() => {
                   onInputChange?.({ drift: false });
                 }}
-                className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl border-2 border-fuchsia-400 bg-fuchsia-950/80 text-fuchsia-300 flex flex-col items-center justify-center shadow-[0_0_15px_rgba(217,70,239,0.3)] active:scale-95 active:bg-fuchsia-500 active:text-slate-950 transition-all cursor-pointer"
+                onTouchStart={e => {
+                  e.preventDefault();
+                  onInputChange?.({ drift: true });
+                }}
+                onTouchEnd={e => {
+                  e.preventDefault();
+                  onInputChange?.({ drift: false });
+                }}
+                onTouchCancel={e => {
+                  e.preventDefault();
+                  onInputChange?.({ drift: false });
+                }}
+                className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl border-2 border-fuchsia-400 bg-fuchsia-950/80 text-fuchsia-300 flex flex-col items-center justify-center shadow-[0_0_15px_rgba(217,70,239,0.3)] active:scale-95 active:bg-fuchsia-500 active:text-slate-950 transition-all cursor-pointer touch-none select-none"
                 title="Drift Brake [SHIFT]"
               >
                 <Wind className="w-4 h-4 sm:w-4.5 sm:h-4.5 mb-0.5" />
@@ -1334,6 +1554,46 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                 </span>
               </button>
 
+              {/* Dedicated Brake / Reverse Propulsion Button */}
+              <button
+                onPointerDown={e => {
+                  e.preventDefault();
+                  onInputChange?.({ throttle: -1 });
+                }}
+                onPointerUp={e => {
+                  e.preventDefault();
+                  onInputChange?.({ throttle: 0 });
+                }}
+                onPointerLeave={() => {
+                  onInputChange?.({ throttle: 0 });
+                }}
+                onPointerCancel={() => {
+                  onInputChange?.({ throttle: 0 });
+                }}
+                onTouchStart={e => {
+                  e.preventDefault();
+                  onInputChange?.({ throttle: -1 });
+                }}
+                onTouchEnd={e => {
+                  e.preventDefault();
+                  onInputChange?.({ throttle: 0 });
+                }}
+                onTouchCancel={e => {
+                  e.preventDefault();
+                  onInputChange?.({ throttle: 0 });
+                }}
+                className="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl border-2 border-amber-400/90 bg-amber-950/85 text-amber-300 active:bg-amber-500 active:text-slate-950 flex flex-col items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.3)] active:scale-95 transition-all cursor-pointer touch-none select-none"
+                title="Brake & Reverse Propulsion [S / DOWN]"
+              >
+                <ChevronsDown className="w-5 h-5 leading-none" />
+                <span className="text-[9px] sm:text-[10px] font-ui font-black uppercase tracking-wider leading-none mt-0.5">
+                  BRAKE
+                </span>
+                <span className="text-[6.5px] font-mono font-bold text-amber-300/80 uppercase tracking-wider leading-none mt-0.5">
+                  REV
+                </span>
+              </button>
+
               {/* Boost Hold Button */}
               <button
                 onPointerDown={e => {
@@ -1347,8 +1607,20 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                 onPointerLeave={() => {
                   onInputChange?.({ boost: false });
                 }}
+                onTouchStart={e => {
+                  e.preventDefault();
+                  if (boost > 5) onInputChange?.({ boost: true });
+                }}
+                onTouchEnd={e => {
+                  e.preventDefault();
+                  onInputChange?.({ boost: false });
+                }}
+                onTouchCancel={e => {
+                  e.preventDefault();
+                  onInputChange?.({ boost: false });
+                }}
                 disabled={boost <= 5}
-                className={`w-15 h-15 sm:w-16 sm:h-16 rounded-2xl border-2 flex flex-col items-center justify-center shadow-[0_0_25px_rgba(0,240,255,0.4)] active:scale-95 transition-all cursor-pointer ${
+                className={`w-13 h-13 sm:w-16 sm:h-16 rounded-2xl border-2 flex flex-col items-center justify-center shadow-[0_0_25px_rgba(0,240,255,0.4)] active:scale-95 transition-all cursor-pointer touch-none select-none ${
                   speed > 250
                     ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_35px_#00f0ff]'
                     : boost > 5

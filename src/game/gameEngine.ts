@@ -50,6 +50,10 @@ import {
 } from './FinalCollapseManager';
 import { DynamicCollapseEnvironmentsManager } from './environment/dynamicCollapseEnvironments';
 import type { CosmicPairLiveTelemetry } from './catastrophe/cosmicEventPairVisualizer';
+import { CosmicEnvironmentDirector, CosmicBiomeDefinition, CosmicBiomeId } from './environment/cosmicEnvironmentDirector';
+import { QuantumCountdownClock, QuantumCountdownTelemetry } from './environment/quantumCountdownClock';
+import { QuantumRouteSystem } from './environment/quantumRouteSystem';
+import { FuturisticSpaceUniverse } from './environment/futuristicSpaceUniverse';
 import { ModeManager, ModeHUDTelemetry } from './modeManager';
 import { ModeEntitySystem } from './modeEntitySystem';
 import { Obstacle, SamplePoint } from './trackData';
@@ -181,6 +185,9 @@ export interface GameEngineCallbacks {
   onFinishCinematicTelemetry?: (telemetry: FinishCinematicTelemetry | null) => void;
   onBlackHoleCinematicTelemetry?: (telemetry: BlackHoleCinematicTelemetry | null) => void;
   onCosmicPairTelemetry?: (telemetry: CosmicPairLiveTelemetry | null) => void;
+  onQuantumCountdownUpdate?: (telemetry: QuantumCountdownTelemetry | null) => void;
+  onCosmicBiomeUpdate?: (biome: CosmicBiomeDefinition) => void;
+  onActiveRouteBranchUpdate?: (routeName: string) => void;
 }
 
 // Preallocated math objects for zero-allocation GC-free render loop
@@ -327,6 +334,8 @@ export class GameEngine {
   private finalCollapseLastEvent = 'NONE';
   private finalCollapseEntryReady = false;
   private finalCollapseDescending = false;
+  private finalCollapseRing2Passed = false;
+  private finalCollapseRing3Passed = false;
   private finalCollapseHangarEntered = false;
   private finalCollapseParkingAligned = false;
   private finalCollapseShipParked = false;
@@ -349,6 +358,13 @@ export class GameEngine {
   public trackDestruction: TrackDestructionVisuals | null = null;
   public holographicWarnings: HolographicWarningSystem | null = null;
   public collapseEnvironments: DynamicCollapseEnvironmentsManager | null = null;
+  public environmentDirector: CosmicEnvironmentDirector | null = null;
+  public quantumCountdownClock: QuantumCountdownClock | null = null;
+  public quantumRouteSystem: QuantumRouteSystem | null = null;
+  public futuristicSpaceUniverse: FuturisticSpaceUniverse | null = null;
+  public mainDirLight: THREE.DirectionalLight | null = null;
+  public mainAmbientLight: THREE.AmbientLight | null = null;
+  public lastActiveRouteName: string = 'MAIN HIGHWAY';
   private finalCollapseDoorAudioPlayed = false;
   private finalCollapseDoorSealedAudioPlayed = false;
   private finalCollapseCollisionAudioPlayed = false;
@@ -505,6 +521,7 @@ export class GameEngine {
     this.initLighting();
     this.initSkyboxAndStars();
     this.initCelestialBodies();
+    this.futuristicSpaceUniverse = new FuturisticSpaceUniverse(this.scene);
     this.initSpeedParticles();
     this.initThrusterParticles();
     this.initCollisionSparkParticles();
@@ -684,16 +701,27 @@ export class GameEngine {
   }
 
   private initLighting() {
-    const ambientLight = new THREE.AmbientLight(0x1a1a3a, 1.2);
-    this.scene.add(ambientLight);
+    this.mainAmbientLight = new THREE.AmbientLight(0x1a1a3a, 1.2);
+    this.scene.add(this.mainAmbientLight);
 
-    const dirLight = new THREE.DirectionalLight(0x88bbff, 2.0);
-    dirLight.position.set(100, 300, 200);
-    this.scene.add(dirLight);
+    this.mainDirLight = new THREE.DirectionalLight(0x88bbff, 2.0);
+    this.mainDirLight.position.set(100, 300, 200);
+    this.scene.add(this.mainDirLight);
 
     const purpleLight = new THREE.DirectionalLight(0xcc22ff, 1.5);
     purpleLight.position.set(-200, -100, -300);
     this.scene.add(purpleLight);
+
+    // Initialize Dynamic Cosmic Environment Director
+    this.environmentDirector = new CosmicEnvironmentDirector(
+      this.scene,
+      this.mainDirLight,
+      this.mainAmbientLight
+    );
+
+    // Initialize Quantum Countdown Clock & In-World 3D Holographic Gantries
+    this.quantumCountdownClock = new QuantumCountdownClock(480, 10);
+    this.scene.add(this.quantumCountdownClock.gantryMeshGroup);
   }
 
   private initSkyboxAndStars() {
@@ -2109,17 +2137,36 @@ export class GameEngine {
     if (this.isRacing) {
       if (this.input.throttle > 0 || this.hyperBoostTimer > 0) {
         const throttleMult = this.hyperBoostTimer > 0 ? 2.2 : this.isBoosting ? 1.8 : 1.0;
+        const forwardInput = Math.max(0.35, Math.min(1.0, this.input.throttle || 1.0));
         this.currentSpeed = Math.min(
           targetMaxSpeed,
-          this.currentSpeed + accelRate * dt * throttleMult
+          this.currentSpeed + accelRate * dt * throttleMult * forwardInput
         );
       } else if (this.input.throttle < 0) {
-        this.currentSpeed = Math.max(0, this.currentSpeed - brakeRate * dt);
+        const revFactor = Math.abs(this.input.throttle);
+        const maxReverseSpeed = -10.0; // -36 km/h max reverse speed
+        if (this.currentSpeed > 0) {
+          // Brake hard from forward movement
+          this.currentSpeed -= brakeRate * dt * revFactor;
+        } else {
+          // Accelerate in reverse along track / space
+          const revAccel = accelRate * 0.85 * revFactor;
+          this.currentSpeed = Math.max(maxReverseSpeed, this.currentSpeed - revAccel * dt);
+        }
       } else {
-        this.currentSpeed = Math.max(0, this.currentSpeed - dragRate * dt);
+        if (this.currentSpeed > 0) {
+          this.currentSpeed = Math.max(0, this.currentSpeed - dragRate * dt);
+        } else if (this.currentSpeed < 0) {
+          // Smooth drag returns reverse speed back to neutral 0
+          this.currentSpeed = Math.min(0, this.currentSpeed + dragRate * 1.8 * dt);
+        }
       }
     } else {
-      this.currentSpeed = Math.max(0, this.currentSpeed - dragRate * 2 * dt);
+      if (this.currentSpeed > 0) {
+        this.currentSpeed = Math.max(0, this.currentSpeed - dragRate * 2 * dt);
+      } else if (this.currentSpeed < 0) {
+        this.currentSpeed = Math.min(0, this.currentSpeed + dragRate * 2 * dt);
+      }
     }
 
     const isInverted = activeEvent?.type === 'INVERSION_ZONE';
@@ -2159,8 +2206,11 @@ export class GameEngine {
       ? this.finalCollapseManager.catastrophe.getShipImpactForces(this.finalCollapseManager.elapsed).steeringResistance
       : 0;
     const steerSpeed = 24 * handlingFactor * (1.0 - steerResistance);
-    if (effectiveSteer !== 0 && this.currentSpeed > 5) {
-      this.lateralOffset += effectiveSteer * steerSpeed * dt * (this.currentSpeed / maxNormalSpeed);
+    if (effectiveSteer !== 0 && (Math.abs(this.currentSpeed) > 1 || this.input.throttle !== 0)) {
+      const velocityRatio = this.currentSpeed >= 0
+        ? Math.max(0.2, this.currentSpeed / maxNormalSpeed)
+        : -0.55; // Natural steering response when moving in reverse
+      this.lateralOffset += effectiveSteer * steerSpeed * dt * velocityRatio;
     }
 
     if (this.hyperBoostTimer > 0) {
@@ -2190,7 +2240,7 @@ export class GameEngine {
       }
     }
 
-    // Mode 21 Submode 10: Playable Shelter & Parking Navigation
+    // Mode 21 Submode 10: Playable Shelter & Parking Navigation (Supports forward & reverse)
     if (this.shelterNavigationActive) {
       if (!this.finalCollapseShipParked) {
         const steerSpeed = 16.0;
@@ -2199,16 +2249,23 @@ export class GameEngine {
         this.shelterHeading = THREE.MathUtils.lerp(this.shelterHeading, this.input.steer * 0.22, 0.12);
 
         const maxTunnelSpeed = (this.shelterZ > -32) ? 30 : (this.shelterZ > -130) ? 20 : 12;
+        const maxTunnelReverse = -12;
         if (this.input.throttle > 0) {
-          this.currentSpeed = Math.min(maxTunnelSpeed, this.currentSpeed + 18 * dt);
+          this.currentSpeed = Math.min(maxTunnelSpeed, this.currentSpeed + 18 * dt * Math.max(0.4, this.input.throttle));
         } else if (this.input.throttle < 0) {
-          this.currentSpeed = Math.max(0, this.currentSpeed - 28 * dt);
+          const revFactor = Math.abs(this.input.throttle);
+          if (this.currentSpeed > 0) {
+            this.currentSpeed -= 28 * dt * revFactor;
+          } else {
+            this.currentSpeed = Math.max(maxTunnelReverse, this.currentSpeed - 16 * dt * revFactor);
+          }
         } else {
-          this.currentSpeed = Math.max(0, this.currentSpeed - 10 * dt);
+          if (this.currentSpeed > 0) this.currentSpeed = Math.max(0, this.currentSpeed - 10 * dt);
+          else if (this.currentSpeed < 0) this.currentSpeed = Math.min(0, this.currentSpeed + 15 * dt);
         }
 
         this.shelterZ -= this.currentSpeed * dt;
-        this.shelterZ = Math.max(-210, this.shelterZ);
+        this.shelterZ = THREE.MathUtils.clamp(this.shelterZ, -210, 5);
       } else {
         this.currentSpeed = Math.max(0, this.currentSpeed - 18 * dt);
         this.shelterX = THREE.MathUtils.lerp(this.shelterX, 0, 0.08);
@@ -2226,7 +2283,11 @@ export class GameEngine {
 
     if (Math.abs(this.lateralOffset) > maxHalfW) {
       this.lateralOffset = Math.sign(this.lateralOffset) * maxHalfW;
-      this.currentSpeed = Math.max(10, this.currentSpeed * 0.75);
+      if (this.currentSpeed > 0) {
+        this.currentSpeed = Math.max(10, this.currentSpeed * 0.75);
+      } else if (this.currentSpeed < 0) {
+        this.currentSpeed = Math.min(-2, this.currentSpeed * 0.75);
+      }
       if (this.cameraShakeEnabled) this.cameraShake = 0.5;
       sound.playCollision();
     }
@@ -2607,17 +2668,24 @@ export class GameEngine {
           this.isWrongWay = false;
           this.wrongWayTimer = 0;
 
-          if (completedRouteId === 'bh10_launcher_route' && !this.finalCollapseShelterEntered) {
+          if (completedRouteId === 'bh10_launcher_route') {
             this.finalCollapseShelterEntered = true;
+            this.shelterNavigationActive = true;
+            this.shelterZ = 0;
+            this.shelterX = THREE.MathUtils.clamp(this.lateralOffset, -8, 8);
+            this.currentSpeed = Math.min(this.currentSpeed, 32);
             this.finalCollapseManager?.beginTowerEntry();
-            this.blackHoleCinematicManager?.completeEscape();
+            this.blackHoleCinematicManager?.start('BASEMENT_ENTRY');
+            this.blackHoleCinematicManager?.setObjective('ORBITAL LAUNCHER // MAGNETIC LOCK ENGAGED');
+            sound.playMagneticLock();
+            sound.playBlastDoorOpen();
             this.cameraShake = Math.max(this.cameraShake, 0.45);
           } else if (completedRouteId === 'bh10_escape_route') {
             this.finalCollapseEscapeRouteEntered = true;
             this.finalCollapseCatastropheActive = true;
             this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-            this.blackHoleCinematicManager?.setObjective('ROUTE 02 TERMINAL // ESCAPE VECTOR ACTIVE');
-            this.callbacks.onShortcutUsed?.('ROUTE 02 TERMINAL END // ESCAPE SEQUENCE ACTIVE');
+            this.blackHoleCinematicManager?.setObjective('EMERGENCY ESCAPE SEQUENCE INITIATED');
+            this.callbacks.onShortcutUsed?.('EMERGENCY ESCAPE SEQUENCE INITIATED');
           }
 
           this.callbacks.onCheckpointUpdate(this.nextCheckpointIdx, this.track.checkpoints.length);
@@ -2688,7 +2756,7 @@ export class GameEngine {
     } else {
       this.prevSplineT = this.splineT;
       const progressAdvance = (this.currentSpeed * dt) / this.track.totalLength;
-      this.splineT = (this.splineT + progressAdvance) % 1.0;
+      this.splineT = ((this.splineT + progressAdvance) % 1.0 + 1.0) % 1.0;
     }
 
     this.totalDistanceTraveled += this.currentSpeed * dt;
@@ -2701,7 +2769,7 @@ export class GameEngine {
       { dist: 500, label: '500m - Warp Threshold Passed!' },
       { dist: 1000, label: '1000m - Cosmic Frontier Reached!' },
       { dist: 2000, label: '2000m - Deep Void Master!' },
-      { dist: 3500, label: '3500m - Dimensional Ascendant!' },
+      { dist: 3500, label: '3500m - Tactical Warp Master!' },
       { dist: 5000, label: '5000m - Void Legend!' },
     ];
     for (const m of milestones) {
@@ -2720,7 +2788,8 @@ export class GameEngine {
     const sampleAfter = this.track.getSampleAt(this.splineT);
     const shipHeading = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShipGroup.quaternion);
     const forwardAlignment = shipHeading.dot(sampleAfter.tangent);
-    if (forwardAlignment < -0.35 && (this.currentSpeed > 5 || this.input.throttle !== 0)) {
+    // Wrong way is only triggered if facing backwards AND accelerating forward in reverse direction
+    if (forwardAlignment < -0.35 && this.currentSpeed > 5) {
       this.wrongWayTimer += dt;
       if (this.wrongWayTimer > 0.4 && !this.isWrongWay) {
         this.isWrongWay = true;
@@ -2780,6 +2849,56 @@ export class GameEngine {
       }
       if (this.planetaryCollision) {
         this.planetaryCollision.update(dt);
+      }
+
+      // Update Quantum Countdown Clock & Holographic Gantries
+      if (this.quantumCountdownClock) {
+        const clockTelem = this.quantumCountdownClock.update(dt);
+        this.callbacks.onQuantumCountdownUpdate?.(clockTelem);
+        // Progressive multi-environment shift as countdown advances in Submode 10
+        if (this.modeManager.blackHoleSubmode === 10 && this.environmentDirector) {
+          this.environmentDirector.updateBySubmode(10, clockTelem.progressRatio);
+        }
+      }
+
+      // Update Dynamic Cosmic Environment Director (Atmosphere, Fog, Light, Particles)
+      if (this.environmentDirector) {
+        const envResult = this.environmentDirector.update(dt);
+        this.callbacks.onCosmicBiomeUpdate?.(envResult.biome);
+      }
+
+      // Update Expanded Multi-Route Network & Interactive Elements (Boost Gates, Relic Cores, Plasma Vents)
+      if (this.quantumRouteSystem) {
+        const playerPos = this.playerShipGroup ? this.playerShipGroup.position : new THREE.Vector3();
+        const routeInteract = this.quantumRouteSystem.update(dt, playerPos);
+
+        if (routeInteract.boostImpulse > 0) {
+          this.currentSpeed = Math.min(380, this.currentSpeed + routeInteract.boostImpulse);
+          this.isBoosting = true;
+          this.hyperBoostTimer = Math.max(this.hyperBoostTimer, 1.4);
+        }
+        if (routeInteract.relicsCollected > 0) {
+          this.sessionCredits += 100 * routeInteract.relicsCollected;
+          this.callbacks.onCreditCollected?.(this.sessionCredits, 100);
+        }
+        if (routeInteract.damageTaken > 0) {
+          this.hullHealth = Math.max(0, this.hullHealth - routeInteract.damageTaken);
+          if (this.hullHealth <= 0 && !this.isDestroyed) {
+            this.destroyPlayerShip('PLASMA CORONA OVERHEAT');
+          }
+        }
+        if (routeInteract.feedbackMessage) {
+          this.callbacks.onHazardHit?.(routeInteract.feedbackMessage);
+        }
+        if (routeInteract.activeBranchName !== this.lastActiveRouteName) {
+          this.lastActiveRouteName = routeInteract.activeBranchName;
+          this.callbacks.onActiveRouteBranchUpdate?.(routeInteract.activeBranchName);
+        }
+      }
+
+      // Update Futuristic Space Universe & Overhead Megastructures
+      if (this.futuristicSpaceUniverse) {
+        this.futuristicSpaceUniverse.update(dt, this.currentSpeed);
       }
 
       // Update the 15 Dynamic Physical Environments
@@ -2873,20 +2992,30 @@ export class GameEngine {
           const bay07World = this.junctionManager.bay07WorldPosition ?? new THREE.Vector3(0, -14, -1085);
           const bhCenter = this.supermassiveBlackHole?.root.position ?? new THREE.Vector3(0, 180, -3500);
 
-          const collapseUpdate = this.finalCollapseManager.update(dt, {
-            position: playerPos,
-            quaternion: playerQuat,
-            speedMps: this.currentSpeed,
-            splineT: this.splineT,
-            totalTrackLengthM: this.track ? this.track.totalLength : 2500,
-            towerEntrancePos: entranceWorld,
-            bay07Pos: bay07World,
-            shelterNavigationActive: this.shelterNavigationActive,
-            shelterX: this.shelterX,
-            shelterZ: this.shelterZ,
-            shelterHeading: this.shelterHeading,
-            blackHoleCenter: bhCenter,
-          });
+          let countdownTimelineSec: number | undefined = undefined;
+          if (this.quantumCountdownClock) {
+            const initialDurSec = Math.max(30, this.quantumCountdownClock.initialDurationMs / 1000);
+            countdownTimelineSec = Math.min(480, (this.quantumCountdownClock.elapsedMs / 1000) * (480 / initialDurSec));
+          }
+
+          const collapseUpdate = this.finalCollapseManager.update(
+            dt,
+            {
+              position: playerPos,
+              quaternion: playerQuat,
+              speedMps: this.currentSpeed,
+              splineT: this.splineT,
+              totalTrackLengthM: this.track ? this.track.totalLength : 2500,
+              towerEntrancePos: entranceWorld,
+              bay07Pos: bay07World,
+              shelterNavigationActive: this.shelterNavigationActive,
+              shelterX: this.shelterX,
+              shelterZ: this.shelterZ,
+              shelterHeading: this.shelterHeading,
+              blackHoleCenter: bhCenter,
+            },
+            countdownTimelineSec
+          );
 
           // Forward authoritative telemetry to cinematic manager for unified HUD
           this.blackHoleCinematicManager.setEvacuationTelemetry(collapseUpdate.telemetry);
@@ -3094,7 +3223,7 @@ export class GameEngine {
 
             case 'COSMIC_LIGHT_EVENT':
             case 'FLASHBANG':
-              if (!isQLPSubmode10) {
+              if (!isFinalCollapse) {
                 this.supermassiveBlackHole?.triggerCollapse();
                 sound.playFlashbangBoom();
                 this.cameraShake = Math.max(this.cameraShake, 3.5);
@@ -3203,14 +3332,20 @@ export class GameEngine {
           // snap/teleport into the parking bay.
           const prp = this.junctionManager.playerRouteProgress;
           const launcherTerminalReached =
-            this.finalCollapseShelterEntered &&
-            !prp.isInBranch &&
-            distToEntrance < 22;
+            (!prp.isInBranch || prp.activeRouteId === 'bh10_launcher_route') &&
+            distToEntrance < 60;
           if (launcherTerminalReached && !this.shelterNavigationActive) {
             this.shelterNavigationActive = true;
+            this.finalCollapseShelterEntered = true;
             this.shelterZ = 0;
-            this.shelterX = THREE.MathUtils.clamp(this.lateralOffset, -9, 9);
-            this.currentSpeed = Math.min(this.currentSpeed, 28);
+            this.shelterX = THREE.MathUtils.clamp(this.lateralOffset, -8, 8);
+            this.currentSpeed = Math.min(this.currentSpeed, 32);
+            this.finalCollapseManager?.beginTowerEntry();
+            this.blackHoleCinematicManager?.start('BASEMENT_ENTRY');
+            this.blackHoleCinematicManager?.setObjective('ORBITAL LAUNCHER // MAGNETIC LOCK ENGAGED');
+            sound.playMagneticLock();
+            sound.playBlastDoorOpen();
+            this.cameraShake = Math.max(this.cameraShake, 0.45);
           }
         }
 
@@ -3222,14 +3357,33 @@ export class GameEngine {
             this.blackHoleCinematicManager.start('BASEMENT_ENTRY');
             this.blackHoleCinematicManager.setObjective('ORBITAL LAUNCHER // MAGNETIC LOCK ENGAGED');
             this.junctionManager.setFinalCollapseDoorOpen(1.0);
+            sound.playMagneticLock();
             this.cameraShake = Math.max(this.cameraShake, 0.4);
           }
 
-          // Section 5: Basement Descent onto ramp
-          if (this.shelterZ <= -32 && !this.finalCollapseDescending) {
+          // Section 4: Acceleration Ring 1
+          if (this.shelterZ <= -35 && !this.finalCollapseDescending) {
             this.finalCollapseDescending = true;
             this.blackHoleCinematicManager.start('BASEMENT_DESCENT');
-            this.blackHoleCinematicManager.setObjective('MAGNETIC LOCK // ACCELERATION RING 1 AHEAD');
+            this.blackHoleCinematicManager.setObjective('ACCELERATION RING 1/3 // KINETIC BOOST');
+            sound.playAccelerationRingPass(1);
+            this.cameraShake = Math.max(this.cameraShake, 0.6);
+          }
+
+          // Section 4B: Acceleration Ring 2
+          if (this.shelterZ <= -75 && !this.finalCollapseRing2Passed) {
+            this.finalCollapseRing2Passed = true;
+            this.blackHoleCinematicManager.setObjective('ACCELERATION RING 2/3 // VELOCITY SURGE');
+            sound.playAccelerationRingPass(2);
+            this.cameraShake = Math.max(this.cameraShake, 0.75);
+          }
+
+          // Section 4C: Acceleration Ring 3
+          if (this.shelterZ <= -110 && !this.finalCollapseRing3Passed) {
+            this.finalCollapseRing3Passed = true;
+            this.blackHoleCinematicManager.setObjective('ACCELERATION RING 3/3 // ORBITAL GATE AHEAD');
+            sound.playAccelerationRingPass(3);
+            this.cameraShake = Math.max(this.cameraShake, 0.9);
           }
 
           // Pressure door opening ahead
@@ -3586,7 +3740,9 @@ export class GameEngine {
       this.playerShipGroup.rotateY(this.playerCollisionAngularDisplacement);
     }
 
-    const flameScale = 0.8 + this.currentSpeed / 40 + (this.isBoosting ? 1.6 : 0);
+    const flameScale = this.currentSpeed < 0
+      ? 0.45 + Math.abs(this.currentSpeed) / 40
+      : 0.8 + this.currentSpeed / 40 + (this.isBoosting ? 1.6 : 0);
     this.playerThrusters.forEach(flame => {
       flame.scale.set(1 + (this.isBoosting ? 0.6 : 0), flameScale, 1 + (this.isBoosting ? 0.6 : 0));
     });
@@ -5092,19 +5248,56 @@ export class GameEngine {
     this.buildCreditsField();
     this.buildPowerUpPods();
     this.resetToStart();
+    if (this.quantumCountdownClock) {
+      this.quantumCountdownClock.reset();
+    }
     this.startRace();
   }
 
   public pauseGame() {
     this.isPaused = true;
+    if (this.quantumCountdownClock) {
+      this.quantumCountdownClock.setPaused(true);
+    }
     sound.stopEngine();
   }
 
   public resumeGame() {
     this.isPaused = false;
+    if (this.quantumCountdownClock) {
+      this.quantumCountdownClock.setPaused(false);
+    }
     if (this.isRacing) {
       sound.startEngine();
     }
+  }
+
+  public cycleCosmicBiome(): CosmicBiomeId {
+    if (this.environmentDirector) {
+      const nextBiome = this.environmentDirector.cycleNextBiome();
+      return nextBiome;
+    }
+    return 'CRYO_NEBULA';
+  }
+
+  public setCosmicBiome(biomeId: CosmicBiomeId) {
+    if (this.environmentDirector) {
+      this.environmentDirector.setBiome(biomeId);
+    }
+  }
+
+  public setQuantumCountdownDuration(seconds: number) {
+    if (this.quantumCountdownClock) {
+      this.quantumCountdownClock.setDuration(seconds);
+    }
+  }
+
+  public toggleQuantumCountdownMute(): boolean {
+    if (this.quantumCountdownClock) {
+      this.quantumCountdownClock.audioMuted = !this.quantumCountdownClock.audioMuted;
+      return this.quantumCountdownClock.audioMuted;
+    }
+    return false;
   }
 
   public setGameMode(mode: GameMode, difficulty: GameDifficulty = 'NORMAL') {
@@ -5136,8 +5329,37 @@ export class GameEngine {
           const bhPos = this.supermassiveBlackHole?.root.position ?? new THREE.Vector3(0, 180, -3500);
           this.collapseEnvironments = new DynamicCollapseEnvironmentsManager(this.scene, bhPos);
         }
+
+        // Initialize Expanded Quantum Route System for Mode 21 Black Hole submodes
+        if (!this.quantumRouteSystem) {
+          this.quantumRouteSystem = new QuantumRouteSystem(this.scene);
+        }
+
+        // Enable physical Orbital Launcher and terminal routes (locked until 1st lap completed)
+        this.junctionManager.setFinalCollapseMode(true);
+        this.junctionManager.setFinalCollapseRoutesUnlocked(false);
+
+        // Configure Quantum Countdown Clock
+        if (this.quantumCountdownClock) {
+          this.quantumCountdownClock.activeSubmodeNumber = this.modeManager.blackHoleSubmode;
+          const duration = this.modeManager.blackHoleSubmode === 10 ? 480 : 300;
+          this.quantumCountdownClock.setDuration(duration);
+        }
+
+        // Set signature cosmic biome for this submode
+        if (this.environmentDirector) {
+          this.environmentDirector.updateBySubmode(this.modeManager.blackHoleSubmode, 0);
+        }
       } else {
         this.blackHoleCinematicManager.stop();
+        if (this.quantumRouteSystem) {
+          this.quantumRouteSystem.dispose();
+          this.quantumRouteSystem = null;
+        }
+        this.junctionManager.setFinalCollapseMode(false);
+        if (this.environmentDirector) {
+          this.environmentDirector.applyInstantBiome('CRYO_NEBULA');
+        }
         if (this.collapseEnvironments) {
           this.collapseEnvironments.dispose();
           this.collapseEnvironments = null;
@@ -5308,6 +5530,8 @@ export class GameEngine {
                 this.finalCollapseManager?.start();
                 this.blackHoleCinematicManager?.stop();
               }
+              this.junctionManager.setFinalCollapseMode(true);
+              this.junctionManager.setFinalCollapseRoutesUnlocked(false);
             }
           }
         }

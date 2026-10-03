@@ -311,12 +311,20 @@ export class CatastropheEventManager {
     const progress = THREE.MathUtils.clamp(this.currentElapsed / 480, 0, 1);
     this.hazardEscalation = 1.0 + 1.2 * Math.pow(progress, 1.35);
 
-    // Check every crossed threshold so no one of the 40 events can be skipped
-    // if a frame/update arrives late. The last crossed event becomes the active
-    // HUD/cinematic event, while each crossed event is still recorded and fired.
-    for (const def of this.eventCatalog) {
-      if (this.previousElapsed < def.triggerTime && this.currentElapsed >= def.triggerTime) {
-        this.triggerEvent(def);
+    // Guarantee Event 1 is triggered immediately on start
+    if (this.currentEventIndex === 0 && this.eventCatalog.length > 0) {
+      this.triggerEvent(this.eventCatalog[0]);
+    }
+
+    // Ensure all 40 events occur in strict sequential order: 1 -> 2 -> ... -> 40
+    // Every crossed threshold advances the sequence without skipping any event
+    while (this.currentEventIndex < 40) {
+      const nextDef = this.eventCatalog[this.currentEventIndex];
+      if (!nextDef) break;
+      if (this.currentElapsed >= nextDef.triggerTime) {
+        this.triggerEvent(nextDef);
+      } else {
+        break;
       }
     }
 
@@ -1221,7 +1229,8 @@ export class FinalCollapseManager {
       shelterZ: number;
       shelterHeading: number;
       blackHoleCenter?: THREE.Vector3;
-    }
+    },
+    timelineOverrideSeconds?: number
   ): {
     telemetry: EvacuationTelemetry;
     impactForces: ShipImpactForces;
@@ -1250,7 +1259,7 @@ export class FinalCollapseManager {
     this.evacuation.update(delta);
 
     // 2. Update Catastrophe Events against the same 08:00 QLP clock used by HUD.
-    const qlpTimeline = Math.min(this.raceDuration, this.elapsed);
+    const qlpTimeline = timelineOverrideSeconds ?? Math.min(this.raceDuration, this.elapsed);
     this.catastrophe.update(delta, this.evacuation, qlpTimeline);
 
     // 3. Update Destruction Front

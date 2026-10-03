@@ -44,7 +44,7 @@ export const WholeBlackHoleView: React.FC<WholeBlackHoleViewProps> = ({
   const [orbitAngle, setOrbitAngle] = useState<number>(0.2);
   const [pitchAngle, setPitchAngle] = useState<number>(0.28);
   const [selectedEventIndex, setSelectedEventIndex] = useState<number>(initialEventIndex);
-  const [activeTab, setActiveTab] = useState<'ELEMENTS' | 'SUBMODE'>('ELEMENTS');
+  const [activeTab, setActiveTab] = useState<'ELEMENTS' | 'SUBMODE' | 'ROUTES_ENV'>('ELEMENTS');
 
   const isDragging = useRef<boolean>(false);
   const lastMousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -605,23 +605,33 @@ export const WholeBlackHoleView: React.FC<WholeBlackHoleViewProps> = ({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setActiveTab('ELEMENTS')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                  className={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold transition-all ${
                     activeTab === 'ELEMENTS'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  2-ELEMENT OCCURRENCE
+                  2-ELEMENTS
                 </button>
                 <button
                   onClick={() => setActiveTab('SUBMODE')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                  className={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold transition-all ${
                     activeTab === 'SUBMODE'
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  SUBMODE METRICS
+                  SUBMODE
+                </button>
+                <button
+                  onClick={() => setActiveTab('ROUTES_ENV')}
+                  className={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold transition-all ${
+                    activeTab === 'ROUTES_ENV'
+                      ? 'bg-purple-500/30 text-purple-300 border border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.4)]'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  ROUTES & CLOCK
                 </button>
               </div>
 
@@ -696,7 +706,7 @@ export const WholeBlackHoleView: React.FC<WholeBlackHoleViewProps> = ({
                   {activeEventData.completionStrategy}
                 </div>
               </div>
-            ) : (
+            ) : activeTab === 'SUBMODE' ? (
               <div className="space-y-2 pt-1 text-[11px]">
                 <div className="flex justify-between border-b border-slate-800 pb-1">
                   <span className="text-slate-400">GRAVITY FIELD:</span>
@@ -726,6 +736,58 @@ export const WholeBlackHoleView: React.FC<WholeBlackHoleViewProps> = ({
                 <div className="mt-2 text-[10px] text-purple-200/80 leading-relaxed bg-purple-950/40 p-2.5 rounded-xl border border-purple-500/30">
                   <span className="font-bold text-purple-300 block mb-0.5">SUBMODE OBJECTIVE:</span>
                   {submode.objective}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 pt-1 text-[11px]">
+                {/* Expanded Multi-Route Network Card */}
+                <div className="p-2.5 rounded-xl bg-black/60 border border-cyan-500/40 space-y-1">
+                  <div className="font-bold text-cyan-300 flex items-center justify-between text-[10px]">
+                    <span>EXPANDED ROUTE SYSTEM</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-200 border border-cyan-500/30">3 CONNECTED BRANCHES</span>
+                  </div>
+                  <div className="text-[10px] text-slate-300 space-y-0.5">
+                    <div><span className="text-cyan-400 font-bold">ROUTE ALPHA: </span>Orbital Accelerator (+120 KM/H Boost Gates)</div>
+                    <div><span className="text-amber-400 font-bold">ROUTE BETA: </span>Accretion Slingshot Chasm & Plasma Hazards</div>
+                    <div><span className="text-purple-400 font-bold">ROUTE GAMMA: </span>Megastructure Hyper-Tunnel Conduit</div>
+                  </div>
+                </div>
+
+                {/* Dynamic Cosmic Environments Card */}
+                <div className="p-2.5 rounded-xl bg-black/60 border border-purple-500/40 space-y-1">
+                  <div className="font-bold text-purple-300 flex items-center justify-between text-[10px]">
+                    <span>4 DYNAMIC COSMIC ENVIRONMENTS</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-200 border border-purple-500/30">KEY: [E]</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[9px]">
+                    <div className="p-1 rounded bg-blue-950/40 border border-blue-500/30 text-blue-200">
+                      <span className="font-bold block">1. CRYO-NEBULA</span>
+                      Azure mist & stardust
+                    </div>
+                    <div className="p-1 rounded bg-amber-950/40 border border-amber-500/30 text-amber-200">
+                      <span className="font-bold block">2. SOLAR INFERNO</span>
+                      Coronal flares & amber winds
+                    </div>
+                    <div className="p-1 rounded bg-fuchsia-950/40 border border-fuchsia-500/30 text-fuchsia-200">
+                      <span className="font-bold block">3. MAGNETAR VOID</span>
+                      Violet EMP arcs & supernova
+                    </div>
+                    <div className="p-1 rounded bg-rose-950/40 border border-rose-500/30 text-rose-200">
+                      <span className="font-bold block">4. EVENT HORIZON</span>
+                      Relativistic crimson redshift
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quantum Countdown Clock Card */}
+                <div className="p-2.5 rounded-xl bg-black/60 border border-emerald-500/40 space-y-1">
+                  <div className="font-bold text-emerald-300 flex items-center justify-between text-[10px]">
+                    <span>QUANTUM COUNTDOWN CLOCK</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-200 border border-emerald-500/30">08:00 / 05:00 / 03:00</span>
+                  </div>
+                  <div className="text-[10px] text-slate-300 leading-snug">
+                    Millisecond digital clock with audio tick-scheduler, danger status alerts, and overhead 3D holographic gantry displays along the track.
+                  </div>
                 </div>
               </div>
             )}
