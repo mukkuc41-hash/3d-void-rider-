@@ -76,6 +76,32 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-between p-3 sm:p-5 select-none overflow-y-auto pointer-events-none">
+      {/* Owner / Origin Branding — cinematic reference styling */}
+      <div className="w-full flex flex-col items-center justify-center gap-3 pointer-events-none -mt-1 pb-2 px-2">
+        {/* MADE IN INDIA badge */}
+        <div className="w-full max-w-[860px] rounded-full p-[2px] bg-gradient-to-r from-orange-500/80 via-amber-300/70 to-emerald-400/80 shadow-[0_0_24px_rgba(255,140,30,0.14)]">
+          <div className="flex items-center justify-center gap-3 sm:gap-5 rounded-full bg-gradient-to-r from-[#261006]/95 via-[#11100f]/95 to-[#062218]/95 px-5 sm:px-8 py-3 sm:py-4 backdrop-blur-md">
+            <span className="flex h-9 w-12 sm:h-11 sm:w-14 items-center justify-center rounded-md border border-white/20 bg-gradient-to-b from-orange-400 via-white to-green-600 text-xl sm:text-2xl shadow-[0_0_10px_rgba(255,255,255,0.16)]" aria-hidden="true">
+              🇮🇳
+            </span>
+            <span className="font-ui font-black uppercase tracking-[0.12em] sm:tracking-[0.16em] text-[clamp(1.15rem,3.2vw,2.55rem)] leading-none bg-gradient-to-r from-orange-400 via-white to-emerald-300 bg-clip-text text-transparent">
+              MADE IN INDIA
+            </span>
+          </div>
+        </div>
+
+        {/* OWNER: ADITYA badge */}
+        <div className="w-full max-w-[900px] rounded-full p-[2px] bg-gradient-to-r from-amber-300/80 via-yellow-200/70 to-amber-500/80 shadow-[0_0_28px_rgba(255,204,80,0.15)]">
+          <div className="flex items-center justify-center gap-3 sm:gap-5 rounded-full bg-[#100d0a]/95 px-5 sm:px-9 py-3 sm:py-4 backdrop-blur-md">
+            <span className="text-3xl sm:text-5xl leading-none drop-shadow-[0_0_8px_rgba(255,190,60,0.55)]" aria-hidden="true">👑</span>
+            <span className="font-ui font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] text-[clamp(1.15rem,3.3vw,2.7rem)] leading-none">
+              <span className="text-amber-200">OWNER:</span> <span className="text-white">ADITYA</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+
       {/* Top Bar Navigation & Status */}
       <div className="flex items-center justify-between w-full max-w-6xl mx-auto pointer-events-auto">
         {/* Node Online Status */}
@@ -349,6 +375,44 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <ShowcaseBento />
           </div>
         )}
+
+        {/* More Like This — cross-site navigation */}
+        <div className="w-full mt-1 rounded-2xl border border-cyan-500/25 bg-[#050b14]/85 p-2.5 backdrop-blur-md shadow-[0_0_22px_rgba(0,240,255,0.10)]">
+          <div className="flex items-center justify-between px-1.5 mb-2">
+            <span className="text-[10px] font-mono font-bold tracking-[0.22em] text-cyan-300 uppercase">
+              MORE LIKE THIS
+            </span>
+            <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">
+              ADITYA // GAME NETWORK
+            </span>
+          </div>
+
+          <a
+            href="https://playduochess.ai.studio"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => sound.playMenuClick()}
+            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-amber-400/35 bg-gradient-to-r from-[#17100a]/95 via-[#0d1119]/95 to-[#07191a]/95 px-3.5 py-3 text-left transition-all hover:border-amber-300/80 hover:shadow-[0_0_20px_rgba(245,158,11,0.18)] active:scale-[0.99]"
+            aria-label="Open Play Duo Chess"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-300/40 bg-amber-400/10 text-xl shadow-[0_0_10px_rgba(245,158,11,0.12)]" aria-hidden="true">
+                ♟
+              </span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-ui font-black tracking-[0.12em] text-amber-200 uppercase">
+                  PLAY DUO CHESS
+                </div>
+                <div className="truncate text-[9px] font-mono tracking-wider text-slate-400 uppercase mt-0.5">
+                  Open previous website // playduochess.ai.studio
+                </div>
+              </div>
+            </div>
+            <span className="shrink-0 text-cyan-300 text-lg transition-transform group-hover:translate-x-1" aria-hidden="true">
+              →
+            </span>
+          </a>
+        </div>
       </div>
 
       {/* Bottom Bar: Sync and Control Guidelines */}

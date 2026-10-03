@@ -330,6 +330,15 @@ export class GameEngine {
   private finalCollapseCatastropheActive = false;
   private finalCollapseShelterEntered = false;
   private finalCollapseEscapeRouteEntered = false;
+  private finalCollapseWormholeRouteEntered = false;
+  /** Terminal branch lock: keeps Route 02/03 physically at their real endpoint instead of falling back to the main spline. */
+  private finalCollapseTerminalRouteId: string | null = null;
+  private finalCollapseTerminalPoint: THREE.Vector3 | null = null;
+  private finalCollapseTerminalTangent: THREE.Vector3 | null = null;
+  private finalCollapseTerminalSequenceElapsed = 0;
+  private finalCollapseTerminalSequenceComplete = false;
+  private finalCollapseEscapeSequenceGroup: THREE.Group | null = null;
+  private finalCollapseEscapeSequenceRoute: 'ROUTE_02' | 'ROUTE_03' | null = null;
   private finalCollapseRaceFinishSent = false;
   private finalCollapseLastEvent = 'NONE';
   private finalCollapseEntryReady = false;
@@ -1854,6 +1863,13 @@ export class GameEngine {
   }
 
   public startRace() {
+    // The panoramic whole-black-hole view is a pre-game presentation only.
+    // As soon as gameplay begins, return to the normal chase camera.
+    if (this.cameraMode === 'WHOLE_BLACK_HOLE') {
+      this.cameraMode = 'CHASE_NEAR';
+      this.callbacks.onCameraModeChange?.(this.cameraMode);
+    }
+
     this.isRacing = true;
     this.isPaused = false;
 
@@ -1983,6 +1999,24 @@ export class GameEngine {
     this.finalCollapseCatastropheActive = false;
     this.finalCollapseShelterEntered = false;
     this.finalCollapseEscapeRouteEntered = false;
+    this.finalCollapseWormholeRouteEntered = false;
+    this.finalCollapseTerminalRouteId = null;
+    this.finalCollapseTerminalPoint = null;
+    if (this.finalCollapseEscapeSequenceGroup) {
+      this.scene.remove(this.finalCollapseEscapeSequenceGroup);
+      this.finalCollapseEscapeSequenceGroup.traverse((obj: THREE.Object3D) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) material.forEach(m => m.dispose());
+        else material?.dispose();
+      });
+      this.finalCollapseEscapeSequenceGroup = null;
+    }
+    this.finalCollapseEscapeSequenceRoute = null;
+    this.finalCollapseTerminalTangent = null;
+    this.finalCollapseTerminalSequenceElapsed = 0;
+    this.finalCollapseTerminalSequenceComplete = false;
     this.finalCollapseDescending = false;
     this.finalCollapseHangarEntered = false;
     this.finalCollapseParkingAligned = false;
@@ -2596,8 +2630,8 @@ export class GameEngine {
       this.input.recover = false;
     }
 
-    // Final Collapse has one physical start/fork and two terminal ends.
-    // Stop the ship at the fork until the player chooses LEFT or RIGHT; this
+    // Final Collapse has one physical start/fork and three terminal ends.
+    // Stop the ship at the fork until the player chooses a route; this
     // prevents the old main-track loop from carrying the player past the fork.
     const isQLPSubmode10Fork =
       this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
@@ -2627,6 +2661,17 @@ export class GameEngine {
         this.blackHoleCinematicManager!.cameraOverride = false;
         this.blackHoleCinematicManager!.gameplayLocked = false;
         this.callbacks.onShortcutUsed?.('ROUTE 02 // ESCAPE SEQUENCE INITIATED');
+      }
+
+      if (isQLPSubmode10 && activeBranchRouteId === 'bh10_wormhole_route' && !this.finalCollapseWormholeRouteEntered) {
+        this.finalCollapseWormholeRouteEntered = true;
+        this.finalCollapseCatastropheActive = true;
+        this.finalCollapseManager?.beginTrackCollapse();
+        this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
+        this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE ESCAPE INITIATED');
+        this.blackHoleCinematicManager!.cameraOverride = false;
+        this.blackHoleCinematicManager!.gameplayLocked = false;
+        this.callbacks.onShortcutUsed?.('ROUTE 03 // WORMHOLE ESCAPE INITIATED');
       }
 
       // Route 01 remains the physical launcher route.
@@ -2680,12 +2725,29 @@ export class GameEngine {
             sound.playMagneticLock();
             sound.playBlastDoorOpen();
             this.cameraShake = Math.max(this.cameraShake, 0.45);
-          } else if (completedRouteId === 'bh10_escape_route') {
-            this.finalCollapseEscapeRouteEntered = true;
+          } else if (completedRouteId === 'bh10_escape_route' || completedRouteId === 'bh10_wormhole_route') {
+            // Routes 02 and 03 finish at their own physical terminal. Keep the
+            // ship anchored to that endpoint and run the escape sequence there.
+            // Without this persistent terminal state, the normal spline updater
+            // would move the ship back onto the main route on the next frame.
+            this.finalCollapseTerminalRouteId = completedRouteId;
+            this.finalCollapseTerminalPoint = branchUpdate.terminalPoint.clone();
+            this.finalCollapseTerminalTangent = branchUpdate.terminalTangent?.clone() || new THREE.Vector3(0, 0, -1);
+            this.finalCollapseTerminalSequenceElapsed = 0;
+            this.finalCollapseTerminalSequenceComplete = false;
             this.finalCollapseCatastropheActive = true;
-            this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-            this.blackHoleCinematicManager?.setObjective('EMERGENCY ESCAPE SEQUENCE INITIATED');
-            this.callbacks.onShortcutUsed?.('EMERGENCY ESCAPE SEQUENCE INITIATED');
+            this.buildFinalCollapseEscapeSequence(completedRouteId as 'bh10_escape_route' | 'bh10_wormhole_route');
+            if (completedRouteId === 'bh10_escape_route') {
+              this.finalCollapseEscapeRouteEntered = true;
+              this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
+              this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE GATE REACHED — SEQUENCE STARTING');
+              this.callbacks.onShortcutUsed?.('ROUTE 02 // EMERGENCY ESCAPE SEQUENCE STARTED');
+            } else {
+              this.finalCollapseWormholeRouteEntered = true;
+              this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
+              this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE GATE REACHED — TRANSIT STARTING');
+              this.callbacks.onShortcutUsed?.('ROUTE 03 // WORMHOLE ESCAPE SEQUENCE STARTED');
+            }
           }
 
           this.callbacks.onCheckpointUpdate(this.nextCheckpointIdx, this.track.checkpoints.length);
@@ -2835,7 +2897,31 @@ export class GameEngine {
       // player has already secured the ship. This allows the protected station
       // aftermath to show the same black hole consuming the outside world.
       if (isFinalCollapse && blackHoleCinematic.finalCountdown === 0 && !this.finalCollapseManager.evacuation.evacuationActive && !this.finalCollapseManager.evacuation.evacuationSuccess && !this.finalCollapseManager.evacuation.evacuationFailed) {
-        this.finalCollapseManager.onZeroCountdown();
+        // 00:00 is the hard escape deadline for Quantum Launch Pro / Final Collapse.
+        // If the player has not physically entered any of the three terminal escape
+        // routes by the end of the countdown, do NOT start the normal evacuation
+        // window. Instead, immediately run the dedicated failure cinematic.
+        // Being inside a branch counts as reaching an escape route; the three route
+        // entry flags cover players who have already crossed into a terminal route.
+        const routeProgress = this.junctionManager.playerRouteProgress;
+        const hasReachedEscapeRoute =
+          routeProgress.isInBranch ||
+          this.finalCollapseEscapeRouteEntered ||
+          this.finalCollapseWormholeRouteEntered ||
+          ['bh10_launcher_route', 'bh10_escape_route', 'bh10_wormhole_route'].includes(routeProgress.activeRouteId ?? '');
+
+        if (!hasReachedEscapeRoute) {
+          this.finalCollapseCatastropheActive = true;
+          this.finalCollapseManager.triggerFailure(
+            'EVACUATION_DEADLINE_EXPIRED',
+            false,
+            this.playerShipGroup?.position.clone()
+          );
+          this.blackHoleCinematicManager.setObjective('00:00 // ALL ESCAPE ROUTES MISSED');
+          this.blackHoleCinematicManager.start('ESCAPE_SEQUENCE');
+        } else {
+          this.finalCollapseManager.onZeroCountdown();
+        }
       }
 
       if (isFinalCollapse && blackHoleCinematic.finalCountdown === 0 && this.finalCollapseManager.catastrophe.currentEventIndex < 40) {
@@ -3019,6 +3105,21 @@ export class GameEngine {
 
           // Forward authoritative telemetry to cinematic manager for unified HUD
           this.blackHoleCinematicManager.setEvacuationTelemetry(collapseUpdate.telemetry);
+
+          // Missed-all-routes ending finishes with the cosmic rebuild, then
+          // hands off to the existing Final Collapse results screen.
+          if (
+            this.finalCollapseManager.failureCinematic.completed &&
+            this.finalCollapseManager.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE' &&
+            !this.finalCollapseRaceFinishSent
+          ) {
+            this.finalCollapseRaceFinishSent = true;
+            this.hasFinished = true;
+            this.currentLap = this.totalLaps;
+            const finalTime = Date.now() - this.raceStartTime;
+            this.callbacks.onRaceFinish(finalTime);
+          }
+
           const qlpEvent = this.finalCollapseManager.catastrophe.activeEvent;
           this.blackHoleCinematicManager.setQuantumEventTelemetry({
             index: this.finalCollapseManager.catastrophe.currentEventIndex || 0,
@@ -3648,6 +3749,88 @@ export class GameEngine {
     }
   }
 
+  private buildFinalCollapseEscapeSequence(routeId: 'bh10_escape_route' | 'bh10_wormhole_route') {
+    if (!this.finalCollapseTerminalPoint || !this.finalCollapseTerminalTangent) return;
+    if (this.finalCollapseEscapeSequenceGroup) this.scene.remove(this.finalCollapseEscapeSequenceGroup);
+
+    const g = new THREE.Group();
+    const tangent = this.finalCollapseTerminalTangent.clone().normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const side = new THREE.Vector3().crossVectors(tangent, up).normalize();
+    if (side.lengthSq() < 0.01) side.set(1, 0, 0);
+    const local = (x:number,y:number,z:number) => this.finalCollapseTerminalPoint!.clone().add(side.clone().multiplyScalar(x)).add(up.clone().multiplyScalar(y)).add(tangent.clone().multiplyScalar(z));
+
+    const accent = routeId === 'bh10_escape_route' ? 0xff5a36 : 0xa855f7;
+    const glow = routeId === 'bh10_escape_route' ? 0xffc266 : 0x7dd3fc;
+    const mat = (color:number, emissive=color, opacity=1) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 2.5, transparent: opacity < 1, opacity, metalness: 0.2, roughness: 0.25 });
+
+    // Route-specific corridor hardware: physical-looking gates, beacons and energy structures.
+    for (let i=0;i<5;i++) {
+      const z = -18 - i*22;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(routeId === 'bh10_escape_route' ? 12 : 14, 0.55, 12, 48), mat(accent));
+      ring.position.copy(local(0, 3.5, z));
+      ring.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), tangent);
+      g.add(ring);
+      const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,5,12), mat(glow));
+      beacon.position.copy(local(10, 2, z));
+      beacon.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), up);
+      g.add(beacon);
+      const beacon2 = beacon.clone(); beacon2.position.copy(local(-10,2,z)); g.add(beacon2);
+    }
+
+    if (routeId === 'bh10_escape_route') {
+      for (let i=0;i<9;i++) {
+        const debris = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8 + (i%3)*0.45, 1), mat(0x5a6475, accent));
+        debris.position.copy(local((i%2?1:-1)*(7+i%4*1.7), 2 + (i%3)*2, -8-i*14));
+        g.add(debris);
+      }
+      const barrier = new THREE.Mesh(new THREE.TorusGeometry(17, 0.9, 12, 64), mat(accent, glow, 0.65));
+      barrier.position.copy(local(0, 4, -125));
+      barrier.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), tangent);
+      g.add(barrier);
+    } else {
+      for (let i=0;i<6;i++) {
+        const worm = new THREE.Mesh(new THREE.TorusGeometry(7+i*1.2, 0.32, 10, 48), mat(glow, accent, 0.72));
+        worm.position.copy(local(0, 4, -12-i*19));
+        worm.rotation.x = Math.PI/2;
+        g.add(worm);
+      }
+      const portal = new THREE.Mesh(new THREE.TorusGeometry(12, 1.15, 16, 64), mat(accent, glow, 0.85));
+      portal.position.copy(local(0, 4, -132));
+      portal.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), tangent);
+      g.add(portal);
+      const core = new THREE.Mesh(new THREE.SphereGeometry(8, 24, 24), mat(0x090014, accent, 0.82));
+      core.position.copy(local(0, 4, -132));
+      g.add(core);
+    }
+
+    this.scene.add(g);
+    this.finalCollapseEscapeSequenceGroup = g;
+    this.finalCollapseEscapeSequenceRoute = routeId === 'bh10_escape_route' ? 'ROUTE_02' : 'ROUTE_03';
+  }
+
+  private updateFinalCollapseEscapeSequenceVisuals(dt:number, t:number, routeId:string|null) {
+    if (routeId !== 'bh10_escape_route' && routeId !== 'bh10_wormhole_route') return;
+    if (!this.finalCollapseEscapeSequenceGroup || this.finalCollapseEscapeSequenceRoute !== (routeId === 'bh10_escape_route' ? 'ROUTE_02' : 'ROUTE_03')) {
+      this.buildFinalCollapseEscapeSequence(routeId as 'bh10_escape_route' | 'bh10_wormhole_route');
+    }
+    const g = this.finalCollapseEscapeSequenceGroup;
+    if (!g) return;
+    const pulse = 1 + Math.sin(t * 5.5) * 0.08;
+    g.children.forEach((obj, i) => {
+      obj.rotation.y += dt * (0.35 + (i % 4) * 0.08);
+      obj.rotation.z += dt * (0.12 + (i % 3) * 0.05);
+      const s = (i % 5 === 0) ? pulse : 1;
+      obj.scale.setScalar(s);
+    });
+    const intensity = Math.min(3.5, 1.5 + t * 0.35);
+    g.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach((m:any) => { if (m && 'emissiveIntensity' in m) m.emissiveIntensity = intensity; });
+    });
+  }
+
   private updateShipTransform(dt: number) {
     if (!this.playerShipGroup) return;
 
@@ -3658,6 +3841,55 @@ export class GameEngine {
     ) {
       this.playerShipGroup.position.copy(this.finalCollapseManager.failureCinematic.shipCurrentTrajectory);
       this.playerShipGroup.rotation.copy(this.finalCollapseManager.failureCinematic.shipRotation);
+      return;
+    }
+
+    // Mode 21 Submode 10: Routes 02/03 have real terminal endpoints. Once
+    // the endpoint is reached, keep the ship physically there and run a short
+    // route-specific escape sequence. Never fall back to the main spline.
+    if (this.finalCollapseTerminalRouteId && this.finalCollapseTerminalPoint && this.finalCollapseTerminalTangent) {
+      this.finalCollapseTerminalSequenceElapsed += dt;
+      const t = this.finalCollapseTerminalSequenceElapsed;
+      this.currentSpeed = Math.max(0, this.currentSpeed - 70 * dt);
+      this.updateFinalCollapseEscapeSequenceVisuals(dt, t, this.finalCollapseTerminalRouteId);
+      this.playerShipGroup.position.copy(this.finalCollapseTerminalPoint);
+      const tangent = this.finalCollapseTerminalTangent.clone().normalize();
+      const look = this.playerShipGroup.position.clone().add(tangent);
+      this.playerShipGroup.lookAt(look);
+      this.playerShipGroup.position.y += 1.6;
+
+      if (this.finalCollapseTerminalRouteId === 'bh10_escape_route') {
+        if (t >= 0.8 && t < 2.0) this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE VECTOR LOCKED');
+        if (t >= 2.0 && t < 3.5) this.blackHoleCinematicManager?.setObjective('ROUTE 02 // EMERGENCY GATE OPENING');
+        if (t >= 3.5 && t < 5.0) this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE THRUST ARMED');
+        if (t >= 5.0 && !this.finalCollapseTerminalSequenceComplete) {
+          this.finalCollapseTerminalSequenceComplete = true;
+          this.finalCollapseManager?.markSurvived();
+          this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE SUCCESSFUL');
+          this.callbacks.onShortcutUsed?.('ROUTE 02 // ESCAPE SUCCESSFUL');
+          // Route 02 is a terminal evacuation. Once the physical gate sequence
+          // has completed, hand control to the existing results flow instead
+          // of leaving the player parked in the terminal state indefinitely.
+          this.blackHoleCinematicManager?.start('RESULTS');
+        }
+      } else {
+        if (t >= 0.8 && t < 2.0) this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE STABILIZING');
+        if (t >= 2.0 && t < 3.5) this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE GATE OPEN');
+        if (t >= 3.5 && t < 5.0) this.blackHoleCinematicManager?.setObjective('ROUTE 03 // TRANSIT VECTOR ARMED');
+        if (t >= 5.0 && !this.finalCollapseTerminalSequenceComplete) {
+          this.finalCollapseTerminalSequenceComplete = true;
+          this.finalCollapseManager?.markSurvived();
+          this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE ESCAPE SUCCESSFUL');
+          this.callbacks.onShortcutUsed?.('ROUTE 03 // WORMHOLE ESCAPE SUCCESSFUL');
+          // Route 03 is a terminal wormhole evacuation. After the physical
+          // gate/transit sequence finishes, continue into the existing results
+          // flow instead of returning to the main track.
+          this.blackHoleCinematicManager?.start('RESULTS');
+        }
+      }
+
+      const flameScale = 0.8 + this.currentSpeed / 40;
+      this.playerThrusters.forEach(flame => flame.scale.set(1, flameScale, 1));
       return;
     }
 
@@ -4076,29 +4308,10 @@ export class GameEngine {
       const bhEvent = this.blackHoleCinematicManager.event;
       const bhPos = this.supermassiveBlackHole?.root.position ?? new THREE.Vector3(0, 180, -3500);
 
-      // Quantum Launch Pro — every one of the 40 catastrophe events gets a
-      // dedicated cinematic camera scene during its CINEMATIC phase. The race
-      // countdown and player physics are untouched; only the presentation
-      // camera is temporarily given a smooth shot of the live environment.
-      if (this.modeManager.blackHoleSubmode === 10) {
-        const evt = this.finalCollapseManager?.catastrophe.activeEvent;
-        const evtIndex = this.finalCollapseManager?.catastrophe.currentEventIndex || 0;
-        if (evt && this.blackHoleEventCinematicDirector.isActive(evtIndex, evt.phase, 10)) {
-          const cinematicTrackPoint = this.track.getSampleAt(
-            THREE.MathUtils.clamp(this.splineT + 0.06 + (evtIndex % 5) * 0.015, 0, 0.999999)
-          ).point;
-          this.blackHoleEventCinematicDirector.update(
-            this.camera,
-            this.playerShipGroup,
-            this.supermassiveBlackHole?.root ?? new THREE.Object3D(),
-            cinematicTrackPoint,
-            evtIndex,
-            evt.phaseTimer,
-            this.cameraShake
-          );
-          return;
-        }
-      }
+      // Submode 10 uses the whole-black-hole panoramic camera only before
+      // player control begins. Once the race starts, camera authority stays
+      // with the normal gameplay camera; catastrophe events never take over
+      // the camera with a panoramic shot.
 
       // Section 34 & 49: Failure Cinematic Camera Authority (7-Phase Route Consumption & General Failure)
       if (this.finalCollapseManager?.failureCinematic.isActive) {
@@ -4110,8 +4323,26 @@ export class GameEngine {
           this.playerShipGroup.rotation.copy(fc.shipRotation);
         }
 
-        // Camera positioning for 7 phases of route consumption failure
-        if (fc.isRouteConsumption) {
+        // The missed-route ending uses a rotating fall/orbit shot and then a
+        // high reveal of the rebuilt three-route network.
+        if (fc.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
+          const progress = fc.totalProgress;
+          if (fc.currentPhase <= 7) {
+            const radius = Math.max(28, 82 - progress * 48);
+            const orbit = new THREE.Vector3(
+              Math.cos(fc.elapsed * 0.75) * radius,
+              18 + Math.sin(fc.elapsed * 0.9) * 16,
+              Math.sin(fc.elapsed * 0.75) * radius
+            );
+            const camPos = this.playerShipGroup.position.clone().add(orbit);
+            this.camera.position.lerp(camPos, 0.08);
+            this.camera.lookAt(this.playerShipGroup.position);
+          } else {
+            const camPos = bhPos.clone().add(new THREE.Vector3(0, 80 + progress * 120, 260 - progress * 80));
+            this.camera.position.lerp(camPos, 0.045);
+            this.camera.lookAt(bhPos.clone().add(new THREE.Vector3(0, 0, 350)));
+          }
+        } else if (fc.isRouteConsumption) {
           if (fc.currentPhase <= 3) {
             // Camera smoothly moves behind/slightly above ship looking ahead along breaking track
             const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShipGroup.quaternion);
@@ -4149,6 +4380,30 @@ export class GameEngine {
           const finalTime = Date.now() - this.raceStartTime;
           this.callbacks.onRaceFinish(finalTime);
         }
+        return;
+      }
+
+      // Submode 10 — Route 02/03 terminal camera authority. The ship stays
+      // physically at the gate while the camera frames the actual terminal,
+      // so the player can see the escape structure instead of being left with
+      // a distant/default gameplay view.
+      if (
+        this.finalCollapseTerminalRouteId &&
+        this.finalCollapseTerminalPoint &&
+        this.finalCollapseTerminalTangent &&
+        bhEvent === 'ESCAPE_SEQUENCE'
+      ) {
+        const tangent = this.finalCollapseTerminalTangent.clone().normalize();
+        const camPos = this.finalCollapseTerminalPoint
+          .clone()
+          .sub(tangent.clone().multiplyScalar(28))
+          .add(new THREE.Vector3(0, 10, 0));
+        const lookTarget = this.finalCollapseTerminalPoint
+          .clone()
+          .add(tangent.clone().multiplyScalar(12))
+          .add(new THREE.Vector3(0, 18, 0));
+        this.camera.position.lerp(camPos, 0.12);
+        this.camera.lookAt(lookTarget);
         return;
       }
 
@@ -5170,6 +5425,10 @@ export class GameEngine {
   }
 
   public toggleWholeBlackHoleCamera(): CameraMode {
+    // Whole-black-hole view is intentionally available only before gameplay.
+    if (this.isRacing) {
+      return this.cameraMode;
+    }
     if (this.cameraMode === 'WHOLE_BLACK_HOLE') {
       this.cameraMode = 'CHASE_NEAR';
     } else {
@@ -5485,6 +5744,7 @@ export class GameEngine {
       this.finalCollapseCatastropheActive = false;
       this.finalCollapseShelterEntered = false;
       this.finalCollapseEscapeRouteEntered = false;
+    this.finalCollapseWormholeRouteEntered = false;
       this.finalCollapseRaceFinishSent = false;
       this.finalCollapseLastEvent = 'NONE';
       this.finalCollapseEntryReady = false;

@@ -141,6 +141,7 @@ export interface EvacuationTelemetry {
   cinematicPhase: number;
   cinematicProgress: number;
   blackScreenActive: boolean;
+  endingVariant: 'STANDARD' | 'MISSED_ESCAPE_COLLAPSE';
   destructionFrontDistanceM: number;
   playerOnCollapsingSegment: boolean;
   escapeWindowRemainingSeconds: number;
@@ -913,6 +914,7 @@ export class FailureCinematicController {
   public totalProgress = 0;
   public blackScreenActive = false;
   public completed = false;
+  public endingVariant: 'STANDARD' | 'MISSED_ESCAPE_COLLAPSE' = 'STANDARD';
 
   public shipInitialPosition = new THREE.Vector3();
   public shipCurrentTrajectory = new THREE.Vector3();
@@ -932,11 +934,13 @@ export class FailureCinematicController {
   // Phase 11 (20.2-21.5s): Shockwave dissipates -> Total Darkness.
   private readonly rcPhaseDurations = [2.5, 2.5, 2.5, 2.5, 2.5, 2.0, 1.0, 1.0, 1.7, 2.0, 1.3];
   private readonly gfPhaseDurations = [2.5, 2.5, 2.5, 2.5, 1.0, 1.0, 1.7, 2.0, 1.3];
+  private readonly missedEscapePhaseDurations = [3.0, 3.0, 3.0, 2.5, 2.5, 1.5, 3.0, 3.0, 3.0, 5.0, 4.0];
   private phaseTriggered: Set<number> = new Set();
 
-  public start(isRouteConsumption: boolean, startPosition?: THREE.Vector3): void {
+  public start(isRouteConsumption: boolean, startPosition?: THREE.Vector3, endingVariant: 'STANDARD' | 'MISSED_ESCAPE_COLLAPSE' = 'STANDARD'): void {
     this.isActive = true;
     this.isRouteConsumption = isRouteConsumption;
+    this.endingVariant = endingVariant;
     this.elapsed = 0;
     this.currentPhase = 1;
     this.totalProgress = 0;
@@ -957,7 +961,9 @@ export class FailureCinematicController {
     if (!this.isActive || this.completed) return;
 
     this.elapsed += dt;
-    const durations = this.isRouteConsumption ? this.rcPhaseDurations : this.gfPhaseDurations;
+    const durations = this.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+      ? this.missedEscapePhaseDurations
+      : (this.isRouteConsumption ? this.rcPhaseDurations : this.gfPhaseDurations);
     const totalDuration = durations.reduce((a, b) => a + b, 0);
 
     this.totalProgress = Math.min(1.0, this.elapsed / totalDuration);
@@ -973,18 +979,46 @@ export class FailureCinematicController {
     }
     this.currentPhase = phase;
 
-    // Physical continuous gravitational trajectory starting from actual world position (Phases 4-6)
-    if (this.currentPhase >= 4 && this.currentPhase <= 6) {
-      const pullFrac = (this.elapsed - (durations[0] + durations[1] + durations[2])) / (durations[3] + durations[4] + durations[5]);
-      const eased = Math.pow(Math.max(0, Math.min(1, pullFrac)), 1.8);
-      this.shipCurrentTrajectory.lerpVectors(this.shipInitialPosition, blackHoleCenter, eased);
-      this.shipRotation.x += dt * (1.2 + eased * 3.0);
-      this.shipRotation.y += dt * (0.8 + eased * 2.2);
-      this.shipRotation.z += dt * (1.5 + eased * 4.0);
+    // Physical continuous gravitational trajectory. The missed-route ending
+    // adds a visible spiral/fall instead of a static blackout.
+    if (this.currentPhase >= 4 && this.currentPhase <= 7) {
+      const start = durations[0] + durations[1] + durations[2];
+      const window = durations[3] + durations[4] + durations[5] + durations[6];
+      const pullFrac = (this.elapsed - start) / Math.max(0.001, window);
+      const eased = Math.pow(Math.max(0, Math.min(1, pullFrac)), 1.55);
+      if (this.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
+        const angle = this.elapsed * (1.5 + eased * 5.0);
+        const radius = THREE.MathUtils.lerp(this.shipInitialPosition.distanceTo(blackHoleCenter), 22, eased);
+        const center = blackHoleCenter.clone();
+        const target = center.clone().add(new THREE.Vector3(
+          Math.cos(angle) * radius,
+          Math.sin(angle * 1.7) * radius * 0.28,
+          Math.sin(angle) * radius
+        ));
+        this.shipCurrentTrajectory.lerp(target, Math.min(1, dt * 2.4));
+        this.shipRotation.x += dt * (1.5 + eased * 7.0);
+        this.shipRotation.y += dt * (2.0 + eased * 9.0);
+        this.shipRotation.z += dt * (2.5 + eased * 11.0);
+      } else {
+        this.shipCurrentTrajectory.lerpVectors(this.shipInitialPosition, blackHoleCenter, eased);
+        this.shipRotation.x += dt * (1.2 + eased * 3.0);
+        this.shipRotation.y += dt * (0.8 + eased * 2.2);
+        this.shipRotation.z += dt * (1.5 + eased * 4.0);
+      }
     }
 
     // Section 35 & 40: Phase-specific cosmic failure audio triggers
-    if (this.isRouteConsumption) {
+    if (this.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
+      if (this.currentPhase === 7 && !this.phaseTriggered.has(7)) {
+        this.phaseTriggered.add(7);
+        sound.playDeepCosmicBoom();
+        sound.playDarkGravitationalShockwave();
+      } else if (this.currentPhase === 10 && !this.phaseTriggered.has(10)) {
+        this.phaseTriggered.add(10);
+        sound.playDeepCosmicBoom();
+      }
+      this.blackScreenActive = false;
+    } else if (this.isRouteConsumption) {
       if (this.currentPhase === 8 && !this.phaseTriggered.has(8)) {
         this.phaseTriggered.add(8);
         // Complete silence for 0.5-1.0s darkness
@@ -1018,7 +1052,7 @@ export class FailureCinematicController {
 
     if (this.elapsed >= totalDuration) {
       this.completed = true;
-      this.blackScreenActive = true;
+      this.blackScreenActive = this.endingVariant !== 'MISSED_ESCAPE_COLLAPSE';
     }
   }
 
@@ -1030,6 +1064,7 @@ export class FailureCinematicController {
     this.totalProgress = 0;
     this.blackScreenActive = false;
     this.completed = false;
+    this.endingVariant = 'STANDARD';
     this.phaseTriggered.clear();
   }
 }
@@ -1403,7 +1438,10 @@ export class FinalCollapseManager {
     if (this.evacuation.evacuationSuccess || this.evacuation.evacuationFailed) return;
     this.evacuation.markFailure(cause);
     this.successFailure.lockFailure(cause);
-    this.failureCinematic.start(isRouteConsumption, startPosition);
+    const endingVariant = cause === 'EVACUATION_DEADLINE_EXPIRED'
+      ? 'MISSED_ESCAPE_COLLAPSE'
+      : 'STANDARD';
+    this.failureCinematic.start(isRouteConsumption, startPosition, endingVariant);
   }
 
   public sealTower(): void {
@@ -1560,6 +1598,7 @@ export class FinalCollapseManager {
       cinematicPhase: this.failureCinematic.currentPhase,
       cinematicProgress: this.failureCinematic.totalProgress,
       blackScreenActive: this.failureCinematic.blackScreenActive,
+      endingVariant: this.failureCinematic.endingVariant,
       destructionFrontDistanceM: Math.round(this.destructionFront.distanceToPlayerM),
       playerOnCollapsingSegment: this.routeCollapse.playerOnCollapsingSegment,
       escapeWindowRemainingSeconds:

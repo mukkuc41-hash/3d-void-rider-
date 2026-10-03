@@ -60,6 +60,8 @@ export interface BranchRouteConfig {
   terminalElevationOffset?: number;
   terminalForwardExtension?: number;
   terminalRoute?: boolean;
+  /** Optional normalized capture point for a physical terminal gate (0..1). */
+  terminalCaptureFraction?: number;
 }
 
 export interface JunctionZoneConfig {
@@ -1405,6 +1407,8 @@ export class JunctionManager {
   public finalCollapseLauncherPreview: THREE.Group | null = null;
   /** Separate physical terminal for Route 02; never reconnects to Route 01. */
   public finalCollapseEscapeTerminal: THREE.Group | null = null;
+  /** Separate physical terminal for Route 03; never reconnects to Routes 01/02. */
+  public finalCollapseWormholeTerminal: THREE.Group | null = null;
   public finalCollapseDoorLeft: THREE.Mesh | null = null;
   public finalCollapseDoorRight: THREE.Mesh | null = null;
   public finalCollapseDoorOpenFraction = 0; // 0 = closed, 1 = open
@@ -1534,6 +1538,10 @@ export class JunctionManager {
       this.junctionMeshGroup.remove(this.finalCollapseEscapeTerminal);
       this.finalCollapseEscapeTerminal = null;
     }
+    if (this.finalCollapseWormholeTerminal) {
+      this.junctionMeshGroup.remove(this.finalCollapseWormholeTerminal);
+      this.finalCollapseWormholeTerminal = null;
+    }
 
     const configs = [...(TRACK_JUNCTIONS_CONFIG[trackId] || TRACK_JUNCTIONS_CONFIG.circuit_alpha)];
 
@@ -1554,10 +1562,10 @@ export class JunctionManager {
       });
 
       if (cfg.id === this.finalCollapseJunctionId) {
-        // Submode 10 has two genuinely separate terminal ends. The launcher
-        // shelter is anchored to Route 01's endpoint; Route 02 has its own
-        // independent emergency-escape endpoint. Both are locked until the
-        // player completes the first normal lap.
+        // Submode 10 has three genuinely separate terminal ends. The launcher
+        // shelter, emergency gate, and wormhole gate each have their own
+        // independent endpoint. All are locked until the player completes
+        // the first normal lap.
         const launcherEnd = jInst.routeInstances.get('bh10_launcher_route')?.getSampleAt(1);
         if (launcherEnd) jInst.exitSample = launcherEnd;
         this.finalCollapseShelter = this.buildFinalCollapseShelter(jInst);
@@ -1566,6 +1574,11 @@ export class JunctionManager {
         if (escapeRoute) {
           this.finalCollapseEscapeTerminal = this.buildFinalCollapseEscapeTerminal(escapeRoute);
           this.junctionMeshGroup.add(this.finalCollapseEscapeTerminal);
+        }
+        const wormholeRoute = jInst.routeInstances.get('bh10_wormhole_route');
+        if (wormholeRoute) {
+          this.finalCollapseWormholeTerminal = this.buildFinalCollapseWormholeTerminal(wormholeRoute);
+          this.junctionMeshGroup.add(this.finalCollapseWormholeTerminal);
         }
         this.setFinalCollapseRoutesUnlocked(false);
       }
@@ -1783,15 +1796,16 @@ export class JunctionManager {
   /**
    * Dedicated Mode 21 / Submode 10 junction.
    *
-   * Submode 10 uses two expanded terminal branches. They do not reconnect to
+   * Submode 10 uses three expanded terminal branches. They do not reconnect to
    * the main track or to each other. Route 01 terminates at the launcher/shelter;
-   * Route 02 terminates at its own emergency escape gate. Hazard density is
+   * Route 02 terminates at its emergency escape gate; Route 03 terminates at
+   * its own unstable wormhole gate. Hazard density is
    * driven continuously by the 40-event collapse timeline, not by difficulty tiers.
    */
   private createFinalCollapseJunctionConfig(trackId: TrackId): JunctionZoneConfig {
     return {
       id: this.finalCollapseJunctionId,
-      name: 'QUANTUM LAUNCH SPLIT // TWO TERMINAL ENDS',
+      name: 'QUANTUM LAUNCH SPLIT // THREE TERMINAL ENDS',
       trackId,
       approachT: 0.10,
       junctionStartT: 0.18,
@@ -1857,6 +1871,38 @@ export class JunctionManager {
           boostPadCount: 8,
           obstacleCount: 9,
         },
+        {
+          id: 'bh10_wormhole_route',
+          name: 'ROUTE 03 // WORMHOLE ESCAPE',
+          direction: 'CENTER',
+          subtitle: 'Unstable wormhole corridor // high-speed escape',
+          detail: 'A third, fully independent escape corridor through a collapsing wormhole chain. It never reconnects to Route 01 or Route 02.',
+          themeColor: '#a855f7',
+          isShortcut: false,
+          riskLevel: 'EXTREME',
+          hasBoostPads: true,
+          boostPadFractions: [0.07, 0.19, 0.32, 0.46, 0.60, 0.74, 0.86, 0.95],
+          hasObstacles: true,
+          obstacleFractions: [0.12, 0.24, 0.37, 0.51, 0.65, 0.78, 0.88, 0.96],
+          lengthMultiplier: 2.85,
+          width: 30,
+          lateralDivergence: 0,
+          elevationOffset: 34,
+          terminalLateralOffset: 0,
+          terminalElevationOffset: 44,
+          terminalForwardExtension: 980,
+          terminalRoute: true,
+          // Route 03 completes only at the physical wormhole gate. The gate is
+          // built at the true route endpoint, so do not fire the terminal
+          // sequence early on a decorative spline point.
+          terminalCaptureFraction: 1.0,
+          requiredCheckpointIndices: [],
+          entryJunctionId: this.finalCollapseJunctionId,
+          hasShortcut: false,
+          description: 'Independent wormhole escape route with rotating energy rings, gravity distortion and a terminal wormhole gate.',
+          boostPadCount: 8,
+          obstacleCount: 8,
+        },
       ],
     };
   }
@@ -1868,7 +1914,8 @@ export class JunctionManager {
    */
   private buildFinalCollapseEscapeTerminal(route: BranchRouteInstance): THREE.Group {
     const group = new THREE.Group();
-    const s = route.getSampleAt(1);
+    const gateFraction = route.config.terminalCaptureFraction ?? 1.0;
+    const s = route.getSampleAt(gateFraction);
     const rot = new THREE.Matrix4();
     rot.makeBasis(s.binormal, s.normal, s.tangent.clone().negate());
     group.position.copy(s.point);
@@ -1950,6 +1997,76 @@ export class JunctionManager {
       group.add(arrow);
     }
 
+    return group;
+  }
+
+  /** Build Route 03's independent wormhole terminal. */
+  private buildFinalCollapseWormholeTerminal(route: BranchRouteInstance): THREE.Group {
+    const group = new THREE.Group();
+    const s = route.getSampleAt(1);
+    const rot = new THREE.Matrix4();
+    rot.makeBasis(s.binormal, s.normal, s.tangent.clone().negate());
+    group.position.copy(s.point);
+    group.quaternion.setFromRotationMatrix(rot);
+    group.name = 'Submode10_Route03_WormholeEscape_Terminal';
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x10061f, metalness: 0.94, roughness: 0.16,
+      emissive: 0x6d28d9, emissiveIntensity: 1.5,
+    });
+    const violet = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+    const cyan = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+
+    const left = new THREE.Mesh(new THREE.BoxGeometry(10, 170, 16), frameMat);
+    left.position.set(-52, 85, 0);
+    const right = left.clone(); right.position.x = 52;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(116, 12, 18), frameMat);
+    top.position.set(0, 165, 0);
+    group.add(left, right, top);
+
+    for (let i = 0; i < 5; i++) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(22 + i * 7, 1.5, 14, 72),
+        i % 2 ? cyan : violet
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(0, 70 + i * 20, -i * 12);
+      group.add(ring);
+    }
+
+    const portal = new THREE.Mesh(
+      new THREE.CircleGeometry(48, 72),
+      new THREE.MeshBasicMaterial({ color: 0x14052a, transparent: true, opacity: 0.92, side: THREE.DoubleSide })
+    );
+    portal.rotation.x = Math.PI / 2;
+    portal.position.set(0, 70, 4);
+    group.add(portal);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 220;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#080612'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 10;
+      ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold 56px Arial'; ctx.fillStyle = '#d8b4fe';
+      ctx.fillText('ROUTE 03 // WORMHOLE ESCAPE', 512, 82);
+      ctx.font = 'bold 32px Arial'; ctx.fillStyle = '#67e8f9';
+      ctx.fillText('UNSTABLE WORMHOLE // ESCAPE GATE', 512, 152);
+    }
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(62, 13),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, side: THREE.DoubleSide })
+    );
+    sign.position.set(0, 126, 5); group.add(sign);
+
+    for (let i = 0; i < 6; i++) {
+      const arrow = new THREE.Mesh(new THREE.ConeGeometry(4.2, 11, 6), violet);
+      arrow.rotation.x = Math.PI / 2;
+      arrow.position.set(0, 5, 28 + i * 24);
+      group.add(arrow);
+    }
     return group;
   }
 
@@ -2584,10 +2701,9 @@ export class JunctionManager {
     let jId = this.activeJunctionTelemetry?.junctionId;
     let junction = jId ? this.junctions.get(jId) : null;
 
-    // Submode 10 has exactly one common start and two terminal branches.
-    // Arrow selection is the controller: only LEFT (Route 01) and RIGHT
-    // (Route 02) are valid at this fork; there is no center continuation.
-    if (jId === this.finalCollapseJunctionId && direction !== 'LEFT' && direction !== 'RIGHT') {
+    // Submode 10 has one common start and three independent terminal branches.
+    // LEFT = Route 01, CENTER = Route 03, RIGHT = Route 02.
+    if (jId === this.finalCollapseJunctionId && !['LEFT', 'CENTER', 'RIGHT'].includes(direction)) {
       return false;
     }
     
@@ -2762,8 +2878,15 @@ export class JunctionManager {
       });
     }
 
-    // If reached end of branch
-    if (prp.progress >= 1.0) {
+    // Terminal routes may define a physical gate capture point slightly
+    // before the decorative spline tail. This keeps the trigger aligned with
+    // the visible gate and avoids requiring an unnecessarily long final tail.
+    const terminalCaptureFraction = routeInst.config.terminalRoute
+      ? THREE.MathUtils.clamp(routeInst.config.terminalCaptureFraction ?? 1.0, 0.5, 1.0)
+      : 1.0;
+
+    // If reached the terminal gate/end of branch
+    if (prp.progress >= terminalCaptureFraction) {
       prp.isInBranch = false;
       const jId = prp.activeJunctionId;
       const routeName = routeInst.config.name;
@@ -2791,7 +2914,7 @@ export class JunctionManager {
 
       const completedRouteId = routeInst.config.id;
       const terminalRoute = routeInst.config.terminalRoute === true;
-      const terminalSample = routeInst.getSampleAt(1);
+      const terminalSample = routeInst.getSampleAt(terminalCaptureFraction);
       const terminalPoint = terminalSample.point.clone();
       const terminalTangent = terminalSample.tangent.clone();
       this.feedbackMessage = terminalRoute

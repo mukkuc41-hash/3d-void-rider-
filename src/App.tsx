@@ -469,12 +469,8 @@ export default function App() {
         }
       }
 
-      if (e.code === 'KeyB') {
-        if (engineRef.current && appState === 'RACING') {
-          const nextMode = engineRef.current.toggleWholeBlackHoleCamera();
-          setCameraMode(nextMode);
-        }
-      }
+      // Whole-black-hole panoramic view is a pre-game presentation only.
+      // Do not expose a gameplay toggle.
 
       if (e.code === 'KeyE') {
         if (engineRef.current && appState === 'RACING') {
@@ -534,8 +530,7 @@ export default function App() {
           dir = 'LEFT';
         } else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
           dir = 'RIGHT';
-        } else if ((e.code === 'KeyW' || e.code === 'ArrowUp') &&
-                   engineRef.current.junctionManager.activeJunctionTelemetry?.junctionId !== 'final_collapse_tower_access') {
+        } else if (e.code === 'KeyW' || e.code === 'ArrowUp') {
           dir = 'CENTER';
         } else if (e.code === 'KeyE') {
           engineRef.current.junctionManager.commitRoute();

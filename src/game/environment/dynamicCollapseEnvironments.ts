@@ -121,6 +121,12 @@ export class DynamicCollapseEnvironmentsManager {
   private climaxTimer = 0;
   private darkWaveMesh!: THREE.Mesh;
   private darkImplosionMesh!: THREE.Mesh;
+  private singularityCoreMesh!: THREE.Mesh;
+  private singularityExplosionMesh!: THREE.Mesh;
+  private singularityShockRing!: THREE.Mesh;
+  private singularityFlameRing!: THREE.Mesh;
+  private rebuildRouteGlow!: THREE.Group;
+  private singularityDebris!: THREE.Points;
 
   public currentEventIndex = 1;
   private elapsedSeconds = 0;
@@ -463,6 +469,84 @@ export class DynamicCollapseEnvironmentsManager {
     this.darkImplosionMesh.position.copy(this.blackHoleCenter);
     group.add(this.darkImplosionMesh);
 
+    // Final Collapse missed-route ending: a physical-looking singularity
+    // detonation followed by reconstruction of the three escape corridors.
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.singularityCoreMesh = new THREE.Mesh(new THREE.SphereGeometry(28, 24, 16), coreMat);
+    this.singularityCoreMesh.position.copy(this.blackHoleCenter);
+    group.add(this.singularityCoreMesh);
+
+    const blastMat = new THREE.MeshBasicMaterial({
+      color: 0xff4b22,
+      transparent: true,
+      opacity: 0,
+      wireframe: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.singularityExplosionMesh = new THREE.Mesh(new THREE.SphereGeometry(90, 32, 20), blastMat);
+    this.singularityExplosionMesh.position.copy(this.blackHoleCenter);
+    group.add(this.singularityExplosionMesh);
+
+    const whiteRingMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.singularityShockRing = new THREE.Mesh(new THREE.TorusGeometry(110, 5, 12, 64), whiteRingMat);
+    this.singularityShockRing.position.copy(this.blackHoleCenter);
+    this.singularityShockRing.rotation.x = Math.PI / 2;
+    group.add(this.singularityShockRing);
+
+    const flameMat = new THREE.MeshBasicMaterial({
+      color: 0xff2a12, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.singularityFlameRing = new THREE.Mesh(new THREE.TorusGeometry(165, 18, 10, 64), flameMat);
+    this.singularityFlameRing.position.copy(this.blackHoleCenter);
+    this.singularityFlameRing.rotation.x = Math.PI / 2;
+    group.add(this.singularityFlameRing);
+
+    const debrisCount = 420;
+    const debrisPositions = new Float32Array(debrisCount * 3);
+    for (let i = 0; i < debrisCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 100 + Math.random() * 900;
+      debrisPositions[i * 3] = Math.cos(a) * r;
+      debrisPositions[i * 3 + 1] = (Math.random() - 0.5) * 500;
+      debrisPositions[i * 3 + 2] = Math.sin(a) * r;
+    }
+    const debrisGeo = new THREE.BufferGeometry();
+    debrisGeo.setAttribute('position', new THREE.BufferAttribute(debrisPositions, 3));
+    this.singularityDebris = new THREE.Points(debrisGeo, new THREE.PointsMaterial({
+      color: 0xffd8c2, size: 3.2, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    this.singularityDebris.position.copy(this.blackHoleCenter);
+    group.add(this.singularityDebris);
+
+    this.rebuildRouteGlow = new THREE.Group();
+    this.rebuildRouteGlow.name = 'RebuiltEscapeRoutes';
+    const rebuildColors = [0x22d3ee, 0xff3b81, 0xa855f7];
+    const rebuildOffsets = [-105, 0, 105];
+    for (let r = 0; r < 3; r++) {
+      const material = new THREE.MeshBasicMaterial({
+        color: rebuildColors[r], transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const corridor = new THREE.Mesh(new THREE.BoxGeometry(14, 2.2, 620), material);
+      corridor.position.set(rebuildOffsets[r], 12 + r * 4, this.blackHoleCenter.z + 500);
+      corridor.rotation.y = (r - 1) * 0.16;
+      this.rebuildRouteGlow.add(corridor);
+    }
+    this.rebuildRouteGlow.position.y = 0;
+    group.add(this.rebuildRouteGlow);
+
     this.envGroups.set(40, group);
     this.root.add(group);
   }
@@ -664,62 +748,95 @@ export class DynamicCollapseEnvironmentsManager {
     this.climaxTimer += dt;
     const t = this.climaxTimer;
     let cameraShake = 0.8;
-    let blackScreen = false;
+    const blackScreen = false;
 
-    if (t < 3.0) {
+    // 0-4s: the player and the surrounding world fall into a rotating
+    // gravitational funnel. The world keeps moving; no terminal black frame.
+    if (t < 4.0) {
       this.absoluteCollapsePhase = 'CONVERGENCE';
-      cameraShake = 1.0;
-    } else if (t < 6.0) {
+      cameraShake = 1.2 + t * 0.25;
+      this.root.rotation.y += dt * (0.10 + t * 0.05);
+      this.root.rotation.z = Math.sin(t * 1.7) * 0.035;
+    } else if (t < 7.0) {
       this.absoluteCollapsePhase = 'MOTION_SLOW';
-      cameraShake = 0.5;
-    } else if (t < 8.5) {
+      cameraShake = 1.8;
+      this.root.rotation.y += dt * 0.35;
+      this.root.rotation.z = Math.sin(t * 2.2) * 0.08;
+    } else if (t < 9.0) {
       this.absoluteCollapsePhase = 'NEAR_SILENCE';
       cameraShake = 0.2;
-    } else if (t < 11.0) {
+      this.root.rotation.y += dt * 0.55;
+    } else if (t < 11.5) {
       this.absoluteCollapsePhase = 'GRAVITATIONAL_DISTORTION';
-      cameraShake = 1.4;
-    } else if (t < 13.0) {
-      if (this.absoluteCollapsePhase !== 'DARK_GRAVITATIONAL_PULSE') {
-        sound.playDarkGravitationalShockwave();
-      }
+      cameraShake = 2.8;
+      this.root.rotation.y += dt * 0.8;
+      this.root.rotation.z = Math.sin(t * 4.0) * 0.16;
+    } else if (t < 14.0) {
+      if (this.absoluteCollapsePhase !== 'DARK_GRAVITATIONAL_PULSE') sound.playDarkGravitationalShockwave();
       this.absoluteCollapsePhase = 'DARK_GRAVITATIONAL_PULSE';
-      cameraShake = 2.4;
-      if (this.darkWaveMesh) {
-        const s = 1.0 + (t - 11.0) * 8.0;
-        this.darkWaveMesh.scale.set(s, s, s);
-        if (this.darkWaveMesh.material instanceof THREE.MeshBasicMaterial) {
-          this.darkWaveMesh.material.opacity = Math.min(0.65, (t - 11.0) * 0.35);
-        }
-      }
-    } else if (t < 15.5) {
-      if (this.absoluteCollapsePhase !== 'DARK_IMPLOSION') {
-        sound.playSubBassGravitationalImplosion();
-      }
-      this.absoluteCollapsePhase = 'DARK_IMPLOSION';
-      cameraShake = 3.0;
-      if (this.darkImplosionMesh) {
-        const s = Math.max(0.1, 10.0 - (t - 13.0) * 3.8);
-        this.darkImplosionMesh.scale.set(s, s, s);
-        if (this.darkImplosionMesh.material instanceof THREE.MeshBasicMaterial) {
-          this.darkImplosionMesh.material.opacity = Math.min(0.9, (t - 13.0) * 0.45);
-        }
-      }
-    } else if (t < 18.0) {
-      if (this.absoluteCollapsePhase !== 'COSMIC_BOOM') {
-        sound.playDeepCosmicBoom();
-      }
-      this.absoluteCollapsePhase = 'COSMIC_BOOM';
       cameraShake = 4.0;
-    } else if (t < 20.5) {
+      const pulse = 1 + (t - 11.5) * 7.0;
+      this.darkWaveMesh.scale.setScalar(pulse);
+      (this.darkWaveMesh.material as THREE.MeshBasicMaterial).opacity = Math.min(0.7, (t - 11.5) * 0.25);
+    } else if (t < 16.0) {
+      if (this.absoluteCollapsePhase !== 'DARK_IMPLOSION') sound.playSubBassGravitationalImplosion();
+      this.absoluteCollapsePhase = 'DARK_IMPLOSION';
+      cameraShake = 5.0;
+      const s = Math.max(0.15, 9.0 - (t - 14.0) * 4.2);
+      this.darkImplosionMesh.scale.setScalar(s);
+      (this.darkImplosionMesh.material as THREE.MeshBasicMaterial).opacity = Math.min(0.95, (t - 14.0) * 0.5);
+    } else if (t < 19.0) {
+      if (this.absoluteCollapsePhase !== 'COSMIC_BOOM') sound.playDeepCosmicBoom();
+      this.absoluteCollapsePhase = 'COSMIC_BOOM';
+      cameraShake = 7.0;
+
+      const blast = THREE.MathUtils.clamp((t - 16.0) / 3.0, 0, 1);
+      this.singularityCoreMesh.scale.setScalar(1 + blast * 12);
+      this.singularityExplosionMesh.scale.setScalar(0.6 + blast * 12);
+      this.singularityShockRing.scale.setScalar(1 + blast * 10);
+      this.singularityFlameRing.scale.setScalar(1 + blast * 7);
+      (this.singularityCoreMesh.material as THREE.MeshBasicMaterial).opacity = 0.95 - blast * 0.75;
+      (this.singularityExplosionMesh.material as THREE.MeshBasicMaterial).opacity = 0.9 - blast * 0.35;
+      (this.singularityShockRing.material as THREE.MeshBasicMaterial).opacity = 0.95 - blast * 0.55;
+      (this.singularityFlameRing.material as THREE.MeshBasicMaterial).opacity = 0.9 - blast * 0.45;
+      (this.singularityDebris.material as THREE.PointsMaterial).opacity = blast * 0.9;
+    } else if (t < 22.0) {
       this.absoluteCollapsePhase = 'ALL_COLLAPSED';
-      cameraShake = 1.2;
-    } else if (t < 22.5) {
-      this.absoluteCollapsePhase = 'SUDDEN_SILENCE';
-      cameraShake = 0.0;
+      cameraShake = Math.max(0.8, 5.0 - (t - 19.0) * 1.4);
+      const fade = THREE.MathUtils.clamp((t - 19.0) / 3.0, 0, 1);
+      this.singularityExplosionMesh.scale.multiplyScalar(1 + dt * 1.5);
+      (this.singularityExplosionMesh.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - fade);
+      (this.singularityFlameRing.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - fade);
+      this.singularityDebris.rotation.y += dt * 0.9;
+    } else if (t < 27.0) {
+      this.absoluteCollapsePhase = 'ROUTE_REBUILD';
+      cameraShake = Math.max(0, 0.8 - (t - 22.0) * 0.16);
+      const rebuild = THREE.MathUtils.clamp((t - 22.0) / 5.0, 0, 1);
+      this.rebuildRouteGlow.children.forEach((child, index) => {
+        const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        material.opacity = rebuild * 0.9;
+        const s = THREE.MathUtils.smoothstep(rebuild, 0, 1);
+        (child as THREE.Mesh).scale.set(0.2 + s * 0.8, 1, 0.15 + s * 0.85);
+        (child as THREE.Mesh).position.y = 12 + index * 4 + Math.sin(rebuild * Math.PI) * 18;
+      });
+      this.root.rotation.y = THREE.MathUtils.lerp(this.root.rotation.y, 0, Math.min(1, dt * 1.2));
+      this.root.rotation.z = THREE.MathUtils.lerp(this.root.rotation.z, 0, Math.min(1, dt * 1.2));
+      (this.singularityDebris.material as THREE.PointsMaterial).opacity = Math.max(0, 0.9 - rebuild);
+    } else if (t < 31.0) {
+      this.absoluteCollapsePhase = 'SINGULARITY_ECHO';
+      cameraShake = 0;
+      this.rebuildRouteGlow.children.forEach(child => {
+        const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        material.opacity = 0.65 + Math.sin(t * 3.0) * 0.15;
+      });
     } else {
-      this.absoluteCollapsePhase = 'BLACK_SCREEN';
-      blackScreen = true;
-      cameraShake = 0.0;
+      this.absoluteCollapsePhase = 'RESULTS_READY';
+      cameraShake = 0;
+      this.rebuildRouteGlow.children.forEach(child => {
+        const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        material.opacity = 0.35;
+      });
+      (this.singularityDebris.material as THREE.PointsMaterial).opacity = 0.12;
     }
 
     return { blackScreen, cameraShake };

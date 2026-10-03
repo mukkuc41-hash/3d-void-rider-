@@ -236,54 +236,25 @@ export const JunctionHUD: React.FC<JunctionHUDProps> = ({
         </div>
       )}
 
-      {/* FINAL COLLAPSE: one common start -> two separate terminal ends.
-          The large arrow controls are the route controller; clicking one selects
-          the corresponding physical branch. No CENTER route or confirm button is
-          offered for Submode 10. */}
+      {/* FINAL COLLAPSE: one common start -> three separate terminal ends. */}
       {isFinalCollapseFork ? (
         <>
-        <div
-          id="final-collapse-two-route-arrow-controller"
-          className="w-full max-w-2xl flex items-stretch justify-center gap-3 mb-2 px-1"
-        >
-          <button
-            id="btn-final-collapse-route-1"
-            type="button"
-            onClick={(e) => handleSelect('LEFT', e)}
-            aria-label="Select Route 1 Orbital Launcher"
-            className={`flex-1 min-h-16 sm:min-h-20 py-3 px-3 rounded-2xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
-              isLeftSelected
-                ? 'bg-cyan-500 text-slate-950 border-cyan-200 shadow-[0_0_35px_rgba(0,240,255,0.8)] scale-[1.02] ring-2 ring-white'
-                : 'bg-slate-950/95 text-cyan-300 border-cyan-400/70 hover:border-cyan-200 hover:bg-cyan-950/70'
-            }`}
-          >
-            <ArrowLeft className="w-7 h-7 sm:w-9 sm:h-9 stroke-[3]" />
-            <span className="flex flex-col items-start">
-              <span className="text-[10px] sm:text-xs opacity-80">ROUTE 01</span>
-              <span>ORBITAL LAUNCHER</span>
-            </span>
+        <div id="final-collapse-three-route-arrow-controller" className="w-full max-w-4xl flex items-stretch justify-center gap-2 mb-2 px-1">
+          <button type="button" onClick={(e) => handleSelect('LEFT', e)} aria-label="Select Route 1 Orbital Launcher" className={`flex-1 min-h-16 sm:min-h-20 py-3 px-2 rounded-2xl border-2 font-ui font-black text-[10px] sm:text-xs tracking-wider uppercase flex items-center justify-center gap-1 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${isLeftSelected ? 'bg-cyan-500 text-slate-950 border-cyan-200 ring-2 ring-white' : 'bg-slate-950/95 text-cyan-300 border-cyan-400/70'}`}>
+            <ArrowLeft className="w-6 h-6 sm:w-8 sm:h-8 stroke-[3]" />
+            <span className="flex flex-col items-start"><span className="opacity-80">ROUTE 01</span><span>ORBITAL</span><span>LAUNCHER</span></span>
           </button>
-
-          <button
-            id="btn-final-collapse-route-2"
-            type="button"
-            onClick={(e) => handleSelect('RIGHT', e)}
-            aria-label="Select Route 2 Emergency Escape"
-            className={`flex-1 min-h-16 sm:min-h-20 py-3 px-3 rounded-2xl border-2 font-ui font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${
-              isRightSelected
-                ? 'bg-fuchsia-500 text-slate-950 border-fuchsia-200 shadow-[0_0_35px_rgba(217,70,239,0.8)] scale-[1.02] ring-2 ring-white'
-                : 'bg-slate-950/95 text-fuchsia-300 border-fuchsia-400/70 hover:border-fuchsia-200 hover:bg-fuchsia-950/70'
-            }`}
-          >
-            <span className="flex flex-col items-end">
-              <span className="text-[10px] sm:text-xs opacity-80">ROUTE 02</span>
-              <span>EMERGENCY ESCAPE</span>
-            </span>
-            <ArrowRight className="w-7 h-7 sm:w-9 sm:h-9 stroke-[3]" />
+          <button type="button" onClick={(e) => handleSelect('CENTER', e)} aria-label="Select Route 3 Wormhole Escape" className={`flex-1 min-h-16 sm:min-h-20 py-3 px-2 rounded-2xl border-2 font-ui font-black text-[10px] sm:text-xs tracking-wider uppercase flex items-center justify-center gap-1 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${isCenterSelected ? 'bg-violet-500 text-slate-950 border-violet-200 ring-2 ring-white' : 'bg-slate-950/95 text-violet-300 border-violet-400/70'}`}>
+            <span className="flex flex-col items-center"><span className="opacity-80">ROUTE 03</span><span>WORMHOLE</span><span>ESCAPE</span></span>
+            <span className="text-base sm:text-xl">↕</span>
+          </button>
+          <button type="button" onClick={(e) => handleSelect('RIGHT', e)} aria-label="Select Route 2 Emergency Escape" className={`flex-1 min-h-16 sm:min-h-20 py-3 px-2 rounded-2xl border-2 font-ui font-black text-[10px] sm:text-xs tracking-wider uppercase flex items-center justify-center gap-1 cursor-pointer transition-all duration-150 active:scale-95 shadow-lg ${isRightSelected ? 'bg-fuchsia-500 text-slate-950 border-fuchsia-200 ring-2 ring-white' : 'bg-slate-950/95 text-fuchsia-300 border-fuchsia-400/70'}`}>
+            <span className="flex flex-col items-end"><span className="opacity-80">ROUTE 02</span><span>EMERGENCY</span><span>ESCAPE</span></span>
+            <ArrowRight className="w-6 h-6 sm:w-8 sm:h-8 stroke-[3]" />
           </button>
         </div>
-        <div className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-300 bg-black/80 border border-slate-700/80 px-3 py-1 rounded-full mb-1">
-          A / LEFT = ROUTE 01 &nbsp;•&nbsp; D / RIGHT = ROUTE 02
+        <div className="text-[9px] sm:text-xs font-mono font-bold tracking-widest text-slate-300 bg-black/80 border border-slate-700/80 px-3 py-1 rounded-full mb-1">
+          A / LEFT = R01 &nbsp;•&nbsp; W / UP = R03 &nbsp;•&nbsp; D / RIGHT = R02
         </div>
       </>
       ) : (

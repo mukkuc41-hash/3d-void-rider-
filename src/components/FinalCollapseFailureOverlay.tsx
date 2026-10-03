@@ -13,11 +13,44 @@ export const FinalCollapseFailureOverlay: React.FC<FinalCollapseFailureOverlayPr
   }
 
   // Pure Black Screen (Phase 7 climax / Blackout)
-  if (evacuation.blackScreenActive) {
+  if (evacuation.blackScreenActive && evacuation.endingVariant !== 'MISSED_ESCAPE_COLLAPSE') {
     return (
       <div className="fixed inset-0 z-[110] bg-black flex flex-col items-center justify-center p-6 text-center select-none pointer-events-none">
         <div className="font-mono text-xs text-red-500/60 uppercase tracking-[0.4em] animate-pulse">
           SINGULARITY ABSORPTION COMPLETE
+        </div>
+      </div>
+    );
+  }
+
+  // Missed-all-routes ending: cinematic HUD remains over the world through
+  // the detonation and route reconstruction instead of a flat black frame.
+  if (evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
+    const phase = evacuation.cinematicPhase;
+    const titles = [
+      'FINAL FALL', 'THE WORLD TURNS', 'SINGULARITY PULL',
+      'ROTATIONAL COLLAPSE', 'SINGULARITY CRITICAL', 'DETACHMENT',
+      'COSMIC DETONATION', 'TOTAL DESTRUCTION', 'AFTERSHOCK',
+      'ROUTE RECONSTRUCTION', 'SINGULARITY ECHO',
+    ];
+    const subtitles = [
+      'ALL ESCAPE ROUTES MISSED', 'EVERYTHING FALLS AROUND THE SINGULARITY',
+      'TRAJECTORY LOST', 'SPACETIME ROTATION EXTREME', 'COLLAPSE LIMIT EXCEEDED',
+      'EVENT HORIZON APPROACH', 'WHITE / RED PLASMA RELEASE',
+      'ALL STRUCTURES DESTROYED', 'THE VOID IS REFORMING',
+      'THREE ESCAPE ROUTES REBUILDING', 'THE SINGULARITY REMAINS',
+    ];
+    const idx = Math.min(titles.length - 1, Math.max(0, phase - 1));
+    return (
+      <div className="fixed inset-0 z-[100] pointer-events-none flex flex-col items-center justify-between p-5 sm:p-8 font-mono select-none">
+        <div className="w-full max-w-2xl rounded-2xl border border-red-400/60 bg-black/35 p-4 text-center backdrop-blur-sm">
+          <div className="text-[10px] sm:text-xs tracking-[0.35em] text-red-200">QUANTUM LAUNCH PRO // FINAL COLLAPSE</div>
+          <h2 className="mt-2 text-2xl sm:text-5xl font-black uppercase tracking-widest text-white drop-shadow-[0_0_24px_rgba(255,80,40,0.9)]">{titles[idx]}</h2>
+          <div className="mt-2 text-[10px] sm:text-sm tracking-[0.18em] text-orange-100">{subtitles[idx]}</div>
+        </div>
+        <div className="w-full max-w-md rounded-xl border border-white/20 bg-black/30 p-3 text-center">
+          <div className="flex justify-between text-[9px] sm:text-[10px] text-white/60"><span>COSMIC COLLAPSE</span><span>{Math.round(evacuation.cinematicProgress * 100)}%</span></div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-red-500 via-orange-300 to-white" style={{ width: `${Math.round(evacuation.cinematicProgress * 100)}%` }} /></div>
         </div>
       </div>
     );

@@ -68,3 +68,74 @@
 .animate-fadeIn {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+
+/* Final Collapse HUD layout: keep the gameplay viewport visible and prevent the
+   Quantum Launch Pro telemetry from becoming a giant center-screen obstruction. */
+.bh-race-hud .bh-collapse-panel {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100vw - 360px));
+  z-index: 30;
+  max-height: min(230px, 27vh);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .bh-race-hud .bh-collapse-panel {
+    top: 92px;
+    width: min(92vw, 620px);
+    max-height: 205px;
+    padding: 7px 9px;
+  }
+
+  .bh-race-hud .bh-collapse-panel .grid.grid-cols-2 {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .bh-race-hud .bh-collapse-panel .grid.grid-cols-2 span {
+    font-size: 8px;
+  }
+
+  .bh-race-hud .bh-collapse-panel .grid.grid-cols-2 span + span {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .bh-race-hud {
+    padding: max(6px, env(safe-area-inset-top)) 6px 6px;
+  }
+
+  .bh-race-hud .bh-collapse-panel {
+    top: 98px;
+    width: calc(100vw - 12px);
+    max-height: 184px;
+    border-width: 1px;
+    border-radius: 14px;
+    box-shadow: 0 0 22px rgba(168,85,247,.28);
+  }
+
+  .bh-race-hud .bh-collapse-panel > div:first-child {
+    gap: 4px;
+    margin-bottom: 3px;
+    padding-bottom: 3px;
+  }
+
+  .bh-race-hud .bh-collapse-panel .grid.grid-cols-2 {
+    margin-bottom: 2px;
+  }
+
+  .bh-race-hud .bh-collapse-panel .grid.grid-cols-2 > div {
+    min-width: 0;
+  }
+
+  .bh-race-hud .bh-collapse-panel .grid.grid-cols-2 span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

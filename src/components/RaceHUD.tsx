@@ -295,7 +295,7 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   const sectorTitle = SECTOR_NAMES[trackId] || 'SECTOR ALPHA';
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20 select-none safe-pad p-2 sm:p-4 flex flex-col justify-between overflow-hidden">
+    <div className={`absolute inset-0 pointer-events-none z-20 select-none safe-pad p-2 sm:p-4 flex flex-col justify-between overflow-hidden ${gameMode === 'BLACK_HOLE' ? 'bh-race-hud' : ''}`}>
       {/* ================= TOP TELEMETRY SECTION ================= */}
       <div className="flex flex-wrap lg:flex-nowrap items-start justify-between gap-2 w-full">
         {/* Top Left: Logo & Position / Lap Card */}
@@ -416,7 +416,7 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
           const currentRouteVal = activeRouteBranchName || (currentLap === 1 ? 'STANDARD CIRCUIT' : 'APPROACHING FORK');
 
           return (
-            <div className="flex flex-col items-center pointer-events-auto bg-[#030712]/95 border-2 border-purple-500/70 rounded-2xl px-2.5 sm:px-5 py-1.5 sm:py-2.5 backdrop-blur-xl shadow-[0_0_35px_rgba(168,85,247,0.45)] w-full max-w-xl mx-auto text-center order-3 lg:order-2">
+            <div className="bh-collapse-panel flex flex-col items-center pointer-events-auto bg-[#030712]/92 border-2 border-purple-500/70 rounded-2xl px-2.5 sm:px-5 py-1.5 sm:py-2.5 backdrop-blur-xl shadow-[0_0_35px_rgba(168,85,247,0.45)] w-full max-w-xl mx-auto text-center order-3 lg:order-2">
               {/* Header row: Mode & Protocol Status + Integrated Countdown Clock */}
               <div className="w-full flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-3 border-b border-purple-500/30 pb-1.5 mb-1.5">
                 <div className="flex items-center gap-1.5">
@@ -580,30 +580,6 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
             >
               <Camera className="w-4 h-4" />
             </button>
-            {gameMode === 'BLACK_HOLE' && (
-              <button
-                onClick={onToggleWholeBlackHoleCamera || onToggleCamera}
-                className={`h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-md cursor-pointer text-xs font-mono font-bold ${
-                  cameraMode === 'WHOLE_BLACK_HOLE'
-                    ? 'bg-purple-600/40 border-purple-400 text-purple-200 shadow-[0_0_16px_rgba(168,85,247,0.5)] animate-pulse'
-                    : 'bg-[#060c18]/85 border-purple-500/40 text-purple-300 hover:text-white hover:border-purple-400'
-                }`}
-                title="Toggle Panoramic Whole Black Hole Camera [B]"
-              >
-                <Eye className="w-3.5 h-3.5 text-purple-300" />
-                <span className="hidden sm:inline">WHOLE BLACK HOLE</span>
-              </button>
-            )}
-            {gameMode === 'BLACK_HOLE' && onCycleCosmicBiome && (
-              <button
-                onClick={onCycleCosmicBiome}
-                className="h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-md cursor-pointer text-xs font-mono font-bold bg-[#060c18]/85 border-cyan-500/40 text-cyan-300 hover:text-white hover:border-cyan-400"
-                title="Change Cosmic Environment Biome [E]"
-              >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeCosmicBiome?.badgeColor || '#00f0ff' }} />
-                <span className="hidden sm:inline">{activeCosmicBiome?.name.split(' ')[0] || 'BIOME'} [E]</span>
-              </button>
-            )}
             <button
               onClick={onTogglePause}
               className="w-9 h-9 rounded-xl bg-[#060c18]/85 border border-cyan-500/40 text-cyan-400 hover:text-white active:scale-95 flex items-center justify-center transition-all shadow-md cursor-pointer"
@@ -842,24 +818,11 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                 <span className="font-bold text-emerald-400">COMPLETION HELP:</span>
                 <span className="truncate">{cosmicPairTelemetry.completionHint}</span>
               </div>
-              <button
-                onClick={onToggleWholeBlackHoleCamera || onToggleCamera}
-                className="px-2 py-0.5 rounded bg-purple-900/80 border border-purple-400 text-purple-200 hover:text-white font-bold text-[9px] whitespace-nowrap cursor-pointer shadow"
-                title="Toggle Whole Black Hole Panoramic Camera [B]"
-              >
-                VIEW WHOLE BLACK HOLE [B]
-              </button>
             </div>
           </div>
         )}
 
         {/* Whole Black Hole Panoramic View Reticle & HUD Banner */}
-        {gameMode === 'BLACK_HOLE' && cameraMode === 'WHOLE_BLACK_HOLE' && (
-          <div className="px-4 py-1.5 rounded-full bg-purple-950/90 border border-purple-400 text-purple-200 text-xs font-mono font-bold tracking-wider shadow-[0_0_18px_rgba(168,85,247,0.5)] flex items-center gap-2 animate-pulse">
-            <Eye className="w-4 h-4 text-purple-300 animate-spin" />
-            <span>WHOLE BLACK HOLE CAMERA ACTIVE • PANORAMIC VIEW</span>
-          </div>
-        )}
 
         {/* Milestone Popups */}
         {milestoneMessage && (
