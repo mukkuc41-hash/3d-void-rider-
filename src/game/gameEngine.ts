@@ -54,6 +54,7 @@ import { CosmicEnvironmentDirector, CosmicBiomeDefinition, CosmicBiomeId } from 
 import { QuantumCountdownClock, QuantumCountdownTelemetry } from './environment/quantumCountdownClock';
 import { QuantumRouteSystem } from './environment/quantumRouteSystem';
 import { FuturisticSpaceUniverse } from './environment/futuristicSpaceUniverse';
+import { ModeEnvironmentManager } from './environment/modeEnvironmentManager';
 import { ModeManager, ModeHUDTelemetry } from './modeManager';
 import { ModeEntitySystem } from './modeEntitySystem';
 import { Obstacle, SamplePoint } from './trackData';
@@ -390,6 +391,7 @@ export class GameEngine {
   public quantumCountdownClock: QuantumCountdownClock | null = null;
   public quantumRouteSystem: QuantumRouteSystem | null = null;
   public futuristicSpaceUniverse: FuturisticSpaceUniverse | null = null;
+  public modeEnvironmentManager!: ModeEnvironmentManager;
   public mainDirLight: THREE.DirectionalLight | null = null;
   public mainAmbientLight: THREE.AmbientLight | null = null;
   public lastActiveRouteName: string = 'MAIN HIGHWAY';
@@ -552,8 +554,8 @@ export class GameEngine {
     // Build World
     this.initLighting();
     this.initSkyboxAndStars();
-    this.initCelestialBodies();
-    this.futuristicSpaceUniverse = new FuturisticSpaceUniverse(this.scene);
+    this.modeEnvironmentManager = new ModeEnvironmentManager(this.scene);
+    this.modeEnvironmentManager.loadEnvironment(this.activeGameMode, this.track?.curve || null, this.trackId);
     this.initSpeedParticles();
     this.initThrusterParticles();
     this.initCollisionSparkParticles();
@@ -2200,6 +2202,47 @@ export class GameEngine {
     this.callbacks.onIntroTelemetry?.(null);
   }
 
+  /**
+   * Jumps immediately to any of the 100 timeline events, triggering its alert, audio cue, and cinematic scene.
+   */
+  public jumpToFinalCollapseEvent(eventNumber: number): void {
+    if (this.activeGameMode !== 'BLACK_HOLE' || this.modeManager.blackHoleSubmode !== 10) {
+      return;
+    }
+    const clamped = Math.max(1, Math.min(100, Math.round(eventNumber)));
+    const masterEvent = getMasterEventByNumber(clamped);
+
+    this.lastSubmode10EventIndex = clamped;
+    if (this.finalCollapseManager) {
+      this.finalCollapseManager.jumpToEvent(clamped);
+    }
+    if (this.quantumCountdownClock) {
+      this.quantumCountdownClock.setRemainingSeconds(Math.max(0, 900 - masterEvent.exactTriggerSeconds));
+    }
+    if (this.blackHoleCinematicManager) {
+      this.blackHoleCinematicManager.finalCountdownSeconds = Math.max(0, 900 - masterEvent.exactTriggerSeconds);
+      this.blackHoleCinematicManager.setQuantumEventTelemetry({
+        index: masterEvent.eventNumber,
+        title: masterEvent.eventName,
+        subtitle: masterEvent.alertMessage,
+        phase: masterEvent.severity,
+        severity: masterEvent.severityLevel,
+      });
+      const nextMaster = clamped < 100 ? getMasterEventByNumber(clamped + 1) : null;
+      this.blackHoleCinematicManager.setStage93Telemetry({
+        index: masterEvent.eventNumber,
+        title: masterEvent.eventName,
+        areaName: masterEvent.affectedObject,
+        hazardDescription: masterEvent.alertMessage,
+        nextTitle: nextMaster?.eventName ?? null,
+        nextSecondsUntil: 9,
+        severity: masterEvent.severityLevel,
+      });
+      this.callbacks.onBlackHoleCinematicTelemetry?.(this.blackHoleCinematicManager.getTelemetry());
+    }
+    this.cameraShake = Math.max(this.cameraShake, masterEvent.cameraShake);
+  }
+
   public stopRace() {
     this.isRacing = false;
     this.isAIRaceActive = false;
@@ -3247,6 +3290,9 @@ export class GameEngine {
           // Detect event transition strictly from the circular countdown clock
           if (clockTelem.currentEventNumber !== this.lastSubmode10EventIndex) {
             this.lastSubmode10EventIndex = clockTelem.currentEventNumber;
+            if (this.finalCollapseManager) {
+              this.finalCollapseManager.jumpToEvent(clockTelem.currentEventNumber);
+            }
             sound.playFinalCollapseMasterAlertAudio(masterEvent.audioCue, masterEvent.severity);
             sound.playFinalCollapseEventAudio(clockTelem.currentEventNumber);
             this.cameraShake = Math.max(this.cameraShake, masterEvent.cameraShake);
@@ -3315,9 +3361,9 @@ export class GameEngine {
         }
       }
 
-      // Update Futuristic Space Universe & Overhead Megastructures
-      if (this.futuristicSpaceUniverse) {
-        this.futuristicSpaceUniverse.update(dt, this.currentSpeed);
+      // Update Mode-Specific Environment Manager
+      if (this.modeEnvironmentManager) {
+        this.modeEnvironmentManager.update(dt, this.splineT, this.currentSpeed);
       }
 
       // Update the 15 Dynamic Physical Environments
@@ -5326,6 +5372,24 @@ export class GameEngine {
       this.camera.fov = this.targetFov;
       this.camera.updateProjectionMatrix();
     }
+
+    // Submode 10 Cinematic Event Scene Camera Pan & Distortion (100 events)
+    if (this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10) {
+      const cinematicHandler = this.finalCollapseManager?.catastrophe.cinematicHandler;
+      if (cinematicHandler && cinematicHandler.isActive()) {
+        cinematicHandler.setBaseFov(this.targetFov);
+        const cinResult = cinematicHandler.update(
+          dt,
+          this.camera,
+          this.playerShipGroup,
+          this.supermassiveBlackHole,
+          this.scene
+        );
+        if (cinResult.shake > 0) {
+          this.cameraShake = Math.max(this.cameraShake, cinResult.shake);
+        }
+      }
+    }
   }
 
   /** Fast-forwards the countdown immediately to 00:00 Final Collapse */
@@ -6154,6 +6218,26 @@ export class GameEngine {
     this.activeDifficulty = difficulty;
     this.modeManager.setMode(mode);
 
+    // 1. Authoritative Mode-Specific Environment Management
+    if (this.modeEnvironmentManager) {
+      const envProfile = this.modeEnvironmentManager.loadEnvironment(mode, this.track?.curve || null, this.trackId);
+      if (mode !== 'BLACK_HOLE' && mode !== 'SINGULARITY_RUN' && envProfile) {
+        if (this.scene.fog instanceof THREE.FogExp2) {
+          this.scene.fog.color.setHex(envProfile.atmosphere.fogColor);
+          this.scene.fog.density = envProfile.atmosphere.fogDensity;
+        }
+        if (this.mainAmbientLight) {
+          this.mainAmbientLight.color.setHex(envProfile.lighting.ambientColor);
+          this.mainAmbientLight.intensity = envProfile.lighting.ambientIntensity;
+        }
+        if (this.mainDirLight) {
+          this.mainDirLight.color.setHex(envProfile.lighting.sunColor);
+          this.mainDirLight.intensity = envProfile.lighting.sunIntensity;
+          this.mainDirLight.position.set(...envProfile.lighting.sunPosition);
+        }
+      }
+    }
+
     if (this.blackHoleCinematicManager) {
       if (mode === 'BLACK_HOLE') {
         this.blackHoleCinematicManager.start('INTRO');
@@ -6232,9 +6316,6 @@ export class GameEngine {
           this.quantumRouteSystem = null;
         }
         this.junctionManager.setFinalCollapseMode(false);
-        if (this.environmentDirector) {
-          this.environmentDirector.applyInstantBiome('CRYO_NEBULA');
-        }
         if (this.collapseEnvironments) {
           this.collapseEnvironments.dispose();
           this.collapseEnvironments = null;
@@ -7697,6 +7778,9 @@ export class GameEngine {
     }
     if (this.extendedPathManager) {
       this.extendedPathManager.dispose();
+    }
+    if (this.modeEnvironmentManager) {
+      this.modeEnvironmentManager.dispose();
     }
     if (this.blackHoleCinematicManager) {
       this.blackHoleCinematicManager.dispose();

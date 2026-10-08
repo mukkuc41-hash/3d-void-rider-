@@ -133,7 +133,7 @@ export const CompactEventAlertBar: React.FC<CompactEventAlertBarProps> = ({
   return (
     <div
       key={`alert-bar-${eventNumber}`}
-      className={`pointer-events-auto flex items-center justify-between gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border backdrop-blur-md transition-all duration-200 max-w-2xl w-full ${
+      className={`pointer-events-auto relative flex items-center justify-between gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border backdrop-blur-md transition-all duration-200 max-w-2xl w-full ${
         style.bg
       } ${style.border} ${isFreshAlert ? 'scale-[1.015] ring-2 ring-amber-300/80 shadow-[0_0_25px_rgba(251,191,36,0.6)]' : ''} ${className}`}
     >
@@ -170,6 +170,16 @@ export const CompactEventAlertBar: React.FC<CompactEventAlertBarProps> = ({
           {style.badgeLabel}
         </span>
       </div>
+
+      {/* Environmental Reaction sub-pill when fresh alert triggers */}
+      {isFreshAlert && master.environmentReaction && (
+        <div className="absolute left-0 right-0 -bottom-5.5 flex justify-center pointer-events-none z-30">
+          <div className="px-2.5 py-0.5 rounded-full bg-[#050b1a]/95 border border-cyan-400/50 text-[7.5px] sm:text-[8.5px] font-mono text-cyan-200/90 shadow-[0_0_12px_rgba(0,240,255,0.3)] truncate max-w-[92vw] sm:max-w-xl animate-fadeIn flex items-center gap-1.5">
+            <span className="text-cyan-400 font-bold uppercase tracking-wider shrink-0">REACTION:</span>
+            <span className="truncate">{master.environmentReaction}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -131,6 +131,7 @@ interface RaceHUDProps {
   isCountdownMuted?: boolean;
   blackHoleCinematicTelemetry?: BlackHoleCinematicTelemetry | null;
   onTriggerCollapse?: () => void;
+  onJumpToEvent?: (eventIndex: number) => void;
 }
 
 const SECTOR_NAMES: Record<string, string> = {
@@ -515,6 +516,7 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   isCountdownMuted = false,
   blackHoleCinematicTelemetry,
   onTriggerCollapse,
+  onJumpToEvent,
 }) => {
   const [hudMode, setHudMode] = useState<'TACTICAL' | 'COMPACT' | 'MINIMAL'>('COMPACT');
   const [showMinimap, setShowMinimap] = useState(true);
@@ -1458,6 +1460,7 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
           onClose={() => setIsStagesModalOpen(false)}
           elapsedSeconds={quantumCountdownTelemetry ? Math.floor(quantumCountdownTelemetry.elapsedMs / 1000) : 0}
           onSkipToZero={onTriggerCollapse}
+          onJumpToEvent={onJumpToEvent}
         />
       )}
     </div>

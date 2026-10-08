@@ -92,6 +92,14 @@ export class QuantumCountdownClock {
     this.updateGantryDisplays();
   }
 
+  public setRemainingSeconds(seconds: number): void {
+    const safeRemainingMs = Math.max(0, Math.min(this.initialDurationMs, seconds * 1000));
+    this.remainingMs = safeRemainingMs;
+    this.elapsedMs = this.initialDurationMs - safeRemainingMs;
+    this.hasExpired = this.remainingMs <= 0;
+    this.updateGantryDisplays();
+  }
+
   public setPaused(paused: boolean): void {
     this.isPaused = paused;
   }

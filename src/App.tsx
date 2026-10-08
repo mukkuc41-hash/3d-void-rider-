@@ -351,9 +351,23 @@ export default function App() {
       setIsConnected(conn);
     };
 
+    const resolveMultiplayerGameMode = (room: any): GameMode => {
+      if (room.settings?.gameMode) return room.settings.gameMode;
+      if (room.mode === 'DUEL_1V1') return 'RIVAL_DUEL';
+      if (room.trackId === 'asteroid_run') return 'ASTEROID_RUN';
+      if (room.trackId === 'void_rift') return 'WORMHOLE_EXPRESS';
+      if (room.trackId === 'cosmic_ring') return 'RING_RUNNER';
+      if (room.trackId === 'quantum_highway') return 'QUANTUM_TIME_TRIAL';
+      if (room.trackId === 'neon_orbit') return 'SKYLINE_RUSH';
+      return 'NEON_CIRCUIT';
+    };
+
     networkClient.onRoomUpdate = room => {
       setCurrentRoom(room);
       if (engineRef.current) {
+        const targetMode = resolveMultiplayerGameMode(room);
+        setGameMode(targetMode);
+        engineRef.current.setGameMode(targetMode, room.settings?.difficulty || 'NORMAL');
         if (room.trackId && room.trackId !== engineRef.current.trackId) {
           engineRef.current.setTrack(room.trackId);
         }
@@ -385,6 +399,9 @@ export default function App() {
       setIsPauseOpen(false);
 
       if (engineRef.current) {
+        const targetMode = resolveMultiplayerGameMode(room);
+        setGameMode(targetMode);
+        engineRef.current.setGameMode(targetMode, room.settings?.difficulty || 'NORMAL');
         if (room.trackId && room.trackId !== engineRef.current.trackId) {
           engineRef.current.setTrack(room.trackId);
         }
@@ -1059,11 +1076,23 @@ export default function App() {
           ping={ping}
           isConnected={isConnected}
           currentShipId={currentShipId}
-          onStartGameMode={mode => {
-            setGameMode(mode);
+          onPlayNormalRace={() => {
+            const activeMode = gameMode || 'NEON_CIRCUIT';
             handleStartAIRace({
+              mode: activeMode,
               difficulty: 'ACE',
               trackId: 'circuit_alpha',
+              botCount: 4,
+              laps: 2,
+            });
+          }}
+          onStartGameMode={mode => {
+            const targetMode: GameMode = mode === 'TIME_TRIAL' ? 'QUANTUM_TIME_TRIAL' : 'DEBRIS_SURVIVAL';
+            setGameMode(targetMode);
+            handleStartAIRace({
+              mode: targetMode,
+              difficulty: 'ACE',
+              trackId: mode === 'TIME_TRIAL' ? 'quantum_highway' : 'circuit_alpha',
               botCount: mode === 'TIME_TRIAL' ? 0 : 4,
               laps: mode === 'TIME_TRIAL' ? 3 : 5,
             });
@@ -1248,6 +1277,7 @@ export default function App() {
           isCountdownMuted={isCountdownMuted}
           blackHoleCinematicTelemetry={blackHoleCinematicTelemetry}
           onTriggerCollapse={() => engineRef.current?.triggerFinalCollapseImmediately()}
+          onJumpToEvent={(idx) => engineRef.current?.jumpToFinalCollapseEvent(idx)}
           onInputChange={inp => {
             if (engineRef.current) {
               if (inp.fireMissile) {
@@ -1697,6 +1727,7 @@ export default function App() {
             setIsStoryOpen(false);
             setGameMode(mode);
             handleStartAIRace({
+              mode,
               difficulty: 'ACE',
               trackId,
               botCount: mode === 'DUEL' ? 1 : 5,

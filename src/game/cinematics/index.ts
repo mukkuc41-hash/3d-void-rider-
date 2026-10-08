@@ -11,4 +11,5 @@ export * from './RoutePreviewManager';
 export * from './RouteCameraPath';
 export * from './RouteRevealController';
 export * from './RouteMapOverlay';
+export * from './Submode10CinematicEventHandler';
 export * from '../countdown';

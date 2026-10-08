@@ -596,6 +596,8 @@ export interface CustomRoomSettings {
   collisionsEnabled: boolean;
   powerUpsEnabled: boolean;
   damageMode: DamageMode;
+  difficulty?: AIDifficulty;
+  gameMode?: GameMode;
 }
 
 // Player Progression & Missions

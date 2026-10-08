@@ -64,8 +64,8 @@ export class EnvironmentManager {
       this.currentAmbientColor.setHex(first.ambientColor);
       this.currentSunColor.setHex(first.sunColor);
     }
-
-    this.buildLayerProps(curve);
+    // Note: World architecture, structures, scenery and props are authoritatively
+    // built and managed by ModeEnvironmentManager for complete mode separation.
   }
 
   private buildLayerProps(curve: THREE.Curve<THREE.Vector3>) {

@@ -24,6 +24,7 @@ interface Submode10StagesModalProps {
   onClose: () => void;
   elapsedSeconds: number; // 0 to 900
   onSkipToZero?: () => void;
+  onJumpToEvent?: (eventIndex: number) => void;
 }
 
 export const Submode10StagesModal: React.FC<Submode10StagesModalProps> = ({
@@ -31,6 +32,7 @@ export const Submode10StagesModal: React.FC<Submode10StagesModalProps> = ({
   onClose,
   elapsedSeconds,
   onSkipToZero,
+  onJumpToEvent,
 }) => {
   const [activeTab, setActiveTab] = useState<'EVENTS_100' | 'ROUTE_STAGES'>('EVENTS_100');
   const [searchTerm, setSearchTerm] = useState('');
@@ -352,6 +354,19 @@ export const Submode10StagesModal: React.FC<Submode10StagesModalProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {onJumpToEvent && (
+                          <button
+                            onClick={() => {
+                              onJumpToEvent(evt.index);
+                              onClose();
+                            }}
+                            className="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-400/50 text-[9px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 hover:shadow-[0_0_10px_rgba(0,240,255,0.4)]"
+                            title="Trigger unique alert, audio cue, environmental reaction, and cinematic scene"
+                          >
+                            <Zap className="w-2.5 h-2.5 text-cyan-400" />
+                            <span>PLAY CINEMATIC</span>
+                          </button>
+                        )}
                         <span
                           className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             evt.severity >= 8.0
@@ -422,6 +437,19 @@ export const Submode10StagesModal: React.FC<Submode10StagesModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {onJumpToEvent && (
+                        <button
+                          onClick={() => {
+                            onJumpToEvent(st.index);
+                            onClose();
+                          }}
+                          className="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 border border-purple-400/50 text-[9px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 hover:shadow-[0_0_10px_rgba(168,85,247,0.4)]"
+                          title="Trigger unique alert, audio cue, environmental reaction, and cinematic scene"
+                        >
+                          <Zap className="w-2.5 h-2.5 text-purple-400" />
+                          <span>PLAY CINEMATIC</span>
+                        </button>
+                      )}
                       <span className="text-[10px] text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
                         {st.areaName}
                       </span>

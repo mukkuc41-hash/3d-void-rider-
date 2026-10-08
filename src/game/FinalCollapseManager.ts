@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { sound } from './audio';
 import { PathSegment } from './extendedPath/extendedPathTypes';
 import { RAW_COSMIC_100_EVENTS } from './catastrophe/cosmic100EventsCatalog';
+import {
+  FINAL_COLLAPSE_MASTER_100_TIMELINE,
+  FinalCollapseMasterEvent,
+  getMasterEventByNumber,
+  AlertSeverityType,
+} from './finalCollapse/finalCollapseMaster100Timeline';
+import { Submode10CinematicEventHandler } from './cinematics/Submode10CinematicEventHandler';
 
 /**
  * 3. Evacuation State Machine
@@ -55,15 +62,24 @@ export type TrackSegmentCollapseState =
   | 'CONSUMED';
 
 /**
- * 5 & 17–31. Catastrophe Event Definition (Exact 15 Events at 120s cadence)
+ * 5 & 17–31. Catastrophe Event Definition (Authoritative 100-Event Master Timeline)
  */
 export interface CatastropheEventDef {
   index: number;
-  triggerTime: number; // in seconds from 00:00 evacuation start
+  triggerTime: number; // in seconds from start (0 to 900)
+  displayTime: string;
   name: string;
   title: string;
   subtitle: string;
+  alertTitle: string;
+  alertMessage: string;
   severity: number;
+  severityType: AlertSeverityType;
+  audioCue: 'advisory' | 'warning' | 'danger' | 'critical' | 'emergency' | 'final_warning' | 'collapse';
+  environmentReaction: string;
+  affectedObject: string;
+  blackHoleInstability: number;
+  cameraShake: number;
   phase: 'WARNING' | 'BUILDUP' | 'CINEMATIC' | 'GAMEPLAY';
   phaseTimer: number;
 }
@@ -110,6 +126,14 @@ export interface FinalCollapseStats {
   failureCause: FailureCause | null;
   safeZone: string;
   shipStatus: string;
+  endingClassification?: string;
+  lastSurvivalDurationSeconds?: number;
+  finalCollapseStageReached?: number;
+  eventsSurvivedCount?: number;
+  escapeRoutesAttemptedCount?: number;
+  distanceFromSafeZoneM?: number;
+  damageReceivedTotal?: number;
+  structuresEncounteredCount?: number;
 }
 
 /**
@@ -128,6 +152,14 @@ export interface EvacuationTelemetry {
   activeEventName: string | null;
   activeEventTitle: string | null;
   activeEventSubtitle: string | null;
+  activeAlertTitle: string | null;
+  activeAlertMessage: string | null;
+  activeAudioCue: string | null;
+  activeEnvironmentReaction: string | null;
+  activeAffectedObject: string | null;
+  blackHoleInstability: number;
+  cinematicSceneActive: boolean;
+  cinematicSceneProgress: number;
   eventPhase: 'WARNING' | 'BUILDUP' | 'CINEMATIC' | 'GAMEPLAY' | null;
   hazardEscalation: number;
   eventHistory: string[];
@@ -283,32 +315,37 @@ export class CatastropheEventManager {
   // Continuous hazard escalation only — no named difficulty tiers.
   public hazardEscalation = 1.0;
 
+  public readonly cinematicHandler = new Submode10CinematicEventHandler();
+
   // Quantum Launch Pro / Submode 10 — authoritative 100-event catastrophe catalog.
-  // The canonical environment/effects data lives in RAW_COSMIC_100_EVENTS; this
-  // manager mirrors the exact fields needed by the physical collapse state.
+  // Directly maps the full master timeline (0s to 900s) with alerts, audio cues, and environment reactions.
   public readonly eventCatalog: Omit<CatastropheEventDef, 'phase' | 'phaseTimer'>[] =
-    RAW_COSMIC_100_EVENTS.map((event) => ({
-      index: event.index,
-      triggerTime: event.triggerTime,
-      name: event.name,
-      title: event.title,
-      subtitle: event.subtitle,
-      severity: event.severity,
+    FINAL_COLLAPSE_MASTER_100_TIMELINE.map((event) => ({
+      index: event.eventNumber,
+      triggerTime: event.exactTriggerSeconds,
+      displayTime: event.displayTime,
+      name: event.eventName,
+      title: `EVENT ${String(event.eventNumber).padStart(2, '0')} — ${event.displayTime} ${event.eventName}`,
+      subtitle: event.alertMessage,
+      alertTitle: event.alertTitle,
+      alertMessage: event.alertMessage,
+      severity: event.severityLevel,
+      severityType: event.severity,
+      audioCue: event.audioCue,
+      environmentReaction: event.environmentReaction,
+      affectedObject: event.affectedObject,
+      blackHoleInstability: event.blackHoleInstability,
+      cameraShake: event.cameraShake,
     }));
 
   public update(dt: number, evacuation: EvacuationManager, timelineElapsed?: number): void {
-    // Quantum Launch Pro's 40-event timeline runs during the visible 08:00
-    // countdown (8:00 -> 0:00). All 40 events must occur at their intended times,
-    // even while the player is using an escape route. The escape-route system must
-    // NOT stop the Final Collapse event system.
+    // Quantum Launch Pro's 100-event timeline runs during the visible 15:00
+    // countdown (15:00 -> 00:00). All 100 events occur at their exact trigger seconds.
     this.previousElapsed = this.currentElapsed;
-    this.currentElapsed = timelineElapsed ?? evacuation.evacuationElapsedTime;
+    this.currentElapsed = timelineElapsed !== undefined ? timelineElapsed : evacuation.evacuationElapsedTime;
     this.timelineElapsed = this.currentElapsed;
 
-    // Continuous escalation only. There are no named difficulty tiers.
-    // Hazard density, velocity, tidal force and route pressure increase smoothly
-    // throughout the 15:00 window so the world becomes progressively denser
-    // and more dangerous without switching between artificial difficulty bands.
+    // Continuous escalation only.
     const progress = THREE.MathUtils.clamp(this.currentElapsed / 900, 0, 1);
     this.hazardEscalation = 1.0 + 1.2 * Math.pow(progress, 1.35);
 
@@ -317,7 +354,7 @@ export class CatastropheEventManager {
       this.triggerEvent(this.eventCatalog[0]);
     }
 
-    // Ensure all events occur in strict sequential order: 1 -> 2 -> ... -> 100
+    // Ensure all 100 events occur in strict sequential order: 1 -> 2 -> ... -> 100
     // Every crossed threshold advances the sequence without skipping any event
     while (this.currentEventIndex < this.eventCatalog.length) {
       const nextDef = this.eventCatalog[this.currentEventIndex];
@@ -334,12 +371,12 @@ export class CatastropheEventManager {
       this.activeEvent.phaseTimer += dt;
       const t = this.activeEvent.phaseTimer;
 
-      if (this.activeEvent.phase === 'WARNING' && t >= 3.0) {
+      if (this.activeEvent.phase === 'WARNING' && t >= 2.5) {
         this.activeEvent.phase = 'BUILDUP';
         this.cameraShake = Math.min(2.8, 0.6 + this.activeEvent.severity * 0.22);
-      } else if (this.activeEvent.phase === 'BUILDUP' && t >= 5.5) {
+      } else if (this.activeEvent.phase === 'BUILDUP' && t >= 5.0) {
         this.activeEvent.phase = 'CINEMATIC';
-      } else if (this.activeEvent.phase === 'CINEMATIC' && t >= 8.0) {
+      } else if (this.activeEvent.phase === 'CINEMATIC' && t >= 7.5) {
         this.activeEvent.phase = 'GAMEPLAY';
         this.cameraShake = Math.max(0, this.cameraShake * 0.4);
       }
@@ -379,9 +416,30 @@ export class CatastropheEventManager {
     this.debrisVelocity = Math.min(180, this.debrisVelocity * this.hazardEscalation);
     this.routeCollapseSpeed = Math.min(150, this.routeCollapseSpeed * this.hazardEscalation);
     this.navigationInterference = Math.min(1.0, this.navigationInterference + (this.hazardEscalation - 1) * 0.12);
+    this.cameraShake = Math.max(this.cameraShake, def.cameraShake);
 
-    // Individual audio alert for all events with escalating audio intensity
-    sound.playFinalCollapseEventAudio(def.index);
+    // Individual audio alerts with specific cues
+    try {
+      sound.playFinalCollapseMasterAlertAudio(def.audioCue, def.severityType);
+      sound.playFinalCollapseEventAudio(def.index);
+    } catch (_) {}
+
+    // Trigger unique cinematic scene for this event
+    const masterEvent = getMasterEventByNumber(def.index);
+    this.cinematicHandler.triggerEvent(masterEvent);
+  }
+
+  /**
+   * Jumps immediately to any of the 100 timeline events, triggering its alert, audio cue, and cinematic scene.
+   */
+  public jumpToEvent(eventNumber: number): void {
+    const clamped = Math.max(1, Math.min(this.eventCatalog.length, Math.round(eventNumber)));
+    const targetDef = this.eventCatalog[clamped - 1];
+    if (targetDef) {
+      this.currentElapsed = targetDef.triggerTime;
+      this.timelineElapsed = targetDef.triggerTime;
+      this.triggerEvent(targetDef);
+    }
   }
 
   /**
@@ -468,6 +526,7 @@ export class CatastropheEventManager {
     this.infallRate = 0.2;
     this.orbitalInstability = 0.2;
     this.navigationInterference = 0;
+    this.cinematicHandler.resetImmediately();
   }
 }
 
@@ -1572,6 +1631,10 @@ export class FinalCollapseManager {
     };
   }
 
+  public jumpToEvent(eventNumber: number): void {
+    this.catastrophe.jumpToEvent(eventNumber);
+  }
+
   public getTelemetry(): EvacuationTelemetry {
     return {
       gameState: this.evacuation.gameState,
@@ -1586,6 +1649,16 @@ export class FinalCollapseManager {
       activeEventName: this.catastrophe.activeEvent?.name ?? null,
       activeEventTitle: this.catastrophe.activeEvent?.title ?? null,
       activeEventSubtitle: this.catastrophe.activeEvent?.subtitle ?? null,
+      activeAlertTitle: this.catastrophe.activeEvent?.alertTitle ?? null,
+      activeAlertMessage: this.catastrophe.activeEvent?.alertMessage ?? null,
+      activeAudioCue: this.catastrophe.activeEvent?.audioCue ?? null,
+      activeEnvironmentReaction: this.catastrophe.activeEvent?.environmentReaction ?? null,
+      activeAffectedObject: this.catastrophe.activeEvent?.affectedObject ?? null,
+      blackHoleInstability:
+        this.catastrophe.activeEvent?.blackHoleInstability ??
+        Math.min(1.0, (this.catastrophe.currentEventIndex - 1) / 99),
+      cinematicSceneActive: this.catastrophe.cinematicHandler.isActive(),
+      cinematicSceneProgress: this.catastrophe.cinematicHandler.getProgress(),
       eventPhase: this.catastrophe.activeEvent?.phase ?? null,
       hazardEscalation: Math.round(this.catastrophe.hazardEscalation * 100) / 100,
       eventHistory: [...this.catastrophe.eventHistory],

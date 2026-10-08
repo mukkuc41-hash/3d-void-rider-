@@ -44,6 +44,7 @@ interface MainMenuProps {
   isConnected: boolean;
   currentShipId?: string;
   onStartGameMode?: (mode: 'TIME_TRIAL' | 'SURVIVAL') => void;
+  onPlayNormalRace?: () => void;
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({
@@ -68,6 +69,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   isConnected,
   currentShipId = 'vortex_nemesis',
   onStartGameMode,
+  onPlayNormalRace,
 }) => {
   const [showBriefing, setShowBriefing] = useState<boolean>(false);
   const [showMultiplayerModal, setShowMultiplayerModal] = useState<boolean>(false);
@@ -187,7 +189,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         <button
           onClick={() => {
             sound.playMenuClick();
-            onQuickMatch();
+            if (onPlayNormalRace) {
+              onPlayNormalRace();
+            } else {
+              onQuickMatch();
+            }
           }}
           className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-600 to-fuchsia-500 hover:opacity-95 active:scale-[0.98] transition-all text-white font-ui font-black text-lg tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(0,240,255,0.45)] mt-1 group"
         >
