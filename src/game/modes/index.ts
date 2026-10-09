@@ -19,3 +19,5 @@ export * from './Mode17RelayRace';
 export * from './Mode18SurvivalElimination';
 export * from './Mode19CosmicTreasureHunt';
 export * from './Mode20VoidChampionship';
+export * from './ModeRegistry';
+export * from './ModeGameplayCoordinator';

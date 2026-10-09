@@ -46,13 +46,15 @@ export class QuantumCountdownClock {
   private lastUrgentChimeSecond: number = -1;
   public audioMuted: boolean = false;
 
-  // 3D In-World Holographic Gantry Billboards
+  // 3D In-World Holographic Spatial Circular Clocks
   public gantryMeshGroup: THREE.Group;
   private gantryCanvases: {
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
     texture: THREE.CanvasTexture;
-    mesh: THREE.Mesh;
+    group: THREE.Group;
+    reticleMesh: THREE.Mesh;
+    faceMesh: THREE.Mesh;
   }[] = [];
 
   constructor(durationSeconds: number = 900, submodeNumber: number = 10) {
@@ -61,9 +63,11 @@ export class QuantumCountdownClock {
     this.activeSubmodeNumber = submodeNumber;
 
     this.gantryMeshGroup = new THREE.Group();
-    this.gantryMeshGroup.name = 'QuantumCountdown_HolographicGantries';
-    // Removed overhead clock billboard meshes to avoid cluttering view;
-    // countdown now appears cleanly within the Quantum Launch Pro message banner.
+    this.gantryMeshGroup.name = 'QuantumCountdown_SpatialCircularClocks';
+    this.gantryMeshGroup.visible = submodeNumber === 10;
+
+    // Build the 3D spatial circular holographic countdown clocks in world space
+    this.buildSpatialCircularClocks();
   }
 
   public setDuration(seconds: number): void {
@@ -102,6 +106,14 @@ export class QuantumCountdownClock {
 
   public setPaused(paused: boolean): void {
     this.isPaused = paused;
+  }
+
+  public getRemainingSeconds(): number {
+    return Math.max(0, this.remainingMs / 1000);
+  }
+
+  public getTelemetry(): QuantumCountdownTelemetry {
+    return this.update(0);
   }
 
   public update(dt: number): QuantumCountdownTelemetry {
@@ -176,9 +188,20 @@ export class QuantumCountdownClock {
       statusColor = '#38bdf8';
     }
 
-    // Refresh 3D gantry texture every 150ms
-    if (Math.floor(this.elapsedMs / 150) !== Math.floor((this.elapsedMs - dt * 1000) / 150)) {
-      this.updateGantryDisplays();
+    // Visibility strictly gated to Submode 10: The Final Collapse
+    const isSubmode10 = this.activeSubmodeNumber === 10;
+    this.gantryMeshGroup.visible = isSubmode10;
+
+    if (isSubmode10) {
+      // Rotate inner holographic reticles for spatial sci-fi aesthetic
+      for (const g of this.gantryCanvases) {
+        g.reticleMesh.rotation.z += dt * 0.35;
+      }
+
+      // Refresh 3D spatial circular clock texture every 100ms
+      if (Math.floor(this.elapsedMs / 100) !== Math.floor((this.elapsedMs - dt * 1000) / 100)) {
+        this.updateGantryDisplays();
+      }
     }
 
     return {
@@ -206,7 +229,7 @@ export class QuantumCountdownClock {
   }
 
   private checkAudioAlerts(): void {
-    if (this.audioMuted) return;
+    if (this.audioMuted || this.activeSubmodeNumber !== 10) return;
     const currentSec = Math.floor(this.remainingMs / 1000);
 
     if (currentSec !== this.lastAudibleSecond) {
@@ -233,56 +256,128 @@ export class QuantumCountdownClock {
   }
 
   /* =========================================================================
-     3D IN-WORLD HOLOGRAPHIC GANTRY CLOCKS
-     Placed directly above major route checkpoints
+     3D SPATIAL CIRCULAR HOLOGRAPHIC COUNTDOWN CLOCKS
+     Placed directly above major route checkpoints in Submode 10
      ========================================================================= */
-  private buildHolographicGantries(): void {
-    const gantryPositions = [
-      new THREE.Vector3(0, 32, -350),      // Near launch gantry
-      new THREE.Vector3(-450, 65, -1100),  // Orbital arc gantry
-      new THREE.Vector3(600, 75, -800),    // Outer sweep gantry
-      new THREE.Vector3(0, 45, -2100),     // Terminal approach gantry
+  private buildSpatialCircularClocks(): void {
+    const portalPositions = [
+      new THREE.Vector3(0, 36, -350),      // Near launch gantry
+      new THREE.Vector3(-450, 72, -1100),  // Orbital arc apex portal
+      new THREE.Vector3(600, 82, -800),    // Outer sweep gateway
+      new THREE.Vector3(0, 52, -2100),     // Terminal approach portal
     ];
 
-    for (let i = 0; i < gantryPositions.length; i++) {
-      const pos = gantryPositions[i];
+    for (let i = 0; i < portalPositions.length; i++) {
+      const pos = portalPositions[i];
+      const clockGroup = new THREE.Group();
+      clockGroup.position.copy(pos);
+      // Face towards oncoming ships along the race spline
+      clockGroup.lookAt(pos.x, pos.y, pos.z + 100);
+
+      // 1. Heavy Industrial Gantry Pylons (Left & Right Anchors)
+      const pylonGeo = new THREE.CylinderGeometry(1.2, 1.8, 48, 12);
+      const pylonMat = new THREE.MeshStandardMaterial({
+        color: 0x090d16,
+        metalness: 0.85,
+        roughness: 0.25,
+        emissive: 0x00f0ff,
+        emissiveIntensity: 0.15,
+      });
+
+      const leftPylon = new THREE.Mesh(pylonGeo, pylonMat);
+      leftPylon.position.set(-28, 0, 0);
+      clockGroup.add(leftPylon);
+
+      const rightPylon = new THREE.Mesh(pylonGeo, pylonMat);
+      rightPylon.position.set(28, 0, 0);
+      clockGroup.add(rightPylon);
+
+      // Support Arch Crossbeam
+      const archGeo = new THREE.BoxGeometry(60, 2.2, 3.2);
+      const archMesh = new THREE.Mesh(archGeo, pylonMat);
+      archMesh.position.set(0, 22, 0);
+      clockGroup.add(archMesh);
+
+      // 2. Outer Heavy Torus Ring Frame
+      const torusGeo = new THREE.TorusGeometry(19, 0.9, 16, 64);
+      const torusMat = new THREE.MeshStandardMaterial({
+        color: 0x0b1329,
+        metalness: 0.9,
+        roughness: 0.2,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.45,
+      });
+      const torusMesh = new THREE.Mesh(torusGeo, torusMat);
+      clockGroup.add(torusMesh);
+
+      // 3. Cyan Laser Emitter Accents (4 Cardinal Emitter Nodes)
+      const emitterGeo = new THREE.BoxGeometry(2.4, 2.4, 3.5);
+      const emitterMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+      const angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+      for (const ang of angles) {
+        const em = new THREE.Mesh(emitterGeo, emitterMat);
+        em.position.set(Math.cos(ang) * 19, Math.sin(ang) * 19, 0);
+        clockGroup.add(em);
+      }
+
+      // 4. Rotating Holographic Reticle Ring
+      const reticleGeo = new THREE.RingGeometry(15.2, 16.8, 48);
+      const reticleMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const reticleMesh = new THREE.Mesh(reticleGeo, reticleMat);
+      reticleMesh.position.z = 0.1;
+      clockGroup.add(reticleMesh);
+
+      // 5. Outer Ambient Holographic Aura Ring
+      const auraGeo = new THREE.RingGeometry(18.8, 20.8, 64);
+      const auraMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.25,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+      auraMesh.position.z = -0.1;
+      clockGroup.add(auraMesh);
+
+      // 6. Center Circular Holographic Dial Canvas (512x512)
       const canvas = document.createElement('canvas');
       canvas.width = 512;
-      canvas.height = 128;
+      canvas.height = 512;
       const ctx = canvas.getContext('2d')!;
 
       const texture = new THREE.CanvasTexture(canvas);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
 
-      const mat = new THREE.MeshBasicMaterial({
+      const faceGeo = new THREE.CircleGeometry(17.8, 64);
+      const faceMat = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.94,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
+        depthWrite: false,
       });
+      const faceMesh = new THREE.Mesh(faceGeo, faceMat);
+      faceMesh.position.z = 0.2;
+      clockGroup.add(faceMesh);
 
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(36, 9), mat);
-      mesh.position.copy(pos);
-      // Face towards oncoming ships
-      mesh.lookAt(pos.x, pos.y, pos.z + 100);
-
-      // Support arch structure
-      const frameGeo = new THREE.BoxGeometry(40, 1.2, 2.5);
-      const frameMat = new THREE.MeshStandardMaterial({
-        color: 0x1e293b,
-        metalness: 0.8,
-        roughness: 0.3,
-        emissive: 0x0284c7,
-        emissiveIntensity: 0.4,
+      this.gantryCanvases.push({
+        canvas,
+        ctx,
+        texture,
+        group: clockGroup,
+        reticleMesh,
+        faceMesh,
       });
-      const frame = new THREE.Mesh(frameGeo, frameMat);
-      frame.position.set(0, 5.2, 0);
-      mesh.add(frame);
-
-      this.gantryCanvases.push({ canvas, ctx, texture, mesh });
-      this.gantryMeshGroup.add(mesh);
+      this.gantryMeshGroup.add(clockGroup);
     }
 
     this.updateGantryDisplays();
@@ -292,51 +387,190 @@ export class QuantumCountdownClock {
     const totalSeconds = Math.max(0, this.remainingMs / 1000);
     const mins = Math.floor(totalSeconds / 60);
     const secs = Math.floor(totalSeconds % 60);
-    const timeStr = `T - ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    const hundredths = Math.floor((this.remainingMs % 1000) / 10);
+    const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
+    const minSecStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-    const isCritical = totalSeconds <= 60;
-    const isImminent = totalSeconds <= 30;
+    const remainingRatio = Math.max(0, Math.min(1.0, this.remainingMs / Math.max(1, this.initialDurationMs)));
+    const isZeroHour = this.hasExpired || this.remainingMs <= 0;
+    const isImminent = !isZeroHour && totalSeconds <= 30;
+    const isCritical = !isZeroHour && !isImminent && totalSeconds <= 90;
+
+    const primaryColor = isZeroHour ? '#ef4444' : isImminent ? '#f43f5e' : isCritical ? '#f59e0b' : '#00f0ff';
+    const glowColor = isZeroHour ? 'rgba(239, 68, 68, 0.8)' : isCritical ? 'rgba(245, 158, 11, 0.7)' : 'rgba(0, 240, 255, 0.7)';
 
     for (const g of this.gantryCanvases) {
       const { ctx, canvas, texture } = g;
+      const cx = 256;
+      const cy = 256;
+      const dialRadius = 210;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Cyberpunk semi-transparent glowing backing
-      ctx.fillStyle = isImminent ? 'rgba(220, 38, 38, 0.4)' : isCritical ? 'rgba(245, 158, 11, 0.35)' : 'rgba(2, 6, 23, 0.65)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // 1. Circular Dark Cybernetic Backdrop
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, dialRadius, 0, Math.PI * 2);
+      ctx.fillStyle = isZeroHour
+        ? 'rgba(40, 6, 6, 0.82)'
+        : isImminent
+        ? 'rgba(35, 8, 18, 0.78)'
+        : isCritical
+        ? 'rgba(30, 18, 4, 0.75)'
+        : 'rgba(2, 8, 26, 0.72)';
+      ctx.fill();
 
-      // Border glow
-      ctx.strokeStyle = isImminent ? '#ef4444' : isCritical ? '#f59e0b' : '#00f0ff';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+      // Outer Glow Border
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = primaryColor;
+      ctx.shadowBlur = 15;
+      ctx.stroke();
+      ctx.restore();
 
-      // Sub-heading
-      ctx.fillStyle = isImminent ? '#fca5a5' : isCritical ? '#fde68a' : '#7dd3fc';
-      ctx.font = 'bold 20px monospace';
+      // 2. Precision Radial Dial Tick Marks (60 ticks around circumference)
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 60; i++) {
+        const ang = (i / 60) * Math.PI * 2 - Math.PI / 2;
+        const isMajor = i % 5 === 0;
+        const tickLen = isMajor ? 14 : 7;
+        const r1 = dialRadius - 6;
+        const r2 = dialRadius - 6 - tickLen;
+
+        ctx.strokeStyle = isMajor ? primaryColor : 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = isMajor ? 2.5 : 1.2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+        ctx.lineTo(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 3. Circular Countdown Progress Ring (Empties as time runs out)
+      const startAngle = -Math.PI / 2; // 12 o'clock top
+      const sweepAngle = remainingRatio * Math.PI * 2;
+      const endAngle = startAngle + sweepAngle;
+
+      ctx.save();
+      // Track background ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, dialRadius - 22, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.lineWidth = 10;
+      ctx.stroke();
+
+      // Active Gradient Arc
+      if (remainingRatio > 0.005) {
+        const gradient = ctx.createLinearGradient(cx - dialRadius, cy, cx + dialRadius, cy);
+        gradient.addColorStop(0, '#00f0ff');
+        gradient.addColorStop(0.5, '#c084fc');
+        gradient.addColorStop(0.8, '#fb923c');
+        gradient.addColorStop(1, '#ef4444');
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, dialRadius - 22, startAngle, endAngle, false);
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = primaryColor;
+        ctx.shadowBlur = 18;
+        ctx.stroke();
+
+        // Tip Beacon Orb
+        const tipX = cx + Math.cos(endAngle) * (dialRadius - 22);
+        const tipY = cy + Math.sin(endAngle) * (dialRadius - 22);
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 12;
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 4. Center Holographic Typography Display
+      ctx.save();
       ctx.textAlign = 'center';
-      ctx.fillText(`QUANTUM COLLAPSE // PROTOCOL 21`, canvas.width / 2, 34);
+      ctx.textBaseline = 'middle';
 
-      // Primary Countdown Digits
-      ctx.fillStyle = isImminent ? '#ffffff' : isCritical ? '#fffbeb' : '#ffffff';
-      ctx.font = '900 56px monospace';
-      ctx.fillText(timeStr, canvas.width / 2, 92);
+      // Header Banner
+      ctx.font = '900 13px monospace';
+      ctx.fillStyle = primaryColor;
+      ctx.shadowColor = primaryColor;
+      ctx.shadowBlur = 8;
+      ctx.fillText('QUANTUM COLLAPSE // SUBMODE 10', cx, cy - 82);
 
-      // Corner accent marks
-      ctx.fillStyle = isImminent ? '#ef4444' : '#00f0ff';
-      ctx.fillRect(8, 8, 12, 12);
-      ctx.fillRect(canvas.width - 20, 8, 12, 12);
-      ctx.fillRect(8, canvas.height - 20, 12, 12);
-      ctx.fillRect(canvas.width - 20, canvas.height - 20, 12, 12);
+      // Sub-label
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = isZeroHour ? '#fca5a5' : '#7dd3fc';
+      ctx.shadowBlur = 0;
+      ctx.fillText(isZeroHour ? 'SINGULARITY COLLAPSE' : 'T-MINUS COUNTDOWN', cx, cy - 60);
 
+      // Large Prominent Time Readout
+      ctx.font = '900 58px monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 24;
+      ctx.fillText(minSecStr, cx, cy - 8);
+
+      // Hundredths decimal
+      ctx.font = 'bold 22px monospace';
+      ctx.fillStyle = primaryColor;
+      ctx.shadowBlur = 12;
+      ctx.fillText(`.${String(hundredths).padStart(2, '0')}`, cx, cy + 34);
+
+      // Percentage remaining
+      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = isZeroHour ? '#ef4444' : '#94a3b8';
+      ctx.shadowBlur = 0;
+      ctx.fillText(`${Math.round(remainingRatio * 100)}% HORIZON REMAINING`, cx, cy + 62);
+
+      // Tactical Status Badge Pill at Bottom
+      const badgeY = cy + 96;
+      ctx.beginPath();
+      ctx.roundRect(cx - 105, badgeY - 12, 210, 24, 12);
+      ctx.fillStyle = isZeroHour
+        ? 'rgba(239, 68, 68, 0.45)'
+        : isImminent
+        ? 'rgba(244, 63, 94, 0.4)'
+        : isCritical
+        ? 'rgba(245, 158, 11, 0.35)'
+        : 'rgba(0, 240, 255, 0.25)';
+      ctx.fill();
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.font = '900 10px monospace';
+      ctx.fillStyle = isZeroHour ? '#fee2e2' : isCritical ? '#fef3c7' : '#e0f2fe';
+      ctx.fillText(
+        isZeroHour
+          ? 'ZERO HOUR // SINGULARITY'
+          : isImminent
+          ? 'CRITICAL // EVACUATE'
+          : isCritical
+          ? 'HAZARD ELEVATED'
+          : 'NOMINAL // 15:00 TIMELINE',
+        cx,
+        badgeY
+      );
+
+      ctx.restore();
       texture.needsUpdate = true;
     }
   }
 
   public dispose(): void {
     for (const g of this.gantryCanvases) {
-      g.mesh.geometry.dispose();
-      if (g.mesh.material instanceof THREE.Material) {
-        g.mesh.material.dispose();
+      g.faceMesh.geometry.dispose();
+      if (g.faceMesh.material instanceof THREE.Material) {
+        g.faceMesh.material.dispose();
+      }
+      g.reticleMesh.geometry.dispose();
+      if (g.reticleMesh.material instanceof THREE.Material) {
+        g.reticleMesh.material.dispose();
       }
       g.texture.dispose();
     }

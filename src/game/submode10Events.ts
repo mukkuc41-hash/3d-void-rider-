@@ -1,10 +1,10 @@
 /**
  * SUBMODE 10: THE FINAL COLLAPSE — CANONICAL 93-STAGE PROGRESSION
- * 30:00 (1800 seconds) Countdown to the Absolute Singularity
+ * 15:00 (900 seconds) Countdown to the Absolute Singularity
  *
  * Each stage features:
  * - Stage number (1 to 93)
- * - Canonical timestamp (30:00 down to 00:00)
+ * - Canonical timestamp (15:00 down to 00:00)
  * - Specific Area / Sector Name
  * - Severity level (1 to 10)
  * - EXACT ONE-LINE description of the environmental change or gravitational hazard
@@ -16,7 +16,7 @@ export interface Submode10StageDef {
   name: string;
   title: string;
   countdownTime: string;
-  triggerTime: number; // in seconds from 00:00 start (0 to 1800)
+  triggerTime: number; // in seconds from 00:00 start (0 to 1800 raw, mapped to 0 to 900)
   areaName: string;
   severity: number;
   /** EXACTLY ONE LINE describing the specific environmental change or gravitational hazard */
@@ -29,14 +29,14 @@ export const SUBMODE_10_TOTAL_DURATION_SECONDS = 900; // 15 minutes
 
 const RAW_SUBMODE_10_STAGES: readonly Submode10StageDef[] = [
   // =========================================================================
-  // PHASE 1: SINGULARITY AWAKENING & METRIC PERTURBATIONS (Stages 1 – 15, 30:00 – 25:30)
+  // PHASE 1: SINGULARITY AWAKENING & METRIC PERTURBATIONS (Stages 1 – 15, 15:00 – 12:45)
   // =========================================================================
   {
     index: 1,
     id: 'stage_01_metric_awakening',
     name: 'QUANTUM METRIC AWAKENING',
-    title: 'STAGE 01 — 30:00 QUANTUM METRIC AWAKENING',
-    countdownTime: '30:00',
+    title: 'STAGE 01 — 15:00 QUANTUM METRIC AWAKENING',
+    countdownTime: '15:00',
     triggerTime: 0,
     areaName: 'ORBITAL LAUNCH HIGHWAY',
     severity: 1.0,
@@ -1260,7 +1260,7 @@ const RAW_SUBMODE_10_STAGES: readonly Submode10StageDef[] = [
     triggerTime: 1800,
     areaName: 'QUIESCENT SINGULARITY HORIZON',
     severity: 10.0,
-    hazardDescription: 'The 30:00 clock strikes 00:00; absolute destruction ripples through remnants as the singularity stabilizes into an eternal Kerr remnant.',
+    hazardDescription: 'The 15:00 clock strikes 00:00; absolute destruction ripples through remnants as the singularity stabilizes into an eternal Kerr remnant.',
     cause: 'Terminal gravitational collapse completion and ringdown into quiescent equilibrium.',
     physicalEffect: 'Spherical void shockwave expands into silent space; mission survival telemetry seals successfully.',
   },

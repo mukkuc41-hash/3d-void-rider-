@@ -648,11 +648,9 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   const sectorTitle = SECTOR_NAMES[trackId] || 'SECTOR ALPHA';
 
   const isSubmode10Active =
-    gameMode === 'BLACK_HOLE' ||
-    modeTelemetry?.blackHoleSubmode === 10 ||
-    blackHoleCinematicTelemetry?.submode === 'FINAL_COLLAPSE' ||
-    quantumCountdownTelemetry?.activeSubmodeNumber === 10 ||
-    quantumCountdownTelemetry?.initialDurationMs === 900000;
+    gameMode === 'BLACK_HOLE' &&
+    (modeTelemetry?.blackHoleSubmode === 10 ||
+      blackHoleCinematicTelemetry?.submode === 'FINAL_COLLAPSE');
 
   // 1. Authoritative 15:00 countdown in milliseconds (powers the circular countdown timer)
   const countdownRemainingMs =
@@ -903,6 +901,60 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                   severityLevel={masterEvent.severityLevel}
                   isZeroHour={isCollapseActive || currentEventIdx >= 100}
                 />
+
+                {/* MULTI-STAGE ESCAPE MISSION STATUS BAR (SUBMODE 10 PART 4) */}
+                {blackHoleCinematicTelemetry?.escapeMission?.missionId && (
+                  <div className="w-full max-w-2xl px-2.5 sm:px-3 py-1 rounded-xl bg-[#040817]/90 border border-cyan-500/40 backdrop-blur-md flex flex-col gap-1 shadow-[0_0_15px_rgba(0,240,255,0.2)] animate-fadeIn">
+                    <div className="flex items-center justify-between gap-1.5 text-[8px] sm:text-[9.5px] font-mono leading-tight">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Rocket className="w-3 h-3 text-cyan-400 shrink-0" />
+                        <span className="font-black text-cyan-300 uppercase truncate">
+                          {blackHoleCinematicTelemetry.escapeMission.routeName}
+                        </span>
+                        <span className="text-slate-600">|</span>
+                        <span className="px-1.5 py-0.2 rounded bg-cyan-950/80 text-cyan-200 border border-cyan-500/30 font-bold shrink-0">
+                          {blackHoleCinematicTelemetry.escapeMission.currentStageId}: {blackHoleCinematicTelemetry.escapeMission.currentStageName}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-slate-400 font-bold">
+                          CP: {blackHoleCinematicTelemetry.escapeMission.checkpointsValidated}/{blackHoleCinematicTelemetry.escapeMission.totalCheckpoints}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded font-black text-[7px] sm:text-[8px] border uppercase ${
+                            blackHoleCinematicTelemetry.escapeMission.safeZoneStatus === 'VALIDATED'
+                              ? 'bg-emerald-950 text-emerald-300 border-emerald-500 animate-pulse'
+                              : blackHoleCinematicTelemetry.escapeMission.safeZoneStatus === 'APPROACHING'
+                              ? 'bg-amber-950 text-amber-300 border-amber-500'
+                              : blackHoleCinematicTelemetry.escapeMission.safeZoneStatus === 'DEADLINE_EXPIRED'
+                              ? 'bg-red-950 text-red-300 border-red-500'
+                              : 'bg-slate-900 text-slate-300 border-slate-700'
+                          }`}
+                        >
+                          SAFE ZONE: {blackHoleCinematicTelemetry.escapeMission.safeZoneStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 8-Stage Pip Indicator */}
+                    <div className="flex items-center gap-1 w-full pt-0.5">
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((stg) => (
+                        <div
+                          key={`pip-${stg}`}
+                          className={`h-1 flex-1 rounded-full transition-all ${
+                            stg < (blackHoleCinematicTelemetry.escapeMission?.currentStageNumber ?? 1) ||
+                            blackHoleCinematicTelemetry.escapeMission?.isMissionCompleted
+                              ? 'bg-emerald-400 shadow-[0_0_6px_#10b981]'
+                              : stg === blackHoleCinematicTelemetry.escapeMission?.currentStageNumber
+                              ? 'bg-cyan-400 animate-pulse shadow-[0_0_6px_#00f0ff]'
+                              : 'bg-slate-800'
+                          }`}
+                          title={`Stage ${stg}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : modeTelemetry ? (
               /* Non-Black-Hole (Universal across all other 20 Game Modes) */

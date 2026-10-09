@@ -2,7 +2,7 @@ import type { FinalCollapseCoreEvent } from './finalCollapseEventTypes';
 
 /**
  * FINAL COLLAPSE — EVENTS 1 TO 33 (PART 1: AWAKENING & INITIAL COLLAPSE)
- * 30:00 -> 20:24 at exact 18-second cadence.
+ * 15:00 -> 10:12 at exact 9-second cadence.
  * Every event contains the complete unified data architecture.
  */
 export const EVENTS_PART_1: readonly FinalCollapseCoreEvent[] = [
@@ -10,7 +10,7 @@ export const EVENTS_PART_1: readonly FinalCollapseCoreEvent[] = [
     id: 'fc_01_singularity_activation',
     eventNumber: 1,
     triggerTime: 0,
-    countdownDisplay: '30:00',
+    countdownDisplay: '15:00',
     title: 'Singularity Activation',
     shortDescription: 'The dormant black hole awakens into an active cosmic singularity, initiating gravitational geodesic curvature.',
     blackHoleEffect: {
@@ -61,7 +61,7 @@ export const EVENTS_PART_1: readonly FinalCollapseCoreEvent[] = [
     alert: {
       eventNumber: 1,
       title: 'SINGULARITY ACTIVATION',
-      warningMessage: 'GRAVITATIONAL ANOMALY DETECTED // 30:00 COUNTDOWN INITIATED',
+      warningMessage: 'GRAVITATIONAL ANOMALY DETECTED // 15:00 COUNTDOWN INITIATED',
       nextEventTime: '29:42',
     },
     persistence: {

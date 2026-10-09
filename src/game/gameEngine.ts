@@ -57,6 +57,7 @@ import { FuturisticSpaceUniverse } from './environment/futuristicSpaceUniverse';
 import { ModeEnvironmentManager } from './environment/modeEnvironmentManager';
 import { ModeManager, ModeHUDTelemetry } from './modeManager';
 import { ModeEntitySystem } from './modeEntitySystem';
+import { ModeGameplayCoordinator } from './modes/ModeGameplayCoordinator';
 import { Obstacle, SamplePoint } from './trackData';
 import {
   JunctionManager,
@@ -401,6 +402,7 @@ export class GameEngine {
   private finalCollapseInitialSignsSpawned = false;
   private destructionFrontDistanceAccumulator = 2500;
   public modeEntitySystem: ModeEntitySystem | null = null;
+  public modeCoordinator!: ModeGameplayCoordinator;
   public extendedPathManager!: ExtendedPathManager;
 
   private currentLap: number = 1;
@@ -408,6 +410,7 @@ export class GameEngine {
   private nextCheckpointIdx: number = 0;
   private hasFinished: boolean = false;
   public finishLineCooldownTimer: number = 0;
+  public wormholeCooldownTimer: number = 0;
   public raceStartTime: number = 0;
   public totalDistanceTraveled: number = 0;
   public checkpointsPassed: number = 0;
@@ -556,6 +559,8 @@ export class GameEngine {
     this.initSkyboxAndStars();
     this.modeEnvironmentManager = new ModeEnvironmentManager(this.scene);
     this.modeEnvironmentManager.loadEnvironment(this.activeGameMode, this.track?.curve || null, this.trackId);
+    this.modeCoordinator = new ModeGameplayCoordinator(this.scene);
+    this.modeCoordinator.initMode(this.activeGameMode, this.track?.curve || null);
     this.initSpeedParticles();
     this.initThrusterParticles();
     this.initCollisionSparkParticles();
@@ -648,6 +653,7 @@ export class GameEngine {
     // supplies the physical catastrophe phase and shelter state.
     this.finalCollapseManager = new FinalCollapseManager();
     this.finalCollapseManager.start();
+    this.finalCollapseManager.escapeMissions.initialize(this.scene);
 
     // Initialize Extended Procedural Path & Streaming Manager
     this.extendedPathManager = new ExtendedPathManager(this.scene);
@@ -750,9 +756,10 @@ export class GameEngine {
       this.mainAmbientLight
     );
 
-    // Initialize Quantum Countdown Clock & In-World 3D Holographic Gantries
-    this.quantumCountdownClock = new QuantumCountdownClock(900, 10);
+    // Initialize Quantum Countdown Clock & In-World 3D Holographic Spatial Circular Clocks
+    this.quantumCountdownClock = new QuantumCountdownClock(900, 0);
     this.quantumCountdownClock.setPaused(true);
+    this.quantumCountdownClock.gantryMeshGroup.visible = false;
     this.scene.add(this.quantumCountdownClock.gantryMeshGroup);
   }
 
@@ -1874,6 +1881,27 @@ export class GameEngine {
     if (this.aiRacingSystem) {
       this.aiRacingSystem.setTrack(this.track);
     }
+    if (this.modeEnvironmentManager) {
+      const envProfile = this.modeEnvironmentManager.loadEnvironment(this.activeGameMode, this.track.curve, this.trackId);
+      if (this.activeGameMode !== 'BLACK_HOLE' && this.activeGameMode !== 'SINGULARITY_RUN' && envProfile) {
+        if (this.scene.fog instanceof THREE.FogExp2) {
+          this.scene.fog.color.setHex(envProfile.atmosphere.fogColor);
+          this.scene.fog.density = envProfile.atmosphere.fogDensity;
+        }
+        if (this.mainAmbientLight) {
+          this.mainAmbientLight.color.setHex(envProfile.lighting.ambientColor);
+          this.mainAmbientLight.intensity = envProfile.lighting.ambientIntensity;
+        }
+        if (this.mainDirLight) {
+          this.mainDirLight.color.setHex(envProfile.lighting.sunColor);
+          this.mainDirLight.intensity = envProfile.lighting.sunIntensity;
+          this.mainDirLight.position.set(...envProfile.lighting.sunPosition);
+        }
+      }
+    }
+    if (this.modeCoordinator) {
+      this.modeCoordinator.initMode(this.activeGameMode, this.track.curve);
+    }
     if (this.raceIntroManager) {
       this.raceIntroManager.setMode(this.activeGameMode, this.track);
     }
@@ -1994,45 +2022,60 @@ export class GameEngine {
     this.isPaused = false;
 
     if (this.activeGameMode === 'BLACK_HOLE') {
-      this.blackHoleCinematicManager?.setSubmode10Presentation(this.modeManager.blackHoleSubmode === 10);
-      // Quantum Launch Pro always begins with a complete 08:00 playable window.
-      // Start the countdown only when player control begins, so the full clock
-      // is visible during gameplay rather than being consumed by the intro.
-      this.finalCollapseManager?.start();
-      // Evacuation begins at 00:00. The 100-event collapse timeline runs during
-      // the full visible 15:00 Quantum Launch Pro countdown.
-      this.blackHoleCinematicManager?.startFinalFiveMinuteCountdown();
-      this.blackHoleCinematicManager?.pauseCountdown(false);
-      if (this.quantumCountdownClock) {
-        // SINGLE AUTHORITATIVE TIMER: Submode 10 always starts at exactly 15:00.
-        this.quantumCountdownClock.activeSubmodeNumber = this.modeManager.blackHoleSubmode;
-        this.quantumCountdownClock.setDuration(this.modeManager.blackHoleSubmode === 10 ? 900 : 300);
-        this.quantumCountdownClock.reset();
-        this.quantumCountdownClock.setPaused(false);
-        this.blackHoleCinematicManager.finalCountdownSeconds = this.modeManager.blackHoleSubmode === 10 ? 900 : 300;
-        this.lastSubmode10EventIndex = -1;
-        sound.resetFinalCollapseAudio();
-      }
-      // Submode 10: show the physical Orbital Launcher landmark from the
-      // beginning of the run. It is only a visual landmark; the terminal
-      // routes remain locked until the evacuation phase at 00:00.
-      if (this.modeManager.blackHoleSubmode === 10) {
+      const isSubmode10 = this.modeManager.blackHoleSubmode === 10;
+      this.blackHoleCinematicManager?.setSubmode10Presentation(isSubmode10);
+
+      if (isSubmode10) {
+        this.finalCollapseManager?.start();
+        this.blackHoleCinematicManager?.startFinalFiveMinuteCountdown();
+        this.blackHoleCinematicManager?.pauseCountdown(false);
+        if (this.quantumCountdownClock) {
+          // SINGLE AUTHORITATIVE TIMER: Submode 10 always starts at exactly 15:00.
+          this.quantumCountdownClock.activeSubmodeNumber = 10;
+          this.quantumCountdownClock.setDuration(900);
+          this.quantumCountdownClock.reset();
+          this.quantumCountdownClock.setPaused(false);
+          this.quantumCountdownClock.gantryMeshGroup.visible = true;
+          this.blackHoleCinematicManager.finalCountdownSeconds = 900;
+          this.lastSubmode10EventIndex = -1;
+          sound.resetFinalCollapseAudio();
+        }
         // Submode 10: Route 01/Route 02 unlock only after one complete lap.
         this.junctionManager?.setFinalCollapseRoutesUnlocked(false);
+
+        if (this.blackHoleCinematicManager) {
+          this.callbacks.onBlackHoleCinematicTelemetry?.(
+            this.blackHoleCinematicManager.getTelemetry()
+          );
+        }
+        if (this.quantumCountdownClock) {
+          this.callbacks.onQuantumCountdownUpdate?.(
+            this.quantumCountdownClock.update(0)
+          );
+        }
+      } else {
+        // Black Hole Submodes 1-9: No countdown clock, no final collapse alerts
+        if (this.quantumCountdownClock) {
+          this.quantumCountdownClock.activeSubmodeNumber = this.modeManager.blackHoleSubmode;
+          this.quantumCountdownClock.setPaused(true);
+          this.quantumCountdownClock.gantryMeshGroup.visible = false;
+        }
+        this.callbacks.onQuantumCountdownUpdate?.(null);
+        if (this.blackHoleCinematicManager) {
+          this.callbacks.onBlackHoleCinematicTelemetry?.(
+            this.blackHoleCinematicManager.getTelemetry()
+          );
+        }
       }
-      // Push the initial 15:00 telemetry immediately. This guarantees that
-      // React renders the Quantum Launch Pro clock even before the next
-      // animation-frame telemetry update arrives.
-      if (this.blackHoleCinematicManager) {
-        this.callbacks.onBlackHoleCinematicTelemetry?.(
-          this.blackHoleCinematicManager.getTelemetry()
-        );
-      }
+    } else {
+      // All other 20 game modes: completely clear countdown clock and black hole cinematic telemetry
       if (this.quantumCountdownClock) {
-        this.callbacks.onQuantumCountdownUpdate?.(
-          this.quantumCountdownClock.update(0)
-        );
+        this.quantumCountdownClock.activeSubmodeNumber = 0;
+        this.quantumCountdownClock.setPaused(true);
+        this.quantumCountdownClock.gantryMeshGroup.visible = false;
       }
+      this.callbacks.onQuantumCountdownUpdate?.(null);
+      this.callbacks.onBlackHoleCinematicTelemetry?.(null);
     }
     this.hasFinished = false;
     this.raceStartTime = Date.now();
@@ -2063,10 +2106,17 @@ export class GameEngine {
     this.isPaused = false;
 
     if (this.quantumCountdownClock) {
+      const isSub10 = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+      this.quantumCountdownClock.activeSubmodeNumber = isSub10 ? 10 : 0;
       this.quantumCountdownClock.setDuration(900);
       this.quantumCountdownClock.reset();
       this.quantumCountdownClock.setPaused(true);
-      this.callbacks.onQuantumCountdownUpdate?.(this.quantumCountdownClock.update(0));
+      this.quantumCountdownClock.gantryMeshGroup.visible = isSub10;
+      if (isSub10) {
+        this.callbacks.onQuantumCountdownUpdate?.(this.quantumCountdownClock.update(0));
+      } else {
+        this.callbacks.onQuantumCountdownUpdate?.(null);
+      }
     }
     this.lastSubmode10EventIndex = -1;
     sound.resetFinalCollapseAudio();
@@ -2082,6 +2132,7 @@ export class GameEngine {
     this.finalCollapseManager?.start();
     this.hasFinished = false;
     this.finishLineCooldownTimer = 0;
+    this.wormholeCooldownTimer = 0;
     this.raceStartTime = 0;
     this.lapStartTime = Date.now();
     this.totalTimeElapsed = 0;
@@ -2188,6 +2239,7 @@ export class GameEngine {
     this.finalCollapseRaceFinishSent = false;
     this.shelterNavigationActive = false;
     this.shelterClampTimer = 0;
+    this.finalCollapseManager?.escapeMissions.reset();
 
     this.callbacks.onSpeedUpdate?.(0);
     this.callbacks.onBoostUpdate?.(100);
@@ -2821,6 +2873,30 @@ export class GameEngine {
       }
     }
 
+    // Submode 10 Physical Wormhole Shortcut Portal Trigger
+    if (this.wormholeCooldownTimer > 0) {
+      this.wormholeCooldownTimer = Math.max(0, this.wormholeCooldownTimer - dt);
+    }
+    if (
+      this.collapseEnvironments?.physicalMegaCities &&
+      this.isRacing &&
+      this.modeManager.blackHoleSubmode === 10 &&
+      this.wormholeCooldownTimer <= 0
+    ) {
+      const wPortal = this.collapseEnvironments.physicalMegaCities.wormholes[0];
+      if (wPortal && wPortal.isActive) {
+        const shipPos = this.playerShipGroup.position;
+        if (shipPos.distanceTo(wPortal.position) < wPortal.captureRadius) {
+          sound.playWormholeWarp();
+          this.wormholeCooldownTimer = 5.0;
+          this.currentSpeed = Math.min(145, this.currentSpeed + 40);
+          this.cameraShake = Math.max(this.cameraShake, 0.85);
+          this.triggerCollisionBurst(shipPos, 0xa855f7, 36);
+          this.callbacks.onShortcutUsed?.('QUANTUM WORMHOLE SHORTCUT // SUB-SPACE SURGE');
+        }
+      }
+    }
+
     if (this.input.selectRouteDirection) {
       const success = this.junctionManager.selectRouteByDirection(this.input.selectRouteDirection);
       if (success) {
@@ -2841,69 +2917,52 @@ export class GameEngine {
       this.input.recover = false;
     }
 
-    // Final Collapse has one physical start/fork and three terminal ends.
-    // Stop the ship at the fork until the player chooses a route; this
-    // prevents the old main-track loop from carrying the player past the fork.
-    const isQLPSubmode10Fork =
-      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
-    const forkT = 0.18;
-    const forkWindow = 0.012;
-    if (isQLPSubmode10Fork &&
-        !this.junctionManager.playerRouteProgress.isInBranch &&
-        !this.junctionManager.playerRouteProgress.activeRouteId &&
-        this.splineT >= forkT - forkWindow && this.splineT < forkT) {
-      this.currentSpeed = Math.max(0, Math.min(this.currentSpeed, 6));
-      this.isWrongWay = false;
-    }
 
     if (this.junctionManager.playerRouteProgress.isInBranch) {
       const activeBranchRouteId = this.junctionManager.playerRouteProgress.activeRouteId;
       const isQLPSubmode10 = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
 
-      // Route 01
-      if (isQLPSubmode10 && activeBranchRouteId === 'bh10_launcher_route') {
-        this.finalCollapsePlayerEscaped = true;
+      // Route 01: Orbital Launcher
+      if (isQLPSubmode10 && activeBranchRouteId === 'bh10_launcher_route' && !this.finalCollapseShelterEntered) {
         this.finalCollapseEscapedRouteId = 'bh10_launcher_route';
-        this.finalCollapseManager?.markSurvived();
+        this.finalCollapseManager?.escapeMissions.selectRoute('bh10_launcher_route');
         if (
           this.finalCollapseAuthoritativeState === 'NORMAL_GAMEPLAY' ||
           this.finalCollapseAuthoritativeState === 'FINAL_COLLAPSE_ACTIVE'
         ) {
           this.setFinalCollapseAuthoritativeState('ROUTE_01_INITIATED');
+          this.blackHoleCinematicManager?.setObjective('ROUTE 01 // ORBITAL LAUNCH CORRIDOR ENGAGED');
         }
       }
 
-      // Route 02 is a true terminal emergency-escape route. The escape sequence
-      // is armed as soon as the player commits to it; it never reconnects to
-      // the main route and therefore cannot create a route loop.
+      // Route 02: Emergency Escape Corridor
       if (isQLPSubmode10 && activeBranchRouteId === 'bh10_escape_route' && !this.finalCollapseEscapeRouteEntered) {
         this.finalCollapseEscapeRouteEntered = true;
-        this.finalCollapsePlayerEscaped = true;
         this.finalCollapseEscapedRouteId = 'bh10_escape_route';
-        this.finalCollapseManager?.markSurvived();
+        this.finalCollapseManager?.escapeMissions.selectRoute('bh10_escape_route');
         this.setFinalCollapseAuthoritativeState('ROUTE_02_INITIATED');
         this.finalCollapseCatastropheActive = true;
         this.finalCollapseManager?.beginTrackCollapse();
         this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-        this.blackHoleCinematicManager?.setObjective('ROUTE 02 // EMERGENCY ESCAPE INITIATED');
+        this.blackHoleCinematicManager?.setObjective('ROUTE 02 // EMERGENCY ESCAPE CORRIDOR ENGAGED');
         this.blackHoleCinematicManager!.cameraOverride = false;
         this.blackHoleCinematicManager!.gameplayLocked = false;
-        this.callbacks.onShortcutUsed?.('ROUTE 02 // ESCAPE SEQUENCE INITIATED');
+        this.callbacks.onShortcutUsed?.('ROUTE 02 // EMERGENCY ESCAPE CORRIDOR ENGAGED');
       }
 
+      // Route 03: Gravity Slingshot Escape
       if (isQLPSubmode10 && activeBranchRouteId === 'bh10_wormhole_route' && !this.finalCollapseWormholeRouteEntered) {
         this.finalCollapseWormholeRouteEntered = true;
-        this.finalCollapsePlayerEscaped = true;
         this.finalCollapseEscapedRouteId = 'bh10_wormhole_route';
-        this.finalCollapseManager?.markSurvived();
+        this.finalCollapseManager?.escapeMissions.selectRoute('bh10_wormhole_route');
         this.setFinalCollapseAuthoritativeState('ROUTE_03_INITIATED');
         this.finalCollapseCatastropheActive = true;
         this.finalCollapseManager?.beginTrackCollapse();
         this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-        this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE ESCAPE INITIATED');
+        this.blackHoleCinematicManager?.setObjective('ROUTE 03 // GRAVITY SLINGSHOT VECTOR ENGAGED');
         this.blackHoleCinematicManager!.cameraOverride = false;
         this.blackHoleCinematicManager!.gameplayLocked = false;
-        this.callbacks.onShortcutUsed?.('ROUTE 03 // WORMHOLE ESCAPE INITIATED');
+        this.callbacks.onShortcutUsed?.('ROUTE 03 // GRAVITY SLINGSHOT VECTOR ENGAGED');
       }
 
       // Route 01 remains the physical launcher route.
@@ -2921,6 +2980,7 @@ export class GameEngine {
       const branchUpdate = this.junctionManager.updateRouteProgress(dt, this.currentSpeed, (cpIndices) => {
         cpIndices.forEach(cpIdx => {
           this.checkpointsPassedThisLap.add(cpIdx);
+          this.finalCollapseManager?.escapeMissions.validateCheckpoint(cpIdx);
           if (this.nextCheckpointIdx === cpIdx) {
             this.nextCheckpointIdx = (this.nextCheckpointIdx + 1) % this.track.checkpoints.length;
             this.callbacks.onCheckpointUpdate(this.nextCheckpointIdx, this.track.checkpoints.length);
@@ -2928,6 +2988,24 @@ export class GameEngine {
           }
         });
       });
+
+      // Update multi-stage escape mission progression during branch traversal
+      if (isQLPSubmode10 && this.finalCollapseManager) {
+        const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+        const missionUpdate = this.finalCollapseManager.escapeMissions.updateProgress(
+          this.junctionManager.playerRouteProgress.progress,
+          this.currentSpeed,
+          remainingSec,
+          this.playerShipGroup?.position
+        );
+        if (missionUpdate.stageAdvanced && missionUpdate.currentStage) {
+          this.blackHoleCinematicManager?.setObjective(`${missionUpdate.currentStage.stageId} // ${missionUpdate.currentStage.objectiveText}`);
+          this.callbacks.onShortcutUsed?.(`${missionUpdate.currentStage.stageId}: ${missionUpdate.currentStage.name}`);
+        }
+        if (this.blackHoleCinematicManager) {
+          this.blackHoleCinematicManager.setEscapeMissionTelemetry(this.finalCollapseManager.escapeMissions.getTelemetry());
+        }
+      }
 
       if (branchUpdate.finishedBranch) {
         const completedRouteId = branchUpdate.completedRouteId || null;
@@ -2947,9 +3025,7 @@ export class GameEngine {
 
           if (completedRouteId === 'bh10_launcher_route') {
             this.finalCollapseShelterEntered = true;
-            this.finalCollapsePlayerEscaped = true;
             this.finalCollapseEscapedRouteId = 'bh10_launcher_route';
-            this.finalCollapseManager?.markSurvived();
             this.setFinalCollapseAuthoritativeState('ROUTE_01_SEQUENCE');
             this.shelterNavigationActive = true;
             this.shelterZ = 0;
@@ -2957,37 +3033,31 @@ export class GameEngine {
             this.currentSpeed = Math.min(this.currentSpeed, 32);
             this.finalCollapseManager?.beginTowerEntry();
             this.blackHoleCinematicManager?.start('BASEMENT_ENTRY');
-            this.blackHoleCinematicManager?.setObjective('ORBITAL LAUNCHER // MAGNETIC LOCK ENGAGED');
+            this.blackHoleCinematicManager?.setObjective('ORBITAL LAUNCHER // APPROACH DOCKING BAY');
             sound.playMagneticLock();
             sound.playBlastDoorOpen();
             this.cameraShake = Math.max(this.cameraShake, 0.45);
           } else if (completedRouteId === 'bh10_escape_route' || completedRouteId === 'bh10_wormhole_route') {
-            // Routes 02 and 03 finish at their own physical terminal. Keep the
-            // ship anchored to that endpoint and run the escape sequence there.
-            // Without this persistent terminal state, the normal spline updater
-            // would move the ship back onto the main route on the next frame.
             this.finalCollapseTerminalRouteId = completedRouteId;
             this.finalCollapseTerminalPoint = branchUpdate.terminalPoint.clone();
             this.finalCollapseTerminalTangent = branchUpdate.terminalTangent?.clone() || new THREE.Vector3(0, 0, -1);
             this.finalCollapseTerminalSequenceElapsed = 0;
             this.finalCollapseTerminalSequenceComplete = false;
             this.finalCollapseCatastropheActive = true;
-            this.finalCollapsePlayerEscaped = true;
             this.finalCollapseEscapedRouteId = completedRouteId;
-            this.finalCollapseManager?.markSurvived();
             this.buildFinalCollapseEscapeSequence(completedRouteId as 'bh10_escape_route' | 'bh10_wormhole_route');
             if (completedRouteId === 'bh10_escape_route') {
               this.finalCollapseEscapeRouteEntered = true;
               this.setFinalCollapseAuthoritativeState('ROUTE_02_SEQUENCE');
               this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-              this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE GATE REACHED — SEQUENCE STARTING');
-              this.callbacks.onShortcutUsed?.('ROUTE 02 // EMERGENCY ESCAPE SEQUENCE STARTED');
+              this.blackHoleCinematicManager?.setObjective('ROUTE 02 // SUBTERRANEAN BUNKER APPROACH');
+              this.callbacks.onShortcutUsed?.('ROUTE 02 // SUBTERRANEAN BUNKER APPROACH');
             } else {
               this.finalCollapseWormholeRouteEntered = true;
               this.setFinalCollapseAuthoritativeState('ROUTE_03_SEQUENCE');
               this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-              this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE GATE REACHED — TRANSIT STARTING');
-              this.callbacks.onShortcutUsed?.('ROUTE 03 // WORMHOLE ESCAPE SEQUENCE STARTED');
+              this.blackHoleCinematicManager?.setObjective('ROUTE 03 // EINSTEIN-ROSEN GATEWAY APPROACH');
+              this.callbacks.onShortcutUsed?.('ROUTE 03 // EINSTEIN-ROSEN GATEWAY APPROACH');
             }
           }
 
@@ -3120,6 +3190,50 @@ export class GameEngine {
 
     // Update Active Game Mode Telemetry
     const modeTelemetry = this.modeManager.update(dt, speedKmH, this.isBoosting, this.isDrifting);
+
+    // Apply Live Mode Gameplay Coordinator for Modes 02–20
+    if (this.activeGameMode !== 'SINGULARITY_RUN' && this.activeGameMode !== 'BLACK_HOLE' && this.modeCoordinator) {
+      const coordResult = this.modeCoordinator.update(
+        dt,
+        this.playerShipGroup.position,
+        speedKmH,
+        this.splineT,
+        this.lateralOffset,
+        this.currentLap,
+        this.isBoosting,
+        this.isDrifting
+      );
+
+      if (coordResult.speedDeltaKmH !== 0) {
+        this.currentSpeed = Math.max(0, this.currentSpeed + (coordResult.speedDeltaKmH / 3.6) * dt);
+      }
+      if (coordResult.damage > 0) {
+        this.hullHealth = Math.max(0, this.hullHealth - coordResult.damage);
+        this.callbacks.onHullUpdate?.(this.hullHealth);
+        if (this.hullHealth <= 0) {
+          this.destroyPlayerShip('HULL BREACHED BY ENVIRONMENTAL HAZARD');
+        }
+      }
+      if (coordResult.cameraShake > 0 && this.cameraShakeEnabled) {
+        this.cameraShake = Math.max(this.cameraShake, coordResult.cameraShake);
+      }
+
+      modeTelemetry.objectiveText = coordResult.objectiveText;
+      modeTelemetry.primaryMetricLabel = coordResult.primaryMetricLabel;
+      modeTelemetry.primaryMetricValue = coordResult.primaryMetricValue;
+      modeTelemetry.secondaryMetricLabel = coordResult.secondaryMetricLabel;
+      modeTelemetry.secondaryMetricValue = coordResult.secondaryMetricValue;
+      if (coordResult.warningText) {
+        modeTelemetry.warningText = coordResult.warningText;
+        modeTelemetry.warningAlert = coordResult.warningText;
+      }
+      if (this.activeGameMode === 'SOLAR_STORM') {
+        modeTelemetry.heatLevel = coordResult.solarHeat;
+      } else if (this.activeGameMode === 'GRAVITY_FREE') {
+        modeTelemetry.stuntScore = coordResult.stuntScore;
+      }
+    }
+
     this.callbacks.onModeTelemetry?.(modeTelemetry);
 
     // Simulate Ship Core Thermodynamics (°C)
@@ -3164,19 +3278,14 @@ export class GameEngine {
       if (isFinalCollapse && blackHoleCinematic.finalCountdown === 0 && !this.finalCollapse00Triggered) {
         this.finalCollapse00Triggered = true;
         // 00:00 is the hard escape deadline for Quantum Launch Pro / Final Collapse.
-        // If the player has not physically entered any of the three terminal escape
-        // routes by the end of the countdown, do NOT start the normal evacuation
-        // window. Instead, immediately run the dedicated failure cinematic.
-        // Being inside a branch counts as reaching an escape route; the three route
-        // entry flags cover players who have already crossed into a terminal route.
+        // A valid safe-zone arrival must have been achieved and validated before 00:00.
+        // If not, trigger the authoritative deadline failure.
         const routeProgress = this.junctionManager.playerRouteProgress;
-        const hasReachedEscapeRoute =
-          routeProgress.isInBranch ||
-          this.finalCollapseEscapeRouteEntered ||
-          this.finalCollapseWormholeRouteEntered ||
-          ['bh10_launcher_route', 'bh10_escape_route', 'bh10_wormhole_route'].includes(routeProgress.activeRouteId ?? '');
+        const hasValidSafeZoneArrival =
+          this.finalCollapsePlayerEscaped &&
+          (this.finalCollapseManager?.escapeMissions.isMissionCompleted() || this.finalCollapseShipSecured);
 
-        if (!hasReachedEscapeRoute) {
+        if (!hasValidSafeZoneArrival) {
           this.finalCollapseCatastropheActive = true;
           this.finalCollapsePlayerEscaped = false;
           this.setFinalCollapseAuthoritativeState('FINAL_00_WARNING');
@@ -3185,25 +3294,20 @@ export class GameEngine {
             false,
             this.playerShipGroup?.position.clone()
           );
-          this.blackHoleCinematicManager.setObjective('00:00 // ALL ESCAPE ROUTES MISSED');
+          this.blackHoleCinematicManager.setObjective('00:00 // SAFE ZONE NOT SECURED BEFORE DEADLINE');
           this.blackHoleCinematicManager.start('ESCAPE_SEQUENCE');
         } else {
+          // Valid safe-zone arrival was validated prior to 00:00 deadline!
           this.finalCollapsePlayerEscaped = true;
           this.finalCollapseManager?.markSurvived();
-          // DO NOT show Results screen.
-          // DO NOT end the game immediately.
-          // DO NOT reset the player.
-          // DO NOT teleport the player back to the main track.
-          // DO NOT trigger the missed-escape failure sequence.
-          // Instead: Continue the Final Collapse. The route-specific escape sequence must be allowed to finish.
           if (this.finalCollapseAuthoritativeState === 'NORMAL_GAMEPLAY') {
             const activeId = routeProgress.activeRouteId;
             if (activeId === 'bh10_escape_route' || this.finalCollapseEscapeRouteEntered) {
-              this.setFinalCollapseAuthoritativeState('ROUTE_02_INITIATED');
+              this.setFinalCollapseAuthoritativeState('ROUTE_02_SUCCESS');
             } else if (activeId === 'bh10_wormhole_route' || this.finalCollapseWormholeRouteEntered) {
-              this.setFinalCollapseAuthoritativeState('ROUTE_03_INITIATED');
+              this.setFinalCollapseAuthoritativeState('ROUTE_03_SUCCESS');
             } else {
-              this.setFinalCollapseAuthoritativeState('ROUTE_01_INITIATED');
+              this.setFinalCollapseAuthoritativeState('ROUTE_01_SUCCESS');
             }
           }
           if (routeProgress.activeRouteId === 'bh10_launcher_route' || this.finalCollapseShelterEntered) {
@@ -3276,7 +3380,7 @@ export class GameEngine {
         const clockDt = isClockRunning ? dt : 0;
         const clockTelem = this.quantumCountdownClock.update(clockDt);
 
-        const isSubmode10 = this.activeGameMode === 'BLACK_HOLE' && (this.modeManager.blackHoleSubmode === 10 || this.quantumCountdownClock.initialDurationMs === 900000);
+        const isSubmode10 = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
         if (isSubmode10) {
           // Keep the legacy cinematic telemetry mirror synchronized, but it is
           // no longer allowed to become an independent 5-minute timer.
@@ -3317,12 +3421,16 @@ export class GameEngine {
           if (this.finalCollapseManager) {
             this.finalCollapseManager.catastrophe.currentEventIndex = masterEvent.eventNumber;
           }
-        }
 
-        this.callbacks.onQuantumCountdownUpdate?.(clockTelem);
-        // Progressive multi-environment shift as countdown advances in Submode 10
-        if (this.modeManager.blackHoleSubmode === 10 && this.environmentDirector) {
-          this.environmentDirector.updateBySubmode(10, clockTelem.progressRatio);
+          this.callbacks.onQuantumCountdownUpdate?.(clockTelem);
+          // Progressive multi-environment shift as countdown advances in Submode 10
+          if (this.environmentDirector) {
+            this.environmentDirector.updateBySubmode(10, clockTelem.progressRatio);
+          }
+        } else {
+          // Crucial: for all other 20 game modes and Black Hole submodes 1-9,
+          // do NOT emit countdown telemetry so countdown clocks & alerts stay strictly hidden.
+          this.callbacks.onQuantumCountdownUpdate?.(null);
         }
       }
 
@@ -3368,7 +3476,7 @@ export class GameEngine {
 
       // Update the 15 Dynamic Physical Environments
       if (this.collapseEnvironments) {
-        const isSubmode10 = this.activeGameMode === 'BLACK_HOLE' && (this.modeManager.blackHoleSubmode === 10 || this.quantumCountdownClock?.initialDurationMs === 900000);
+        const isSubmode10 = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
         const currentEvtIdx = isSubmode10 && this.lastSubmode10EventIndex > 0
           ? this.lastSubmode10EventIndex
           : (this.finalCollapseManager?.catastrophe.currentEventIndex || 1);
@@ -4073,13 +4181,20 @@ export class GameEngine {
             // Phase 4: Pilot safe confirmation
             if (t >= 2.8 && !this.finalCollapseShipSecured) {
               this.finalCollapseShipSecured = true;
-              this.finalCollapsePlayerEscaped = true;
-              this.finalCollapseEscapedRouteId = 'bh10_launcher_route';
-              this.finalCollapseManager?.markSurvived();
-              this.setFinalCollapseAuthoritativeState('ROUTE_01_SUCCESS');
-              this.blackHoleCinematicManager.start('SHIP_SECURED');
-              this.blackHoleCinematicManager.setObjective('ROUTE 01 // ESCAPE SUCCESSFUL');
-              this.callbacks.onShortcutUsed?.('ROUTE 01 // ESCAPE SUCCESSFUL');
+              const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+              const validated = this.finalCollapseManager?.escapeMissions.validateSafeZoneEntry(remainingSec);
+              if (validated) {
+                this.finalCollapsePlayerEscaped = true;
+                this.finalCollapseEscapedRouteId = 'bh10_launcher_route';
+                this.finalCollapseManager?.markSurvived();
+                this.setFinalCollapseAuthoritativeState('ROUTE_01_SUCCESS');
+                this.blackHoleCinematicManager.start('SHIP_SECURED');
+                this.blackHoleCinematicManager.setObjective('ROUTE 01 // ORBITAL SANCTUARY SECURED');
+                this.callbacks.onShortcutUsed?.('ROUTE 01 // ORBITAL SANCTUARY SECURED');
+              } else {
+                this.finalCollapsePlayerEscaped = false;
+                this.blackHoleCinematicManager.setObjective('ROUTE 01 // DEADLINE EXPIRED — SANCTUARY BREACHED');
+              }
             }
 
             // Phase 5: Hangar Sealing
@@ -4393,12 +4508,19 @@ export class GameEngine {
         if (t >= 3.5 && t < 5.0) this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE THRUST ARMED');
         if (t >= 5.0 && !this.finalCollapseTerminalSequenceComplete) {
           this.finalCollapseTerminalSequenceComplete = true;
-          this.finalCollapsePlayerEscaped = true;
-          this.finalCollapseEscapedRouteId = 'bh10_escape_route';
-          this.finalCollapseManager?.markSurvived();
-          this.setFinalCollapseAuthoritativeState('ROUTE_02_SUCCESS');
-          this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE SUCCESSFUL');
-          this.callbacks.onShortcutUsed?.('ROUTE 02 // ESCAPE SUCCESSFUL');
+          const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+          const validated = this.finalCollapseManager?.escapeMissions.validateSafeZoneEntry(remainingSec);
+          if (validated) {
+            this.finalCollapsePlayerEscaped = true;
+            this.finalCollapseEscapedRouteId = 'bh10_escape_route';
+            this.finalCollapseManager?.markSurvived();
+            this.setFinalCollapseAuthoritativeState('ROUTE_02_SUCCESS');
+            this.blackHoleCinematicManager?.setObjective('ROUTE 02 // SUBTERRANEAN BUNKER SECURED');
+            this.callbacks.onShortcutUsed?.('ROUTE 02 // SUBTERRANEAN BUNKER SECURED');
+          } else {
+            this.finalCollapsePlayerEscaped = false;
+            this.blackHoleCinematicManager?.setObjective('ROUTE 02 // DEADLINE EXPIRED — BUNKER COLLAPSED');
+          }
         }
         if (t >= 7.5 && this.finalCollapseAuthoritativeState === 'ROUTE_02_SUCCESS') {
           this.setFinalCollapseAuthoritativeState('FINAL_COLLAPSE_ACTIVE');
@@ -4413,12 +4535,19 @@ export class GameEngine {
         if (t >= 3.5 && t < 5.0) this.blackHoleCinematicManager?.setObjective('ROUTE 03 // TRANSIT VECTOR ARMED');
         if (t >= 5.0 && !this.finalCollapseTerminalSequenceComplete) {
           this.finalCollapseTerminalSequenceComplete = true;
-          this.finalCollapsePlayerEscaped = true;
-          this.finalCollapseEscapedRouteId = 'bh10_wormhole_route';
-          this.finalCollapseManager?.markSurvived();
-          this.setFinalCollapseAuthoritativeState('ROUTE_03_SUCCESS');
-          this.blackHoleCinematicManager?.setObjective('ROUTE 03 // WORMHOLE ESCAPE SUCCESSFUL');
-          this.callbacks.onShortcutUsed?.('ROUTE 03 // WORMHOLE ESCAPE SUCCESSFUL');
+          const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+          const validated = this.finalCollapseManager?.escapeMissions.validateSafeZoneEntry(remainingSec);
+          if (validated) {
+            this.finalCollapsePlayerEscaped = true;
+            this.finalCollapseEscapedRouteId = 'bh10_wormhole_route';
+            this.finalCollapseManager?.markSurvived();
+            this.setFinalCollapseAuthoritativeState('ROUTE_03_SUCCESS');
+            this.blackHoleCinematicManager?.setObjective('ROUTE 03 // EINSTEIN-ROSEN GATEWAY SECURED');
+            this.callbacks.onShortcutUsed?.('ROUTE 03 // EINSTEIN-ROSEN GATEWAY SECURED');
+          } else {
+            this.finalCollapsePlayerEscaped = false;
+            this.blackHoleCinematicManager?.setObjective('ROUTE 03 // DEADLINE EXPIRED — GATEWAY COLLAPSED');
+          }
         }
         if (t >= 7.5 && this.finalCollapseAuthoritativeState === 'ROUTE_03_SUCCESS') {
           this.setFinalCollapseAuthoritativeState('FINAL_COLLAPSE_ACTIVE');
@@ -4550,6 +4679,34 @@ export class GameEngine {
           this.boostEnergy = Math.min(100, this.boostEnergy + 25);
           this.cameraShake = 0.45;
           sound.playBoostPad();
+          break;
+        }
+      }
+    }
+
+    // Check mode-specific physical shortcuts
+    if (this.modeCoordinator && this.modeCoordinator.activeDef?.shortcuts) {
+      for (const sc of this.modeCoordinator.activeDef.shortcuts) {
+        const inWindow = this.splineT >= sc.entrySplineT && this.splineT <= sc.entrySplineT + 0.04;
+        const matchingLane = Math.abs(this.lateralOffset - sc.lateralOffset) < 10.0;
+        if (inWindow && matchingLane) {
+          const shipConfig = getEffectiveShipStats(
+            getShipConfig(this.localShipId),
+            this.localUpgrades
+          );
+          this.currentSpeed = Math.min((shipConfig.topSpeed / 3.6) * 1.6, this.currentSpeed + sc.speedBonusKmH / 3.6);
+          this.boostEnergy = Math.min(100, this.boostEnergy + sc.boostRefillPercent);
+          this.cameraShake = 0.5;
+          sound.playBoostPad();
+          this.callbacks.onShortcutUsed?.(sc.name);
+
+          const totalCpsCheck = this.track.checkpoints.length;
+          for (let i = 1; i < totalCpsCheck; i++) {
+            const gate = this.track.checkpoints[i];
+            if (gate.t >= sc.entrySplineT && gate.t <= sc.exitSplineT) {
+              this.checkpointsPassedThisLap.add(i);
+            }
+          }
           break;
         }
       }
@@ -6238,6 +6395,10 @@ export class GameEngine {
       }
     }
 
+    if (this.modeCoordinator) {
+      this.modeCoordinator.initMode(mode, this.track?.curve || null);
+    }
+
     if (this.blackHoleCinematicManager) {
       if (mode === 'BLACK_HOLE') {
         this.blackHoleCinematicManager.start('INTRO');
@@ -6300,9 +6461,16 @@ export class GameEngine {
 
         // Configure Quantum Countdown Clock
         if (this.quantumCountdownClock) {
+          const isSub10 = this.modeManager.blackHoleSubmode === 10;
           this.quantumCountdownClock.activeSubmodeNumber = this.modeManager.blackHoleSubmode;
-          const duration = this.modeManager.blackHoleSubmode === 10 ? 900 : 300;
-          this.quantumCountdownClock.setDuration(duration);
+          if (isSub10) {
+            this.quantumCountdownClock.setDuration(900);
+            this.quantumCountdownClock.gantryMeshGroup.visible = true;
+          } else {
+            this.quantumCountdownClock.setPaused(true);
+            this.quantumCountdownClock.gantryMeshGroup.visible = false;
+            this.callbacks.onQuantumCountdownUpdate?.(null);
+          }
         }
 
         // Set signature cosmic biome for this submode
@@ -6311,6 +6479,13 @@ export class GameEngine {
         }
       } else {
         this.blackHoleCinematicManager.stop();
+        if (this.quantumCountdownClock) {
+          this.quantumCountdownClock.activeSubmodeNumber = 0;
+          this.quantumCountdownClock.setPaused(true);
+          this.quantumCountdownClock.gantryMeshGroup.visible = false;
+        }
+        this.callbacks.onQuantumCountdownUpdate?.(null);
+        this.callbacks.onBlackHoleCinematicTelemetry?.(null);
         if (this.quantumRouteSystem) {
           this.quantumRouteSystem.dispose();
           this.quantumRouteSystem = null;
@@ -6502,9 +6677,16 @@ export class GameEngine {
               this.junctionManager.setFinalCollapseRoutesUnlocked(false);
 
               if (this.quantumCountdownClock) {
+                const isSub10 = selectedSubmode.number === 10;
                 this.quantumCountdownClock.activeSubmodeNumber = selectedSubmode.number;
-                const duration = selectedSubmode.number === 10 ? 900 : 300;
-                this.quantumCountdownClock.setDuration(duration);
+                if (isSub10) {
+                  this.quantumCountdownClock.setDuration(900);
+                  this.quantumCountdownClock.gantryMeshGroup.visible = true;
+                } else {
+                  this.quantumCountdownClock.setPaused(true);
+                  this.quantumCountdownClock.gantryMeshGroup.visible = false;
+                  this.callbacks.onQuantumCountdownUpdate?.(null);
+                }
               }
             }
           }
@@ -7325,6 +7507,7 @@ export class GameEngine {
             `ASTEROID DESTROYED +${credits} VC // +${points} PTS`
           );
           this.callbacks.onAsteroidDestroyed?.(obstacle, points, credits);
+          this.modeCoordinator?.registerRockDestroyed();
         }
       );
 
@@ -7781,6 +7964,9 @@ export class GameEngine {
     }
     if (this.modeEnvironmentManager) {
       this.modeEnvironmentManager.dispose();
+    }
+    if (this.modeCoordinator) {
+      this.modeCoordinator.dispose();
     }
     if (this.blackHoleCinematicManager) {
       this.blackHoleCinematicManager.dispose();

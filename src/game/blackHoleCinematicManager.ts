@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { EvacuationTelemetry } from './FinalCollapseManager';
 import { FinalCollapseAuthoritativeState } from '../types';
+import type { EscapeMissionTelemetry } from './finalCollapse/finalCollapseEscapeMissions';
 
-export type { FinalCollapseAuthoritativeState };
+export type { FinalCollapseAuthoritativeState, EscapeMissionTelemetry };
 
 export type FinalCollapseState =
   | 'NORMAL_RACE'
@@ -172,6 +173,8 @@ export interface BlackHoleCinematicTelemetry {
   stage93NextTitle?: string | null;
   stage93NextSecondsUntil?: number;
   stage93Severity?: number;
+  /** Submode 10: Authoritative 8-stage escape mission telemetry. */
+  escapeMission?: EscapeMissionTelemetry | null;
 }
 
 export interface BlackHoleCinematicOptions {
@@ -271,6 +274,11 @@ export class BlackHoleCinematicManager {
   private quantumEventSubtitle: string | null = null;
   private quantumEventPhase: string | null = null;
   private quantumEventSeverity = 0;
+  public escapeMissionTelemetry: EscapeMissionTelemetry | null = null;
+
+  public setEscapeMissionTelemetry(telem: EscapeMissionTelemetry | null): void {
+    this.escapeMissionTelemetry = telem;
+  }
 
   /** Final Collapse 5-minute stage state. */
   public finalCollapseStage = 1;
@@ -464,7 +472,7 @@ export class BlackHoleCinematicManager {
         this.finalCollapseStageElapsed += delta;
 
         // STRICT REQUIREMENT:
-        // "During the full 30:00 window: normal racing continues while catastrophe events progressively intensify...
+        // "During the full 15:00 window: normal racing continues while catastrophe events progressively intensify...
         //  Do NOT start the catastrophe before 00:00."
         if (prev > 0 && this.finalCountdownSeconds <= 0) {
           // EXACTLY 00:00 — Trigger the catastrophe!
@@ -713,6 +721,7 @@ export class BlackHoleCinematicManager {
       stage93NextTitle: this.stage93NextTitle ?? undefined,
       stage93NextSecondsUntil: this.stage93NextSecondsUntil,
       stage93Severity: this.stage93Severity,
+      escapeMission: this.escapeMissionTelemetry ?? undefined,
     };
   }
 

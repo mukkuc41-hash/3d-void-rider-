@@ -20,6 +20,7 @@ import { getExtendedPathConfig } from './modePathConfigs';
 import { CinematicTriggerSystem } from './cinematicTriggerSystem';
 import { TrackStreamingManager } from './trackStreamingManager';
 import { EnvironmentManager } from './environmentManager';
+import { getModeDefinition } from '../modes/ModeRegistry';
 
 export class ExtendedPathManager {
   private scene: THREE.Scene;
@@ -269,22 +270,66 @@ export class ExtendedPathManager {
     while (this.branchGroup.children.length > 0) {
       const obj = this.branchGroup.children[0];
       this.branchGroup.remove(obj);
+      obj.traverse(c => {
+        if (c instanceof THREE.Mesh) {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) {
+            if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+            else c.material.dispose();
+          }
+        }
+      });
     }
 
-    // Add branch shortcuts if defined, or generate default high-speed bypass
-    const midT = 0.45;
-    const branchStart = this.curve.getPointAt(midT);
-    const branchEnd = this.curve.getPointAt(midT + 0.15);
-    const tan = this.curve.getTangentAt(midT).normalize();
-    const bin = new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0, 1, 0)).normalize();
+    const modeDef = getModeDefinition(this.activeConfig.modeId);
+    const shortcuts = modeDef?.shortcuts || [];
 
-    // Create branch visualization arch
-    const archGeo = new THREE.TorusGeometry(8, 0.4, 8, 16, Math.PI);
-    const archMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-    const archMesh = new THREE.Mesh(archGeo, archMat);
-    archMesh.position.copy(branchStart).addScaledVector(bin, -12);
-    archMesh.rotation.y = Math.atan2(tan.x, tan.z);
-    this.branchGroup.add(archMesh);
+    for (const sc of shortcuts) {
+      const entryPt = this.curve.getPointAt(sc.entrySplineT);
+      const exitPt = this.curve.getPointAt(sc.exitSplineT);
+      const entryTan = this.curve.getTangentAt(sc.entrySplineT).normalize();
+      const entryBin = new THREE.Vector3().crossVectors(entryTan, new THREE.Vector3(0, 1, 0)).normalize();
+
+      const midT = (sc.entrySplineT + sc.exitSplineT) * 0.5;
+      const midPt = this.curve.getPointAt(midT);
+      const midTan = this.curve.getTangentAt(midT).normalize();
+      const midBin = new THREE.Vector3().crossVectors(midTan, new THREE.Vector3(0, 1, 0)).normalize();
+      const midOffsetPt = midPt.clone()
+        .addScaledVector(midBin, sc.lateralOffset)
+        .add(new THREE.Vector3(0, sc.elevationOffset, 0));
+
+      const branchCurve = new THREE.CatmullRomCurve3([
+        entryPt.clone(),
+        entryPt.clone().addScaledVector(entryBin, sc.lateralOffset * 0.4).add(new THREE.Vector3(0, sc.elevationOffset * 0.3, 0)),
+        midOffsetPt,
+        exitPt.clone().addScaledVector(entryBin, sc.lateralOffset * 0.4).add(new THREE.Vector3(0, sc.elevationOffset * 0.3, 0)),
+        exitPt.clone(),
+      ]);
+
+      // Physical road ribbon
+      const ribbonGeo = new THREE.TubeGeometry(branchCurve, 24, 2.4, 6, false);
+      const ribbonMat = new THREE.MeshStandardMaterial({
+        color: 0x0a1020,
+        emissive: sc.riskLevel === 'EXTREME' ? 0xff0055 : 0x00f0ff,
+        emissiveIntensity: 0.8,
+        roughness: 0.3,
+        metalness: 0.8,
+      });
+      const ribbonMesh = new THREE.Mesh(ribbonGeo, ribbonMat);
+      ribbonMesh.name = `shortcut_ribbon_${sc.id}`;
+
+      // Glowing entry arch
+      const archGeo = new THREE.TorusGeometry(6, 0.4, 8, 16, Math.PI);
+      const archMat = new THREE.MeshBasicMaterial({
+        color: sc.riskLevel === 'EXTREME' ? 0xff0055 : 0x00f0ff,
+      });
+      const archMesh = new THREE.Mesh(archGeo, archMat);
+      archMesh.position.copy(entryPt).addScaledVector(entryBin, sc.lateralOffset * 0.2);
+      archMesh.rotation.y = Math.atan2(entryTan.x, entryTan.z);
+      archMesh.rotation.z = Math.PI;
+
+      this.branchGroup.add(ribbonMesh, archMesh);
+    }
   }
 
   /**

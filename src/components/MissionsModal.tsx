@@ -13,7 +13,7 @@ import {
   Coins,
   Sparkles,
 } from 'lucide-react';
-import { MissionItem, AchievementItem } from '../types';
+import { MissionItem, AchievementItem, GameMode, TrackId } from '../types';
 import { sound } from '../game/audio';
 
 interface MissionsModalProps {
@@ -23,6 +23,7 @@ interface MissionsModalProps {
   achievements?: AchievementItem[];
   onClaimMission: (missionId: string) => void;
   onClaimAchievement?: (achId: string) => void;
+  onLaunchMission?: (mode: GameMode, trackId: TrackId) => void;
   credits?: number;
   playerLevel?: number;
   xp?: number;
@@ -114,6 +115,7 @@ export const MissionsModal: React.FC<MissionsModalProps> = ({
   onClose,
   missions,
   onClaimMission,
+  onLaunchMission,
   credits = 1500,
   playerLevel = 1,
   xp = 0,
@@ -288,27 +290,54 @@ export const MissionsModal: React.FC<MissionsModalProps> = ({
                     />
                   </div>
 
-                  <div className="flex justify-end mt-2">
-                    {item.claimed ? (
-                      <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">
-                        COMPLETED
-                      </span>
-                    ) : isCompleted ? (
-                      <button
-                        onClick={() => {
-                          sound.playUpgradePurchase();
-                          onClaimMission(item.id);
-                        }}
-                        className="py-1 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-ui font-black uppercase tracking-wider shadow-[0_0_10px_#10b981]"
-                      >
-                        CLAIM REWARD
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                        IN PROGRESS
-                      </span>
-                    )}
-                  </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      {onLaunchMission && !item.claimed && (
+                        <button
+                          onClick={() => {
+                            sound.playMenuClick();
+                            const getContractTarget = (id: string): { mode: GameMode; trackId: TrackId } => {
+                              switch (id) {
+                                case 'pristine_vector':
+                                  return { mode: 'ASTEROID_RUN', trackId: 'asteroid_run' };
+                                case 'hyper_boost_cadence':
+                                  return { mode: 'WORMHOLE_EXPRESS', trackId: 'void_rift' };
+                                case 'draft_overtake':
+                                case 'neon_orbit_mastery':
+                                  return { mode: 'SKYLINE_RUSH', trackId: 'neon_orbit' };
+                                case 'sub_minute_split':
+                                  return { mode: 'QUANTUM_TIME_TRIAL', trackId: 'quantum_highway' };
+                                default:
+                                  return { mode: 'NEON_CIRCUIT', trackId: 'circuit_alpha' };
+                              }
+                            };
+                            const target = getContractTarget(item.id);
+                            onLaunchMission(target.mode, target.trackId);
+                          }}
+                          className="py-1 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-300 hover:text-white text-[10px] font-ui font-black uppercase tracking-wider transition-all"
+                        >
+                          DEPLOY
+                        </button>
+                      )}
+                      {item.claimed ? (
+                        <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+                          COMPLETED
+                        </span>
+                      ) : isCompleted ? (
+                        <button
+                          onClick={() => {
+                            sound.playUpgradePurchase();
+                            onClaimMission(item.id);
+                          }}
+                          className="py-1 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-ui font-black uppercase tracking-wider shadow-[0_0_10px_#10b981]"
+                        >
+                          CLAIM REWARD
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                          IN PROGRESS
+                        </span>
+                      )}
+                    </div>
                 </div>
               </div>
             );

@@ -330,6 +330,10 @@ class SoundSystem {
     osc.stop(now + 0.22);
   }
 
+  public playCrash() {
+    this.playHeavyImpact();
+  }
+
   public playHeavyImpact() {
     this.initContext();
     if (!this.ctx || !this.sfxEnabled) return;

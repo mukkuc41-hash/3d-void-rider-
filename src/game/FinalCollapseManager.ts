@@ -9,6 +9,7 @@ import {
   AlertSeverityType,
 } from './finalCollapse/finalCollapseMaster100Timeline';
 import { Submode10CinematicEventHandler } from './cinematics/Submode10CinematicEventHandler';
+import { EscapeMissionManager, type EscapeMissionTelemetry } from './finalCollapse/finalCollapseEscapeMissions';
 
 /**
  * 3. Evacuation State Machine
@@ -180,6 +181,7 @@ export interface EvacuationTelemetry {
   clampsLocked: { left: boolean; right: boolean; front: boolean; rear: boolean };
   absoluteCollapseActive: boolean;
   hudGlitchIntensity: number;
+  escapeMission?: EscapeMissionTelemetry;
 }
 
 /* =========================================================================
@@ -1251,6 +1253,7 @@ export class FinalCollapseManager {
   public safeZoneActive = false;
   public towerEntryActive = false;
   public towerSealed = false;
+  public readonly escapeMissions = new EscapeMissionManager();
 
   constructor() {
     this.evacuation = new EvacuationManager();
@@ -1291,6 +1294,7 @@ export class FinalCollapseManager {
     this.failureCinematic.reset();
     this.successCinematic.reset();
     this.aiEvacuation.reset();
+    this.escapeMissions.reset();
   }
 
   public onZeroCountdown(): void {
@@ -1590,19 +1594,21 @@ export class FinalCollapseManager {
     const es = evacSec % 60;
     const evacuationTimeFormatted = `${em.toString().padStart(2, '0')}:${es.toString().padStart(2, '0')}`;
 
+    const missionCompleted = this.escapeMissions.isMissionCompleted();
     const survived =
-      (this.evacuation.evacuationSuccess && !this.evacuation.evacuationFailed) ||
-      this.evacuation.shipSecured ||
-      !!escapedRouteId;
+      missionCompleted ||
+      ((this.evacuation.evacuationSuccess && !this.evacuation.evacuationFailed) && this.evacuation.shipSecured);
 
     let safeZoneLabel = 'NOT REACHED';
     if (survived) {
-      if (escapedRouteId === 'bh10_escape_route') {
-        safeZoneLabel = 'ROUTE 02 // EMERGENCY ESCAPE (SECURED)';
+      if (missionCompleted) {
+        safeZoneLabel = `${this.escapeMissions.getSafeZoneName()} (SECURED)`;
+      } else if (escapedRouteId === 'bh10_escape_route') {
+        safeZoneLabel = 'ROUTE 02 // SUBTERRANEAN BLAST BUNKER (SECURED)';
       } else if (escapedRouteId === 'bh10_wormhole_route') {
-        safeZoneLabel = 'ROUTE 03 // WORMHOLE ESCAPE (SECURED)';
+        safeZoneLabel = 'ROUTE 03 // EINSTEIN-ROSEN GATEWAY (SECURED)';
       } else {
-        safeZoneLabel = 'ROUTE 01 // ORBITAL LAUNCHER (SECURED)';
+        safeZoneLabel = 'ROUTE 01 // ORBITAL SANCTUARY HANGAR (SECURED)';
       }
     }
 
@@ -1691,6 +1697,7 @@ export class FinalCollapseManager {
       },
       absoluteCollapseActive: this.catastrophe.absoluteCollapse,
       hudGlitchIntensity: (this.catastrophe.activeEvent?.severity ?? 0) >= 6 ? 0.35 : 0,
+      escapeMission: this.escapeMissions.getTelemetry(),
     };
   }
 }

@@ -331,6 +331,98 @@ export class DynamicRouteGraphSystem {
       isJumpTrack: true,
       collapseStartEvent: 90,
     });
+
+    // -------------------------------------------------------------
+    // PART 2: MEGA-CITIES & BLACK HOLE PROXIMITY EXPANSION ROUTES
+    // 9. Mega-City A Industrial Skyway (Left Flank Orbital Artery)
+    const cityASkywayPoints = [
+      new THREE.Vector3(-140, 35, -450),
+      new THREE.Vector3(-260, 65, -850),
+      new THREE.Vector3(-340, 85, -1300),
+      new THREE.Vector3(-270, 55, -1800),
+      new THREE.Vector3(-110, 25, -2300),
+    ];
+    this.registerRoute({
+      id: 'route_city_a_industrial_skyway',
+      name: 'MEGA-CITY A INDUSTRIAL SKYWAY',
+      category: 'ORBITAL',
+      altitudeLevel: 'MID',
+      points: cityASkywayPoints,
+      width: 34,
+      direction: 'LEFT',
+      colorHex: 0xf59e0b,
+      isRamp: false,
+      isJumpTrack: false,
+      collapseStartEvent: 72,
+    });
+
+    // 10. Mega-City B Quantum Artery (Right Flank Crystalline Highway)
+    const cityBArteryPoints = [
+      new THREE.Vector3(130, 40, -480),
+      new THREE.Vector3(260, 75, -920),
+      new THREE.Vector3(350, 95, -1450),
+      new THREE.Vector3(280, 65, -1980),
+      new THREE.Vector3(120, 35, -2450),
+    ];
+    this.registerRoute({
+      id: 'route_city_b_quantum_artery',
+      name: 'MEGA-CITY B QUANTUM ARTERY',
+      category: 'ORBITAL',
+      altitudeLevel: 'HIGH',
+      points: cityBArteryPoints,
+      width: 32,
+      direction: 'RIGHT',
+      colorHex: 0x00f0ff,
+      isRamp: false,
+      isJumpTrack: false,
+      collapseStartEvent: 78,
+    });
+
+    // 11. Relativistic Black-Hole Proximity Slingshot Route (High-G Accretion Disk Chasm)
+    const blackHoleProximityPoints = [
+      new THREE.Vector3(0, 25, -2150),
+      new THREE.Vector3(90, -10, -2500),
+      new THREE.Vector3(150, -45, -2850),
+      new THREE.Vector3(50, -55, -3150), // Closest pass to Sagittarius A* accretion disk
+      new THREE.Vector3(-90, -30, -3200),
+      new THREE.Vector3(-150, 15, -2950),
+      new THREE.Vector3(-70, 50, -2600),
+      new THREE.Vector3(0, 65, -2300),
+    ];
+    this.registerRoute({
+      id: 'route_black_hole_proximity_slingshot',
+      name: 'SAGITTARIUS A* RELATIVISTIC SLINGSHOT CHASM',
+      category: 'GRAVITY',
+      altitudeLevel: 'LOW',
+      points: blackHoleProximityPoints,
+      width: 36,
+      direction: 'CENTER',
+      colorHex: 0xff00a0,
+      isRamp: true,
+      rampAngleDeg: 12,
+      isJumpTrack: false,
+      collapseStartEvent: 88,
+    });
+
+    // 12. Quantum Wormhole Shortcut Corridor
+    const wormholeShortcutPoints = [
+      new THREE.Vector3(0, 48, -980),   // Enters Wormhole Portal Alpha
+      new THREE.Vector3(0, 65, -1350),  // Warp transit
+      new THREE.Vector3(0, 62, -2100),  // Emerges at Exit Portal Alpha
+    ];
+    this.registerRoute({
+      id: 'route_wormhole_shortcut',
+      name: 'QUANTUM WORMHOLE SHORTCUT TRANSIT',
+      category: 'ESCAPE',
+      altitudeLevel: 'EXTREME',
+      points: wormholeShortcutPoints,
+      width: 28,
+      direction: 'CENTER',
+      colorHex: 0xa855f7,
+      isRamp: false,
+      isJumpTrack: false,
+      collapseStartEvent: 94,
+    });
   }
 
   private registerRoute(config: {
@@ -492,19 +584,58 @@ export class DynamicRouteGraphSystem {
    * Holographic directional route indicators & distance signage
    */
   private buildHolographicJunctionSignage(): void {
-    // Multi-Directional Junction 01 (Spline approach at z=-800)
+    // Multi-Directional Junction 01 (Spline approach at z=-780)
     const j1Group = new THREE.Group();
     j1Group.name = 'Junction01_Signage';
     j1Group.position.set(0, 65, -780);
 
     // Holographic overhead gantry arch
     const arch = new THREE.Mesh(
-      new THREE.TorusGeometry(48, 2.5, 8, 32, Math.PI),
+      new THREE.TorusGeometry(52, 2.8, 8, 32, Math.PI),
       new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true })
     );
     j1Group.add(arch);
 
+    // Left direction pointer: Mega-City A Industrial Skyway
+    const leftArrow = new THREE.Mesh(
+      new THREE.ConeGeometry(4.5, 12, 4),
+      new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+    );
+    leftArrow.position.set(-28, 22, 0);
+    leftArrow.rotation.z = Math.PI / 2;
+    j1Group.add(leftArrow);
+
+    // Right direction pointer: Mega-City B Quantum Artery
+    const rightArrow = new THREE.Mesh(
+      new THREE.ConeGeometry(4.5, 12, 4),
+      new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    );
+    rightArrow.position.set(28, 22, 0);
+    rightArrow.rotation.z = -Math.PI / 2;
+    j1Group.add(rightArrow);
+
+    // Center direction pointer: Slingshot / Wormhole Shortcut
+    const centerArrow = new THREE.Mesh(
+      new THREE.ConeGeometry(5, 14, 4),
+      new THREE.MeshBasicMaterial({ color: 0xa855f7 })
+    );
+    centerArrow.position.set(0, 36, 0);
+    j1Group.add(centerArrow);
+
     this.holographicSignageGroup.add(j1Group);
+
+    // Junction 02: Black Hole Proximity Entrance (z: -2100)
+    const j2Group = new THREE.Group();
+    j2Group.name = 'Junction02_GravitationalApproach';
+    j2Group.position.set(0, 45, -2100);
+
+    const arch2 = new THREE.Mesh(
+      new THREE.TorusGeometry(46, 3, 8, 32, Math.PI),
+      new THREE.MeshBasicMaterial({ color: 0xff00a0, wireframe: true })
+    );
+    j2Group.add(arch2);
+
+    this.holographicSignageGroup.add(j2Group);
   }
 
   /**

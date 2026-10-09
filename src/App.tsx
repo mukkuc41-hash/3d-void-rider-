@@ -787,6 +787,15 @@ export default function App() {
     setTotalPlayers(expectedTotal);
     if (config.mode) {
       setGameMode(config.mode);
+      const isSub10 =
+        config.mode === 'BLACK_HOLE' &&
+        config.blackHoleSubmode === 'FINAL_COLLAPSE';
+      if (!isSub10) {
+        setQuantumCountdownTelemetry(null);
+      }
+      if (config.mode !== 'BLACK_HOLE') {
+        setBlackHoleCinematicTelemetry(null);
+      }
     }
     keysPressed.current = {};
 
@@ -1625,6 +1634,17 @@ export default function App() {
                 return updated;
               });
             }
+          }}
+          onLaunchMission={(mode, trackId) => {
+            setIsMissionsOpen(false);
+            setGameMode(mode);
+            handleStartAIRace({
+              mode,
+              difficulty: 'ACE',
+              trackId,
+              botCount: 4,
+              laps: 2,
+            });
           }}
         />
       )}

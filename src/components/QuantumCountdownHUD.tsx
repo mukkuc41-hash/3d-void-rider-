@@ -36,7 +36,7 @@ export const QuantumCountdownHUD: React.FC<QuantumCountdownHUDProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  if (!countdownTelemetry) return null;
+  if (!countdownTelemetry || countdownTelemetry.activeSubmodeNumber !== 10) return null;
 
   const {
     formattedTime,

@@ -18,6 +18,7 @@ import { FinalCollapseEventManager } from '../finalCollapse/finalCollapseEventMa
 import { CosmicPlanetarySystem } from '../finalCollapse/cosmicPlanetarySystem';
 import { NeutronStarSystem } from '../finalCollapse/neutronStarSystem';
 import { DynamicRouteGraphSystem } from '../finalCollapse/dynamicRouteGraphSystem';
+import { FinalCollapsePhysicalMegaCities } from '../finalCollapse/finalCollapsePhysicalMegaCities';
 
 export type { CosmicPairLiveTelemetry, SpaghettificationTelemetry };
 
@@ -201,6 +202,7 @@ export class DynamicCollapseEnvironmentsManager {
   public planetarySystem: CosmicPlanetarySystem;
   public neutronStarSystem: NeutronStarSystem;
   public dynamicRouteGraph: DynamicRouteGraphSystem;
+  public physicalMegaCities: FinalCollapsePhysicalMegaCities;
   public part1EventManager: FinalCollapseEventManager;
   public eventManager: FinalCollapseEventManager;
 
@@ -218,6 +220,24 @@ export class DynamicCollapseEnvironmentsManager {
     // Persistent Futuristic Orbital Civilization
     this.civilization = new FinalCollapseCivilization(this.scene, this.blackHoleCenter);
     this.root.add(this.civilization.root);
+
+    // Two Distinct Futuristic Mega-Cities & Physical Route Expansion (Part 2)
+    this.physicalMegaCities = new FinalCollapsePhysicalMegaCities(this.scene, this.blackHoleCenter);
+    this.root.add(this.physicalMegaCities.root);
+
+    // Register active city hazards for near-field collision detection
+    this.physicalMegaCities.hazards.forEach(h => {
+      this.nearObstacles.push({
+        mesh: h.group,
+        boundingRadius: h.collisionRadius,
+        position: h.position,
+        velocity: new THREE.Vector3(),
+        rotationSpeed: new THREE.Vector3(),
+        damageValue: h.damageValue,
+        environmentIndex: h.activationEvent,
+        name: h.name,
+      });
+    });
 
     // 7-Planet Planetary Collapse System
     this.planetarySystem = new CosmicPlanetarySystem(this.scene, this.blackHoleCenter);
@@ -1064,6 +1084,9 @@ export class DynamicCollapseEnvironmentsManager {
     // 0D. Update Dynamic Multi-Tier Physical Route Network & Jump Ramps
     this.dynamicRouteGraph.update(delta, activeEventIndex);
 
+    // 0E. Update Part 2 Physical Mega-Cities, Hazards & Wormhole Shortcuts
+    const cityResult = this.physicalMegaCities.update(delta, activeEventIndex, playerPos);
+
     // 0. Update 2-Element Cosmic Pair Simulation (Keplerian physics & tidal deformation)
     const pairTelemetry = this.eventPairVisualizer.update(delta, activeEventIndex);
     this.latestPairTelemetry = pairTelemetry;
@@ -1536,6 +1559,7 @@ export class DynamicCollapseEnvironmentsManager {
     this.planetarySystem?.dispose();
     this.neutronStarSystem?.dispose();
     this.dynamicRouteGraph?.dispose();
+    this.physicalMegaCities?.dispose();
     this.part1EventManager?.dispose();
   }
 }
