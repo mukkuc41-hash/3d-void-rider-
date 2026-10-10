@@ -56,6 +56,48 @@ export interface ModeDefinition {
 
 export const MODE_REGISTRY: Record<string, ModeDefinition> = {
   // =========================================================================
+  // MODE 01 — SINGULARITY RUN
+  // =========================================================================
+  SINGULARITY_RUN: {
+    modeId: 'SINGULARITY_RUN',
+    modeNumber: 1,
+    displayName: '01 — SINGULARITY RUN',
+    subtitle: 'EVENT HORIZON ESCAPE',
+    loreDescription: 'Escape the gravitational collapse of a supermassive singularity while navigating high-speed cosmic debris and energy ribbons.',
+    objectiveText: 'OUTRUN THE EVENT HORIZON & REACH CRITICAL ESCAPE VELOCITY',
+    physicsProfile: {
+      topSpeedMultiplier: 1.15,
+      accelerationMultiplier: 1.2,
+      handlingMultiplier: 1.1,
+      driftGrip: 1.2,
+      driftBoostBonus: 1.3,
+      momentumRetention: 0.8,
+      passiveDeceleration: 10.0,
+      barrierDamageMultiplier: 1.2,
+      reverseAllowed: false,
+    },
+    rules: {
+      totalLaps: 1,
+      hasZeroGMomentum: true,
+    },
+    shortcuts: [
+      {
+        id: 'singularity_gravitational_slingshot',
+        name: 'GRAVITATIONAL SLINGSHOT ARC',
+        subtitle: 'RELATIVISTIC BYPASS',
+        entrySplineT: 0.35,
+        exitSplineT: 0.50,
+        lateralOffset: -15.0,
+        elevationOffset: 10.0,
+        riskLevel: 'EXTREME',
+        speedBonusKmH: 70,
+        boostRefillPercent: 100,
+        description: 'Dangerous orbital vector cutting close to the accretion disk yielding colossal kinetic momentum.',
+      },
+    ],
+  },
+
+  // =========================================================================
   // MODE 02 — NEON CIRCUIT
   // =========================================================================
   NEON_CIRCUIT: {
@@ -541,6 +583,426 @@ MODE_REGISTRY.QUANTUM_TIME_TRIAL = {
   ],
 };
 
+// =========================================================================
+// MODE 11 — ENERGY HEIST
+// =========================================================================
+MODE_REGISTRY.ENERGY_HEIST = {
+  modeId: 'ENERGY_HEIST',
+  modeNumber: 11,
+  displayName: '11 — ENERGY HEIST',
+  subtitle: 'ORBITAL VAULT PENETRATION',
+  loreDescription: 'Armored orbital energy vault facility with heavy laser grids, surveillance radars, and high-value radioactive core canisters.',
+  objectiveText: 'EXTRACT 10 ENERGY CORES & REACH VAULT EVACUATION INLET',
+  physicsProfile: {
+    topSpeedMultiplier: 1.05,
+    accelerationMultiplier: 1.10,
+    handlingMultiplier: 1.15,
+    driftGrip: 1.30,
+    driftBoostBonus: 1.35,
+    momentumRetention: 0.60,
+    passiveDeceleration: 12.0,
+    barrierDamageMultiplier: 1.2,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 2,
+    hasTrafficDrones: true,
+  },
+  shortcuts: [
+    {
+      id: 'vault_vent_bypass',
+      name: 'VENTILATION CONDUIT BYPASS',
+      subtitle: 'SUB-LEVEL VAULT ACCESS',
+      entrySplineT: 0.28,
+      exitSplineT: 0.42,
+      lateralOffset: -10.0,
+      elevationOffset: -5.0,
+      riskLevel: 'HIGH',
+      speedBonusKmH: 45,
+      boostRefillPercent: 80,
+      description: 'Narrow maintenance conduit cutting through vault security bulkheads.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 12 — DRONE ASSAULT
+// =========================================================================
+MODE_REGISTRY.DRONE_ASSAULT = {
+  modeId: 'DRONE_ASSAULT',
+  modeNumber: 12,
+  displayName: '12 — DRONE ASSAULT',
+  subtitle: 'AUTONOMOUS COMBAT TEST RANGE',
+  loreDescription: 'Heavily fortified drone proving ground with automated launch hangars, interceptor swarms, and active scanning radars.',
+  objectiveText: 'SURVIVE COMBAT DRONE WAVES & OUTRUN AIR DEFENSE MATRIX',
+  physicsProfile: {
+    topSpeedMultiplier: 1.10,
+    accelerationMultiplier: 1.18,
+    handlingMultiplier: 1.25,
+    driftGrip: 1.35,
+    driftBoostBonus: 1.40,
+    momentumRetention: 0.65,
+    passiveDeceleration: 12.0,
+    barrierDamageMultiplier: 1.1,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 3,
+    hasTrafficDrones: true,
+  },
+  shortcuts: [
+    {
+      id: 'hangar_service_trench',
+      name: 'LAUNCH HANGAR TRENCH',
+      subtitle: 'RADAR-EVADING SERVICE BAY',
+      entrySplineT: 0.35,
+      exitSplineT: 0.48,
+      lateralOffset: 12.0,
+      elevationOffset: -4.0,
+      riskLevel: 'HIGH',
+      speedBonusKmH: 50,
+      boostRefillPercent: 85,
+      description: 'Low-altitude trench evading combat radar detection sweeps.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 13 — COLLAPSING TRACK
+// =========================================================================
+MODE_REGISTRY.COLLAPSING_TRACK = {
+  modeId: 'COLLAPSING_TRACK',
+  modeNumber: 13,
+  displayName: '13 — COLLAPSING TRACK',
+  subtitle: 'TECTONIC INDUSTRIAL FAILURE',
+  loreDescription: 'Catastrophic structural failure across a fractured industrial complex with tilting road plates and falling debris.',
+  objectiveText: 'OUTRUN DISINTEGRATING ROAD PLATES BEFORE TOTAL COLLAPSE',
+  physicsProfile: {
+    topSpeedMultiplier: 1.12,
+    accelerationMultiplier: 1.20,
+    handlingMultiplier: 1.30,
+    driftGrip: 1.40,
+    driftBoostBonus: 1.50,
+    momentumRetention: 0.70,
+    passiveDeceleration: 10.0,
+    barrierDamageMultiplier: 1.3,
+    reverseAllowed: false,
+  },
+  rules: {
+    totalLaps: 2,
+    hasDebrisStream: true,
+  },
+  shortcuts: [
+    {
+      id: 'emergency_rebar_span',
+      name: 'EMERGENCY REINFORCEMENT SPAN',
+      subtitle: 'NARROW CABLE RUN',
+      entrySplineT: 0.40,
+      exitSplineT: 0.54,
+      lateralOffset: -14.0,
+      elevationOffset: 6.0,
+      riskLevel: 'EXTREME',
+      speedBonusKmH: 60,
+      boostRefillPercent: 100,
+      description: 'Dangerous temporary cable span bypassing the collapsed main highway.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 14 — RING RUNNER
+// =========================================================================
+MODE_REGISTRY.RING_RUNNER = {
+  modeId: 'RING_RUNNER',
+  modeNumber: 14,
+  displayName: '14 — RING RUNNER',
+  subtitle: 'CONCENTRIC ORBITAL COMPLEX',
+  loreDescription: 'Colossal concentric orbital ring installation hovering over planetary cloud layers with high-speed pass-through hoops.',
+  objectiveText: 'THREAD ALL ORBITAL HOOPS & MAINTAIN APEX CENTRIFUGAL SPEED',
+  physicsProfile: {
+    topSpeedMultiplier: 1.15,
+    accelerationMultiplier: 1.15,
+    handlingMultiplier: 1.30,
+    driftGrip: 1.45,
+    driftBoostBonus: 1.45,
+    momentumRetention: 0.75,
+    passiveDeceleration: 11.0,
+    barrierDamageMultiplier: 1.0,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 2,
+  },
+  shortcuts: [
+    {
+      id: 'inner_ring_conduit',
+      name: 'INNER RING ACCELERATOR',
+      subtitle: 'CENTRIFUGAL SHORTCUT',
+      entrySplineT: 0.30,
+      exitSplineT: 0.45,
+      lateralOffset: -10.0,
+      elevationOffset: 8.0,
+      riskLevel: 'MEDIUM',
+      speedBonusKmH: 45,
+      boostRefillPercent: 75,
+      description: 'Inner radius transit loop providing higher centrifugal acceleration.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 15 — HYPERSPACE SPRINT
+// =========================================================================
+MODE_REGISTRY.HYPERSPACE_SPRINT = {
+  modeId: 'HYPERSPACE_SPRINT',
+  modeNumber: 15,
+  displayName: '15 — HYPERSPACE SPRINT',
+  subtitle: 'SUPERLUMINAL TRANSIT CORRIDOR',
+  loreDescription: 'Enormous enclosed tunnel raceway lined with repeating hexagonal frames engineered for pure superluminal top speeds.',
+  objectiveText: 'MAINTAIN MAXIMUM HYPER-BOOST VELOCITY THROUGH SPEED GATES',
+  physicsProfile: {
+    topSpeedMultiplier: 1.25,
+    accelerationMultiplier: 1.30,
+    handlingMultiplier: 1.20,
+    driftGrip: 1.35,
+    driftBoostBonus: 1.60,
+    momentumRetention: 0.80,
+    passiveDeceleration: 8.0,
+    barrierDamageMultiplier: 1.4,
+    reverseAllowed: false,
+  },
+  rules: {
+    totalLaps: 1,
+    hasPrecisionSplitTiming: true,
+  },
+  shortcuts: [
+    {
+      id: 'warp_compression_tube',
+      name: 'WARP COMPRESSION TUBE',
+      subtitle: 'SUPERSYMMETRY LANE',
+      entrySplineT: 0.45,
+      exitSplineT: 0.60,
+      lateralOffset: 8.0,
+      elevationOffset: 0.0,
+      riskLevel: 'HIGH',
+      speedBonusKmH: 70,
+      boostRefillPercent: 100,
+      description: 'Extreme acceleration tube maximizing velocity throughput.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 16 — RIVAL DUEL
+// =========================================================================
+MODE_REGISTRY.RIVAL_DUEL = {
+  modeId: 'RIVAL_DUEL',
+  modeNumber: 16,
+  displayName: '16 — RIVAL DUEL',
+  subtitle: 'COLISEUM ARENA DOGFIGHT',
+  loreDescription: 'High-stakes head-to-head stadium duel against an elite rival pilot across elevated overtaking lanes and tactical ramps.',
+  objectiveText: 'DEFEAT RIVAL ACE IN 1v1 HEAD-TO-HEAD SPEED SHOWDOWN',
+  physicsProfile: {
+    topSpeedMultiplier: 1.10,
+    accelerationMultiplier: 1.20,
+    handlingMultiplier: 1.35,
+    driftGrip: 1.45,
+    driftBoostBonus: 1.50,
+    momentumRetention: 0.70,
+    passiveDeceleration: 12.0,
+    barrierDamageMultiplier: 1.0,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 3,
+  },
+  shortcuts: [
+    {
+      id: 'duel_overtake_ramp',
+      name: 'TACTICAL OVERTAKE FLYOVER',
+      subtitle: 'HIGH-ALTITUDE OVERPASS',
+      entrySplineT: 0.32,
+      exitSplineT: 0.44,
+      lateralOffset: -12.0,
+      elevationOffset: 10.0,
+      riskLevel: 'HIGH',
+      speedBonusKmH: 40,
+      boostRefillPercent: 90,
+      description: 'Elevated jump ramp allowing clean air overtaking above the rival ship.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 17 — RELAY RACE
+// =========================================================================
+MODE_REGISTRY.RELAY_RACE = {
+  modeId: 'RELAY_RACE',
+  modeNumber: 17,
+  displayName: '17 — RELAY RACE',
+  subtitle: 'SECTOR ENERGY TRANSMISSION COMPLEX',
+  loreDescription: 'Multi-sector orbital relay facility connecting distinct industrial districts with high-voltage baton exchange gates.',
+  objectiveText: 'EXECUTE CLEAN SECTOR BATON HANDOFFS AT TOP SPEED',
+  physicsProfile: {
+    topSpeedMultiplier: 1.12,
+    accelerationMultiplier: 1.15,
+    handlingMultiplier: 1.25,
+    driftGrip: 1.35,
+    driftBoostBonus: 1.40,
+    momentumRetention: 0.65,
+    passiveDeceleration: 12.0,
+    barrierDamageMultiplier: 1.1,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 3,
+  },
+  shortcuts: [
+    {
+      id: 'relay_express_conduit',
+      name: 'INTER-SECTOR EXPRESS TUBE',
+      subtitle: 'DIRECT BATON CORRIDOR',
+      entrySplineT: 0.50,
+      exitSplineT: 0.65,
+      lateralOffset: 10.0,
+      elevationOffset: -4.0,
+      riskLevel: 'MEDIUM',
+      speedBonusKmH: 45,
+      boostRefillPercent: 80,
+      description: 'Dedicated transit conduit cutting between sector transfer towers.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 18 — SURVIVAL ELIMINATION
+// =========================================================================
+MODE_REGISTRY.SURVIVAL_ELIMINATION = {
+  modeId: 'SURVIVAL_ELIMINATION',
+  modeNumber: 18,
+  displayName: '18 — SURVIVAL ELIMINATION',
+  subtitle: 'PROGRESSIVE KNOCKOUT ARENA',
+  loreDescription: 'Hostile floating arena with timed knockout phases eliminating the last-place craft every 30 seconds until one survivor remains.',
+  objectiveText: 'STAY AHEAD OF ELIMINATION TIMER & OUTLAST ALL OPPONENTS',
+  physicsProfile: {
+    topSpeedMultiplier: 1.12,
+    accelerationMultiplier: 1.22,
+    handlingMultiplier: 1.30,
+    driftGrip: 1.40,
+    driftBoostBonus: 1.45,
+    momentumRetention: 0.70,
+    passiveDeceleration: 12.0,
+    barrierDamageMultiplier: 1.2,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 3,
+    eliminationIntervalSec: 30,
+  },
+  shortcuts: [
+    {
+      id: 'survival_apex_chute',
+      name: 'KNOCKOUT SURVIVAL CHUTE',
+      subtitle: 'HIGH-RISK POSITION SAVER',
+      entrySplineT: 0.25,
+      exitSplineT: 0.38,
+      lateralOffset: -12.0,
+      elevationOffset: 6.0,
+      riskLevel: 'EXTREME',
+      speedBonusKmH: 55,
+      boostRefillPercent: 100,
+      description: 'Perilous narrow cut preventing last-place elimination.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 19 — COSMIC TREASURE HUNT
+// =========================================================================
+MODE_REGISTRY.COSMIC_TREASURE_HUNT = {
+  modeId: 'COSMIC_TREASURE_HUNT',
+  modeNumber: 19,
+  displayName: '19 — COSMIC TREASURE HUNT',
+  subtitle: 'PRECURSOR ALIEN RUINS',
+  loreDescription: 'Monumental ancient civilization complex with carved megaliths, floating crystal obelisks, and secret relic vaults.',
+  objectiveText: 'COLLECT ANCIENT PRECURSOR ARTIFACTS & UNLOCK SANCTUM GATE',
+  physicsProfile: {
+    topSpeedMultiplier: 1.08,
+    accelerationMultiplier: 1.12,
+    handlingMultiplier: 1.25,
+    driftGrip: 1.35,
+    driftBoostBonus: 1.40,
+    momentumRetention: 0.65,
+    passiveDeceleration: 12.0,
+    barrierDamageMultiplier: 1.0,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 2,
+  },
+  shortcuts: [
+    {
+      id: 'precursor_crypt_passage',
+      name: 'HIDDEN CRYPT PASSAGE',
+      subtitle: 'RELIC VAULT CORRIDOR',
+      entrySplineT: 0.32,
+      exitSplineT: 0.46,
+      lateralOffset: 14.0,
+      elevationOffset: -6.0,
+      riskLevel: 'HIGH',
+      speedBonusKmH: 45,
+      boostRefillPercent: 90,
+      description: 'Hidden stone chamber containing ancient score artifacts.',
+    },
+  ],
+};
+
+// =========================================================================
+// MODE 20 — VOID CHAMPIONSHIP
+// =========================================================================
+MODE_REGISTRY.VOID_CHAMPIONSHIP = {
+  modeId: 'VOID_CHAMPIONSHIP',
+  modeNumber: 20,
+  displayName: '20 — VOID CHAMPIONSHIP',
+  subtitle: 'PREMIER GRAND PRIX COLISEUM',
+  loreDescription: 'The pinnacle cosmic racing venue featuring monumental triumph arches, grandstand coliseums, and championship-tier course architecture.',
+  objectiveText: 'WIN THE PREMIER VOID CHAMPIONSHIP & CLAIM THE GOLDEN LAUREL',
+  physicsProfile: {
+    topSpeedMultiplier: 1.18,
+    accelerationMultiplier: 1.25,
+    handlingMultiplier: 1.35,
+    driftGrip: 1.45,
+    driftBoostBonus: 1.55,
+    momentumRetention: 0.75,
+    passiveDeceleration: 11.0,
+    barrierDamageMultiplier: 1.1,
+    reverseAllowed: true,
+  },
+  rules: {
+    totalLaps: 3,
+    goldTargetMs: 42000,
+    silverTargetMs: 48000,
+    bronzeTargetMs: 56000,
+    hasPrecisionSplitTiming: true,
+  },
+  shortcuts: [
+    {
+      id: 'championship_podium_line',
+      name: 'CHAMPIONSHIP APEX LINE',
+      subtitle: 'POLE POSITION ARC',
+      entrySplineT: 0.35,
+      exitSplineT: 0.48,
+      lateralOffset: -10.0,
+      elevationOffset: 5.0,
+      riskLevel: 'HIGH',
+      speedBonusKmH: 50,
+      boostRefillPercent: 100,
+      description: 'Precision racing line threading between stadium support pylons.',
+    },
+  ],
+};
+
 export function getModeDefinition(mode: GameMode | string): ModeDefinition | null {
   return MODE_REGISTRY[mode] || null;
 }
+

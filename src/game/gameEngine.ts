@@ -57,7 +57,6 @@ import { FuturisticSpaceUniverse } from './environment/futuristicSpaceUniverse';
 import { ModeEnvironmentManager } from './environment/modeEnvironmentManager';
 import { ModeManager, ModeHUDTelemetry } from './modeManager';
 import { ModeEntitySystem } from './modeEntitySystem';
-import { ModeGameplayCoordinator } from './modes/ModeGameplayCoordinator';
 import { Obstacle, SamplePoint } from './trackData';
 import {
   JunctionManager,
@@ -402,7 +401,6 @@ export class GameEngine {
   private finalCollapseInitialSignsSpawned = false;
   private destructionFrontDistanceAccumulator = 2500;
   public modeEntitySystem: ModeEntitySystem | null = null;
-  public modeCoordinator!: ModeGameplayCoordinator;
   public extendedPathManager!: ExtendedPathManager;
 
   private currentLap: number = 1;
@@ -559,8 +557,6 @@ export class GameEngine {
     this.initSkyboxAndStars();
     this.modeEnvironmentManager = new ModeEnvironmentManager(this.scene);
     this.modeEnvironmentManager.loadEnvironment(this.activeGameMode, this.track?.curve || null, this.trackId);
-    this.modeCoordinator = new ModeGameplayCoordinator(this.scene);
-    this.modeCoordinator.initMode(this.activeGameMode, this.track?.curve || null);
     this.initSpeedParticles();
     this.initThrusterParticles();
     this.initCollisionSparkParticles();
@@ -1881,27 +1877,6 @@ export class GameEngine {
     if (this.aiRacingSystem) {
       this.aiRacingSystem.setTrack(this.track);
     }
-    if (this.modeEnvironmentManager) {
-      const envProfile = this.modeEnvironmentManager.loadEnvironment(this.activeGameMode, this.track.curve, this.trackId);
-      if (this.activeGameMode !== 'BLACK_HOLE' && this.activeGameMode !== 'SINGULARITY_RUN' && envProfile) {
-        if (this.scene.fog instanceof THREE.FogExp2) {
-          this.scene.fog.color.setHex(envProfile.atmosphere.fogColor);
-          this.scene.fog.density = envProfile.atmosphere.fogDensity;
-        }
-        if (this.mainAmbientLight) {
-          this.mainAmbientLight.color.setHex(envProfile.lighting.ambientColor);
-          this.mainAmbientLight.intensity = envProfile.lighting.ambientIntensity;
-        }
-        if (this.mainDirLight) {
-          this.mainDirLight.color.setHex(envProfile.lighting.sunColor);
-          this.mainDirLight.intensity = envProfile.lighting.sunIntensity;
-          this.mainDirLight.position.set(...envProfile.lighting.sunPosition);
-        }
-      }
-    }
-    if (this.modeCoordinator) {
-      this.modeCoordinator.initMode(this.activeGameMode, this.track.curve);
-    }
     if (this.raceIntroManager) {
       this.raceIntroManager.setMode(this.activeGameMode, this.track);
     }
@@ -2917,6 +2892,20 @@ export class GameEngine {
       this.input.recover = false;
     }
 
+    // Final Collapse has one physical start/fork and three terminal ends.
+    // Stop the ship at the fork until the player chooses a route; this
+    // prevents the old main-track loop from carrying the player past the fork.
+    const isQLPSubmode10Fork =
+      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+    const forkT = 0.18;
+    const forkWindow = 0.012;
+    if (isQLPSubmode10Fork &&
+        !this.junctionManager.playerRouteProgress.isInBranch &&
+        !this.junctionManager.playerRouteProgress.activeRouteId &&
+        this.splineT >= forkT - forkWindow && this.splineT < forkT) {
+      this.currentSpeed = Math.max(0, Math.min(this.currentSpeed, 6));
+      this.isWrongWay = false;
+    }
 
     if (this.junctionManager.playerRouteProgress.isInBranch) {
       const activeBranchRouteId = this.junctionManager.playerRouteProgress.activeRouteId;
@@ -3190,50 +3179,6 @@ export class GameEngine {
 
     // Update Active Game Mode Telemetry
     const modeTelemetry = this.modeManager.update(dt, speedKmH, this.isBoosting, this.isDrifting);
-
-    // Apply Live Mode Gameplay Coordinator for Modes 02–20
-    if (this.activeGameMode !== 'SINGULARITY_RUN' && this.activeGameMode !== 'BLACK_HOLE' && this.modeCoordinator) {
-      const coordResult = this.modeCoordinator.update(
-        dt,
-        this.playerShipGroup.position,
-        speedKmH,
-        this.splineT,
-        this.lateralOffset,
-        this.currentLap,
-        this.isBoosting,
-        this.isDrifting
-      );
-
-      if (coordResult.speedDeltaKmH !== 0) {
-        this.currentSpeed = Math.max(0, this.currentSpeed + (coordResult.speedDeltaKmH / 3.6) * dt);
-      }
-      if (coordResult.damage > 0) {
-        this.hullHealth = Math.max(0, this.hullHealth - coordResult.damage);
-        this.callbacks.onHullUpdate?.(this.hullHealth);
-        if (this.hullHealth <= 0) {
-          this.destroyPlayerShip('HULL BREACHED BY ENVIRONMENTAL HAZARD');
-        }
-      }
-      if (coordResult.cameraShake > 0 && this.cameraShakeEnabled) {
-        this.cameraShake = Math.max(this.cameraShake, coordResult.cameraShake);
-      }
-
-      modeTelemetry.objectiveText = coordResult.objectiveText;
-      modeTelemetry.primaryMetricLabel = coordResult.primaryMetricLabel;
-      modeTelemetry.primaryMetricValue = coordResult.primaryMetricValue;
-      modeTelemetry.secondaryMetricLabel = coordResult.secondaryMetricLabel;
-      modeTelemetry.secondaryMetricValue = coordResult.secondaryMetricValue;
-      if (coordResult.warningText) {
-        modeTelemetry.warningText = coordResult.warningText;
-        modeTelemetry.warningAlert = coordResult.warningText;
-      }
-      if (this.activeGameMode === 'SOLAR_STORM') {
-        modeTelemetry.heatLevel = coordResult.solarHeat;
-      } else if (this.activeGameMode === 'GRAVITY_FREE') {
-        modeTelemetry.stuntScore = coordResult.stuntScore;
-      }
-    }
-
     this.callbacks.onModeTelemetry?.(modeTelemetry);
 
     // Simulate Ship Core Thermodynamics (°C)
@@ -3472,6 +3417,50 @@ export class GameEngine {
       // Update Mode-Specific Environment Manager
       if (this.modeEnvironmentManager) {
         this.modeEnvironmentManager.update(dt, this.splineT, this.currentSpeed);
+
+        // Process Mode-Specific Environmental Hazards & Collectibles
+        if (this.modeEnvironmentManager.interactables.length > 0 && this.isRacing && !this.hasFinished && this.playerShipGroup) {
+          const pPos = this.playerShipGroup.position;
+          for (const item of this.modeEnvironmentManager.interactables) {
+            if (item.collected || item.active === false) continue;
+            const dist = pPos.distanceTo(item.position);
+            if (dist <= item.radius + 2.5) {
+              const res = item.onInteract?.(pPos, this.currentSpeed);
+              if (res) {
+                if (res.collected) {
+                  item.collected = true;
+                  item.mesh.visible = false;
+                  if (res.scoreBonus) this.sessionCredits += res.scoreBonus;
+                  if (res.boost) this.boostEnergy = Math.min(100, this.boostEnergy + res.boost);
+                  if (res.message) this.callbacks.onHazardHit?.(res.message);
+                  sound.playCheckpoint();
+                } else if (res.damage && this.collisionCooldown <= 0) {
+                  if (this.phaseShieldTimer > 0) {
+                    sound.playShieldDeflect();
+                    if (this.cameraShakeEnabled) this.cameraShake = 0.35;
+                    this.triggerCollisionBurst(pPos, 0x00f0ff, 28);
+                    this.collisionCooldown = 0.6;
+                    this.callbacks.onHazardHit?.('PHASE SHIELD ABSORBED HAZARD');
+                  } else {
+                    sound.playCollision();
+                    if (this.cameraShakeEnabled) this.cameraShake = 0.75;
+                    this.currentSpeed = Math.max(12, this.currentSpeed * 0.55);
+                    this.collisionCooldown = 1.0;
+                    this.hullHealth = Math.max(0, this.hullHealth - res.damage);
+                    this.hitCount++;
+                    this.triggerCollisionBurst(pPos, 0xff0055, 30);
+                    this.callbacks.onHullUpdate?.(this.hullHealth);
+                    if (res.message) this.callbacks.onHazardHit?.(res.message);
+                    if (this.hullHealth <= 0) {
+                      this.destroyPlayerShip(res.message || 'HULL CRITICALLY BREACHED');
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
 
       // Update the 15 Dynamic Physical Environments
@@ -4679,34 +4668,6 @@ export class GameEngine {
           this.boostEnergy = Math.min(100, this.boostEnergy + 25);
           this.cameraShake = 0.45;
           sound.playBoostPad();
-          break;
-        }
-      }
-    }
-
-    // Check mode-specific physical shortcuts
-    if (this.modeCoordinator && this.modeCoordinator.activeDef?.shortcuts) {
-      for (const sc of this.modeCoordinator.activeDef.shortcuts) {
-        const inWindow = this.splineT >= sc.entrySplineT && this.splineT <= sc.entrySplineT + 0.04;
-        const matchingLane = Math.abs(this.lateralOffset - sc.lateralOffset) < 10.0;
-        if (inWindow && matchingLane) {
-          const shipConfig = getEffectiveShipStats(
-            getShipConfig(this.localShipId),
-            this.localUpgrades
-          );
-          this.currentSpeed = Math.min((shipConfig.topSpeed / 3.6) * 1.6, this.currentSpeed + sc.speedBonusKmH / 3.6);
-          this.boostEnergy = Math.min(100, this.boostEnergy + sc.boostRefillPercent);
-          this.cameraShake = 0.5;
-          sound.playBoostPad();
-          this.callbacks.onShortcutUsed?.(sc.name);
-
-          const totalCpsCheck = this.track.checkpoints.length;
-          for (let i = 1; i < totalCpsCheck; i++) {
-            const gate = this.track.checkpoints[i];
-            if (gate.t >= sc.entrySplineT && gate.t <= sc.exitSplineT) {
-              this.checkpointsPassedThisLap.add(i);
-            }
-          }
           break;
         }
       }
@@ -6395,10 +6356,6 @@ export class GameEngine {
       }
     }
 
-    if (this.modeCoordinator) {
-      this.modeCoordinator.initMode(mode, this.track?.curve || null);
-    }
-
     if (this.blackHoleCinematicManager) {
       if (mode === 'BLACK_HOLE') {
         this.blackHoleCinematicManager.start('INTRO');
@@ -7507,7 +7464,6 @@ export class GameEngine {
             `ASTEROID DESTROYED +${credits} VC // +${points} PTS`
           );
           this.callbacks.onAsteroidDestroyed?.(obstacle, points, credits);
-          this.modeCoordinator?.registerRockDestroyed();
         }
       );
 
@@ -7964,9 +7920,6 @@ export class GameEngine {
     }
     if (this.modeEnvironmentManager) {
       this.modeEnvironmentManager.dispose();
-    }
-    if (this.modeCoordinator) {
-      this.modeCoordinator.dispose();
     }
     if (this.blackHoleCinematicManager) {
       this.blackHoleCinematicManager.dispose();

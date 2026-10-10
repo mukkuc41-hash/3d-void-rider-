@@ -1635,17 +1635,6 @@ export default function App() {
               });
             }
           }}
-          onLaunchMission={(mode, trackId) => {
-            setIsMissionsOpen(false);
-            setGameMode(mode);
-            handleStartAIRace({
-              mode,
-              difficulty: 'ACE',
-              trackId,
-              botCount: 4,
-              laps: 2,
-            });
-          }}
         />
       )}
 

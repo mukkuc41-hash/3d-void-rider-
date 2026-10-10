@@ -64,6 +64,7 @@ import {
   formatSubmode10Countdown,
 } from '../game/submode10Events';
 import { HeartPulse, Activity, BookOpen } from 'lucide-react';
+import { sound } from '../game/audio';
 
 interface RaceHUDProps {
   speed: number;
@@ -522,6 +523,63 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   const [showMinimap, setShowMinimap] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [isStagesModalOpen, setIsStagesModalOpen] = useState(false);
+
+  // Hull Warning State & Non-blocking Alert Management
+  const [hullWarningMessage, setHullWarningMessage] = useState<{ text: string; severity: 'ALERT' | 'CRITICAL' | 'FATAL' } | null>(null);
+  const lastTriggeredThresholdRef = useRef<number>(100);
+  const lastWarningTimeRef = useRef<number>(0);
+  const prevHullRef = useRef<number>(hullHealth);
+
+  useEffect(() => {
+    const currentHp = Math.max(0, Math.min(100, hullHealth));
+    const prevHp = prevHullRef.current;
+    prevHullRef.current = currentHp;
+
+    // Reset warning threshold state if ship is repaired / healed / respawned
+    if (currentHp > lastTriggeredThresholdRef.current + 5) {
+      if (currentHp >= 76) {
+        lastTriggeredThresholdRef.current = 100;
+      } else if (currentHp >= 41) {
+        lastTriggeredThresholdRef.current = 75;
+      } else if (currentHp >= 16) {
+        lastTriggeredThresholdRef.current = 40;
+      }
+    }
+
+    const now = Date.now();
+    const cooldownMs = 2500; // Do not spam alerts every frame
+    const canTrigger = now - lastWarningTimeRef.current > cooldownMs;
+
+    // Check thresholds: 75%, 40%, 15%, 0%
+    if (currentHp === 0 && lastTriggeredThresholdRef.current > 0) {
+      lastTriggeredThresholdRef.current = 0;
+      lastWarningTimeRef.current = now;
+      setHullWarningMessage({ text: 'SHIP DISABLED', severity: 'FATAL' });
+      sound.playAlarmAlert();
+      const t = setTimeout(() => setHullWarningMessage(null), 4000);
+      return () => clearTimeout(t);
+    } else if (currentHp > 0 && currentHp <= 15 && lastTriggeredThresholdRef.current > 15 && canTrigger) {
+      lastTriggeredThresholdRef.current = 15;
+      lastWarningTimeRef.current = now;
+      setHullWarningMessage({ text: 'STRUCTURAL FAILURE IMMINENT', severity: 'CRITICAL' });
+      sound.playAlarmAlert();
+      const t = setTimeout(() => setHullWarningMessage(null), 3500);
+      return () => clearTimeout(t);
+    } else if (currentHp > 15 && currentHp <= 40 && lastTriggeredThresholdRef.current > 40 && canTrigger) {
+      lastTriggeredThresholdRef.current = 40;
+      lastWarningTimeRef.current = now;
+      setHullWarningMessage({ text: 'HULL CRITICAL', severity: 'CRITICAL' });
+      sound.playAlarmAlert();
+      const t = setTimeout(() => setHullWarningMessage(null), 3000);
+      return () => clearTimeout(t);
+    } else if (currentHp > 40 && currentHp <= 75 && lastTriggeredThresholdRef.current > 75 && canTrigger) {
+      lastTriggeredThresholdRef.current = 75;
+      lastWarningTimeRef.current = now;
+      setHullWarningMessage({ text: 'HULL DAMAGE DETECTED', severity: 'ALERT' });
+      const t = setTimeout(() => setHullWarningMessage(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [hullHealth]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1071,6 +1129,22 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
           </div>
         )}
 
+        {/* Non-Blocking Hull Integrity Threshold Warning Banner */}
+        {hullWarningMessage && (
+          <div
+            className={`px-3.5 py-1.5 rounded-xl font-mono font-black text-[11px] sm:text-xs tracking-widest uppercase flex items-center gap-2 backdrop-blur-md transition-all animate-fadeIn ${
+              hullWarningMessage.severity === 'FATAL'
+                ? 'bg-rose-950/90 border border-rose-500 text-rose-300 shadow-[0_0_25px_rgba(244,63,94,0.8)] animate-pulse'
+                : hullWarningMessage.severity === 'CRITICAL'
+                ? 'bg-rose-950/80 border border-red-500 text-red-300 shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse'
+                : 'bg-amber-950/80 border border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+            }`}
+          >
+            <AlertTriangle className={`w-4 h-4 ${hullWarningMessage.severity !== 'ALERT' ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`} />
+            <span>{hullWarningMessage.text}</span>
+          </div>
+        )}
+
         {/* Missile Lock Reticle */}
         {missileTelemetry?.hasTargetLock && missileTelemetry.targetInfo && (
           <div className="flex flex-col items-center pointer-events-none select-none transition-all duration-150 animate-fadeIn">
@@ -1246,10 +1320,55 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
               </div>
             </div>
 
-            {/* Dual Vitals: Boost Fuel & Beam Weapon */}
+            {/* Ship Vitals: Hull Integrity, Boost Fuel & Beam Weapon */}
             <div className="flex flex-col gap-0.5 sm:gap-1 text-[7px] sm:text-[7.5px] font-mono">
-              {/* Boost Fuel Bar */}
+              {/* Hull Integrity Bar (Universal HUD Specification) */}
               <div className="flex items-center justify-between">
+                <span
+                  className={`font-bold flex items-center gap-1 ${
+                    hullHealth <= 0
+                      ? 'text-rose-500 font-black animate-pulse'
+                      : hullHealth < 40
+                      ? 'text-rose-400 font-black animate-pulse'
+                      : hullHealth < 75
+                      ? 'text-amber-300'
+                      : 'text-cyan-300'
+                  }`}
+                >
+                  <HeartPulse className={`w-2.5 h-2.5 ${hullHealth < 40 ? 'text-rose-400 animate-pulse' : hullHealth < 75 ? 'text-amber-400' : 'text-cyan-400'}`} />
+                  {hullHealth <= 0 ? 'HULL 0% — SHIP DISABLED' : 'HULL'}
+                </span>
+                <span
+                  className={`font-black ${
+                    hullHealth <= 0
+                      ? 'text-rose-500'
+                      : hullHealth < 40
+                      ? 'text-rose-400 animate-pulse'
+                      : hullHealth < 75
+                      ? 'text-amber-300'
+                      : 'text-cyan-200'
+                  }`}
+                >
+                  {Math.round(Math.max(0, Math.min(100, hullHealth)))}%
+                </span>
+              </div>
+              <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden border border-slate-800/80">
+                <div
+                  className={`h-full rounded-full transition-all duration-150 ${
+                    hullHealth <= 0
+                      ? 'bg-rose-700 w-0'
+                      : hullHealth < 40
+                      ? 'bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 animate-pulse shadow-[0_0_8px_#ff0055]'
+                      : hullHealth < 75
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400 shadow-[0_0_6px_#f59e0b]'
+                      : 'bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_6px_#00f0ff]'
+                  }`}
+                  style={{ width: `${Math.max(0, Math.min(100, hullHealth))}%` }}
+                />
+              </div>
+
+              {/* Boost Fuel Bar */}
+              <div className="flex items-center justify-between mt-0.5">
                 <span className="text-fuchsia-300 font-bold flex items-center gap-1">
                   <Zap className="w-2.5 h-2.5 text-fuchsia-400" /> BOOST
                 </span>

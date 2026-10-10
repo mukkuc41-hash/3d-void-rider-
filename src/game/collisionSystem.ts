@@ -877,3 +877,158 @@ export class PlayerCollisionSystem {
     this.participants.clear();
   }
 }
+
+/**
+ * Calculates the shortest distance from a 3D point to a line segment [a, b].
+ */
+export function distancePointToSegment(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3): number {
+  const ab = new THREE.Vector3().subVectors(b, a);
+  const ap = new THREE.Vector3().subVectors(p, a);
+  const abLenSq = ab.lengthSq();
+  if (abLenSq < 1e-8) {
+    return ap.length();
+  }
+  const t = Math.max(0, Math.min(1, ap.dot(ab) / abLenSq));
+  const projection = new THREE.Vector3().copy(a).addScaledVector(ab, t);
+  return projection.distanceTo(p);
+}
+
+export interface SweptSphereResult {
+  hit: boolean;
+  distance: number;
+  hitPoint: THREE.Vector3;
+  fraction: number;
+}
+
+/**
+ * Continuous collision detection (CCD) swept test from p0 to p1 against a sphere obstacle at center with given targetRadius and shipRadius.
+ * Prevents tunneling when moving at speeds up to 1000+ km/h.
+ */
+export function testSweptSphereToPoint(
+  p0: THREE.Vector3,
+  p1: THREE.Vector3,
+  obstacleCenter: THREE.Vector3,
+  obstacleRadius: number,
+  shipRadius: number
+): SweptSphereResult {
+  const combinedRadius = obstacleRadius + shipRadius;
+  const d = new THREE.Vector3().subVectors(p1, p0);
+  const f = new THREE.Vector3().subVectors(p0, obstacleCenter);
+
+  const a = d.dot(d);
+  const b = 2 * f.dot(d);
+  const c = f.dot(f) - combinedRadius * combinedRadius;
+
+  if (a < 1e-8) {
+    const dist = p0.distanceTo(obstacleCenter);
+    const hit = dist <= combinedRadius;
+    return {
+      hit,
+      distance: Math.max(0, dist - combinedRadius),
+      hitPoint: p0.clone(),
+      fraction: 0,
+    };
+  }
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) {
+    // Closest approach test
+    const tClosest = Math.max(0, Math.min(1, -b / (2 * a)));
+    const closestPt = new THREE.Vector3().copy(p0).addScaledVector(d, tClosest);
+    const closestDist = closestPt.distanceTo(obstacleCenter);
+    return {
+      hit: closestDist <= combinedRadius,
+      distance: Math.max(0, closestDist - combinedRadius),
+      hitPoint: closestPt,
+      fraction: tClosest,
+    };
+  }
+
+  const sqrtDisc = Math.sqrt(discriminant);
+  const t1 = (-b - sqrtDisc) / (2 * a);
+  const t2 = (-b + sqrtDisc) / (2 * a);
+
+  if (t2 >= 0 && t1 <= 1) {
+    const tHit = Math.max(0, Math.min(1, t1));
+    const hitPoint = new THREE.Vector3().copy(p0).addScaledVector(d, tHit);
+    const dist = Math.max(0, hitPoint.distanceTo(obstacleCenter) - combinedRadius);
+    return {
+      hit: true,
+      distance: dist,
+      hitPoint,
+      fraction: tHit,
+    };
+  }
+
+  // Not intersecting within [0, 1]
+  const tClosest = Math.max(0, Math.min(1, -b / (2 * a)));
+  const closestPt = new THREE.Vector3().copy(p0).addScaledVector(d, tClosest);
+  const closestDist = closestPt.distanceTo(obstacleCenter);
+  return {
+    hit: closestDist <= combinedRadius,
+    distance: Math.max(0, closestDist - combinedRadius),
+    hitPoint: closestPt,
+    fraction: tClosest,
+  };
+}
+
+export interface SweptBarrierResult {
+  crossed: boolean;
+  hit: boolean;
+  fraction: number;
+  intersectionPoint: THREE.Vector3;
+  lateralOffset: number;
+}
+
+/**
+ * Continuous collision swept test for planar barriers, doors, gates, and energy barriers.
+ * Evaluates whether vehicle trajectory segment crossed the barrier plane within width & height boundaries.
+ */
+export function testSweptBarrier(
+  p0: THREE.Vector3,
+  p1: THREE.Vector3,
+  barrierCenter: THREE.Vector3,
+  barrierNormal: THREE.Vector3, // track tangent / forward normal
+  barrierRight: THREE.Vector3,  // track lateral binormal
+  barrierWidth: number,
+  barrierHeight: number,
+  shipRadius: number = 2.4
+): SweptBarrierResult {
+  const norm = barrierNormal.clone().normalize();
+  const d0 = new THREE.Vector3().subVectors(p0, barrierCenter).dot(norm);
+  const d1 = new THREE.Vector3().subVectors(p1, barrierCenter).dot(norm);
+
+  // If both endpoints are strictly on same side (with radius buffer), did not cross plane this frame
+  if ((d0 > shipRadius && d1 > shipRadius) || (d0 < -shipRadius && d1 < -shipRadius)) {
+    return {
+      crossed: false,
+      hit: false,
+      fraction: 0,
+      intersectionPoint: p1.clone(),
+      lateralOffset: 0,
+    };
+  }
+
+  const denominator = d0 - d1;
+  const fraction = Math.abs(denominator) > 1e-6 ? Math.max(0, Math.min(1, d0 / denominator)) : 0.5;
+  const intersectionPoint = new THREE.Vector3().copy(p0).lerp(p1, fraction);
+
+  const delta = new THREE.Vector3().subVectors(intersectionPoint, barrierCenter);
+  const lateralOffset = delta.dot(barrierRight.clone().normalize());
+  const upVec = new THREE.Vector3().crossVectors(norm, barrierRight.clone().normalize()).normalize();
+  const verticalOffset = delta.dot(upVec);
+
+  const halfWidth = barrierWidth * 0.5 + shipRadius;
+  const halfHeight = barrierHeight * 0.5 + shipRadius;
+
+  const hit = Math.abs(lateralOffset) <= halfWidth && Math.abs(verticalOffset) <= halfHeight;
+
+  return {
+    crossed: true,
+    hit,
+    fraction,
+    intersectionPoint,
+    lateralOffset,
+  };
+}
+
