@@ -139,6 +139,7 @@ export default function App() {
   const [gameOverStats, setGameOverStats] = useState<RunStats | null>(null);
   const [isPauseOpen, setIsPauseOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [settingsTab, setSettingsTab] = useState<'COSMIC_TELEMETRY' | 'AV_HUD'>('COSMIC_TELEMETRY');
   const [isMissionsOpen, setIsMissionsOpen] = useState<boolean>(false);
   const [isLeaderboardsOpen, setIsLeaderboardsOpen] = useState<boolean>(false);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
@@ -1077,7 +1078,10 @@ export default function App() {
           onOpenMissions={() => setIsMissionsOpen(true)}
           onOpenLeaderboards={() => setIsLeaderboardsOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => {
+            setSettingsTab('COSMIC_TELEMETRY');
+            setIsSettingsOpen(true);
+          }}
           onOpenSpaceHub={() => setIsSpaceHubOpen(true)}
           onOpenStory={() => setIsStoryOpen(true)}
           credits={progression.credits}
@@ -1559,7 +1563,10 @@ export default function App() {
           onResume={handleTogglePause}
           onRestart={handleRestartRace}
           onReturnToLobby={handleReturnToLobby}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={(tab) => {
+            setSettingsTab(tab || 'COSMIC_TELEMETRY');
+            setIsSettingsOpen(true);
+          }}
         />
       )}
 
@@ -1568,6 +1575,7 @@ export default function App() {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          initialTab={settingsTab}
           currentCameraMode={cameraMode}
           onSelectCameraMode={m => {
             setCameraMode(m);

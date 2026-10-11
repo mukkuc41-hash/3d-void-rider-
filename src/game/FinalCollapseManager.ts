@@ -977,15 +977,39 @@ export class FailureCinematicController {
   // Phase 6 (12.5-14.5s): Stylized non-graphic tidal distortion, ship stretches/distorts.
   // Phase 7 (14.5-15.5s): Ship absorbed into event horizon and disappears.
   // Phase 8 (15.5-16.5s): Complete silence + darkness (0.5–1s).
-  // Phase 9 (16.5-18.2s): Accretion disk contracts, stars bend violently, space visually compresses -> Massive Gravitational Implosion.
-  // Phase 10 (18.2-20.2s): Deep Cosmic Boom + Dark Gravitational Shockwave, stars/debris/track distort, camera pushed back.
-  // Phase 11 (20.2-21.5s): Shockwave dissipates -> Total Darkness.
+  // Section 35: Standard failure durations
   private readonly rcPhaseDurations = [2.5, 2.5, 2.5, 2.5, 2.5, 2.0, 1.0, 1.0, 1.7, 2.0, 1.3];
   private readonly gfPhaseDurations = [2.5, 2.5, 2.5, 2.5, 1.0, 1.0, 1.7, 2.0, 1.3];
-  private readonly missedEscapePhaseDurations = [3.0, 3.0, 3.0, 2.5, 2.5, 1.5, 3.0, 3.0, 3.0, 5.0, 4.0];
+
+  // SUBMODE 10: 10 DISTINCT EVENTS ACROSS EXACTLY 30.0 SECONDS (Missed Safe Zone Ending)
+  // Event 01 (00.0 - 03.0s): T-00:00 // ESCAPE WINDOW CLOSED
+  // Event 02 (03.0 - 06.0s): SHIP STRUGGLE & THRUST OVERLOAD
+  // Event 03 (06.0 - 09.0s): GRAVITATIONAL CAPTURE
+  // Event 04 (09.0 - 12.0s): TIDAL FORCE & ROTATIONAL DRAG
+  // Event 05 (12.0 - 15.0s): EXTREME SPAGHETTIFICATION
+  // Event 06 (15.0 - 18.0s): EVENT HORIZON CROSSING
+  // Event 07 (18.0 - 21.0s): SINGULARITY CRITICAL OVERLOAD
+  // Event 08 (21.0 - 24.5s): COSMIC DETONATION & DESTRUCTION
+  // Event 09 (24.5 - 27.0s): PRISMATIC COSMIC AFTERMATH
+  // Event 10 (27.0 - 30.0s): WORLD RECONSTRUCTION & STABILIZATION
+  private readonly missedEscapePhaseDurations = [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.5, 2.5, 3.0];
   private phaseTriggered: Set<number> = new Set();
 
-  public start(isRouteConsumption: boolean, startPosition?: THREE.Vector3, endingVariant: 'STANDARD' | 'MISSED_ESCAPE_COLLAPSE' = 'STANDARD'): void {
+  // Procedural 3D Visual Groups for Cosmic Collapse Climax
+  private sceneRef: THREE.Scene | null = null;
+  private ringGroup: THREE.Group | null = null;
+  private detonationSphere: THREE.Mesh | null = null;
+  private shockwaveRings: THREE.Mesh[] = [];
+  private spectacleGroup: THREE.Group | null = null;
+  private rebuildTracksGroup: THREE.Group | null = null;
+
+  public start(
+    isRouteConsumption: boolean,
+    startPosition?: THREE.Vector3,
+    endingVariant: 'STANDARD' | 'MISSED_ESCAPE_COLLAPSE' = 'STANDARD',
+    scene?: THREE.Scene,
+    blackHoleCenter?: THREE.Vector3
+  ): void {
     this.isActive = true;
     this.isRouteConsumption = isRouteConsumption;
     this.endingVariant = endingVariant;
@@ -1001,11 +1025,186 @@ export class FailureCinematicController {
       this.shipCurrentTrajectory.copy(startPosition);
     }
 
+    if (endingVariant === 'MISSED_ESCAPE_COLLAPSE' && scene && blackHoleCenter) {
+      this.initVisuals(scene, blackHoleCenter);
+    }
+
     sound.playEmergencyAlarm();
     sound.playGravitationalRumble(4.0);
   }
 
-  public update(dt: number, blackHoleCenter: THREE.Vector3): void {
+  public initVisuals(scene: THREE.Scene, bhCenter: THREE.Vector3): void {
+    this.disposeVisuals();
+    this.sceneRef = scene;
+
+    // 1. Accretion Debris Ring (Event 7)
+    this.ringGroup = new THREE.Group();
+    this.ringGroup.name = 'FinalCollapse_DebrisRing';
+    this.ringGroup.position.copy(bhCenter);
+    this.ringGroup.visible = false;
+    const ringGeo = new THREE.BoxGeometry(16, 4, 32);
+    for (let i = 0; i < 90; i++) {
+      const angle = (i / 90) * Math.PI * 2;
+      const radius = 620 + Math.random() * 320;
+      const mat = new THREE.MeshStandardMaterial({
+        color: i % 3 === 0 ? 0x00f0ff : (i % 3 === 1 ? 0xffaa00 : 0xa855f7),
+        emissive: i % 2 === 0 ? 0x00f0ff : 0xff5500,
+        emissiveIntensity: 1.8,
+        roughness: 0.2,
+      });
+      const mesh = new THREE.Mesh(ringGeo, mat);
+      mesh.position.set(
+        Math.cos(angle) * radius,
+        (Math.random() - 0.5) * 60,
+        Math.sin(angle) * radius
+      );
+      mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      this.ringGroup.add(mesh);
+    }
+    scene.add(this.ringGroup);
+
+    // 2. Detonation Core Sphere (Event 8)
+    const ruptureGeo = new THREE.SphereGeometry(50, 32, 32);
+    const ruptureMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+    });
+    this.detonationSphere = new THREE.Mesh(ruptureGeo, ruptureMat);
+    this.detonationSphere.position.copy(bhCenter);
+    this.detonationSphere.visible = false;
+    scene.add(this.detonationSphere);
+
+    // 3. Shockwave Rings (Event 8)
+    this.shockwaveRings = [];
+    const ringColors = [0x00f0ff, 0xa855f7, 0xf59e0b, 0xef4444, 0xffffff];
+    for (let i = 0; i < 5; i++) {
+      const ringGeom = new THREE.RingGeometry(80 + i * 50, 105 + i * 50, 48);
+      const ringM = new THREE.MeshBasicMaterial({
+        color: ringColors[i],
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+      });
+      const rMesh = new THREE.Mesh(ringGeom, ringM);
+      rMesh.position.copy(bhCenter);
+      rMesh.rotation.x = Math.PI / 2;
+      rMesh.visible = false;
+      this.shockwaveRings.push(rMesh);
+      scene.add(rMesh);
+    }
+
+    // 4. Prismatic Cosmic Nebula Spectacle (Event 9)
+    this.spectacleGroup = new THREE.Group();
+    this.spectacleGroup.name = 'FinalCollapse_Spectacle';
+    this.spectacleGroup.position.copy(bhCenter);
+    this.spectacleGroup.visible = false;
+    const cloudColors = [0x0284c7, 0x06b6d4, 0x7c3aed, 0xc026d3, 0xf59e0b, 0xffffff];
+    for (let i = 0; i < 30; i++) {
+      const planeGeo = new THREE.PlaneGeometry(850 + (i % 5) * 300, 700 + (i % 4) * 250);
+      const col = cloudColors[i % cloudColors.length];
+      const planeMat = new THREE.MeshBasicMaterial({
+        color: col,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const plane = new THREE.Mesh(planeGeo, planeMat);
+      const ang = (i / 30) * Math.PI * 2;
+      const dist = 450 + Math.random() * 1100;
+      plane.position.set(Math.cos(ang) * dist, (Math.random() - 0.5) * 500, Math.sin(ang) * dist);
+      plane.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      this.spectacleGroup.add(plane);
+    }
+    scene.add(this.spectacleGroup);
+
+    // 5. Holographic Reconstructed Route Tracks (Event 10)
+    this.rebuildTracksGroup = new THREE.Group();
+    this.rebuildTracksGroup.name = 'FinalCollapse_RebuildRoutes';
+    this.rebuildTracksGroup.position.copy(bhCenter);
+    this.rebuildTracksGroup.visible = false;
+    const trackColors = [0x00f0ff, 0x38bdf8, 0x34d399, 0xf59e0b];
+    for (let r = 0; r < 6; r++) {
+      const curvePts: THREE.Vector3[] = [];
+      const rot = (r / 6) * Math.PI * 2;
+      for (let s = 0; s <= 20; s++) {
+        const u = s / 20;
+        const rad = 250 + u * 1600;
+        const theta = rot + u * 1.5;
+        curvePts.push(new THREE.Vector3(Math.cos(theta) * rad, 15 + Math.sin(u * Math.PI) * 40, Math.sin(theta) * rad));
+      }
+      const tubeGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(curvePts), 32, 2.8, 8, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: trackColors[r % trackColors.length],
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+      });
+      const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+      this.rebuildTracksGroup.add(tubeMesh);
+    }
+    scene.add(this.rebuildTracksGroup);
+  }
+
+  public disposeVisuals(): void {
+    if (this.sceneRef) {
+      if (this.ringGroup) {
+        this.sceneRef.remove(this.ringGroup);
+        this.ringGroup.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.ringGroup = null;
+      }
+      if (this.detonationSphere) {
+        this.sceneRef.remove(this.detonationSphere);
+        this.detonationSphere.geometry.dispose();
+        (this.detonationSphere.material as THREE.Material).dispose();
+        this.detonationSphere = null;
+      }
+      this.shockwaveRings.forEach(r => {
+        this.sceneRef?.remove(r);
+        r.geometry.dispose();
+        (r.material as THREE.Material).dispose();
+      });
+      this.shockwaveRings = [];
+      if (this.spectacleGroup) {
+        this.sceneRef.remove(this.spectacleGroup);
+        this.spectacleGroup.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.spectacleGroup = null;
+      }
+      if (this.rebuildTracksGroup) {
+        this.sceneRef.remove(this.rebuildTracksGroup);
+        this.rebuildTracksGroup.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.rebuildTracksGroup = null;
+      }
+      this.sceneRef = null;
+    }
+  }
+
+  public update(dt: number, blackHoleCenter: THREE.Vector3, scene?: THREE.Scene): void {
     if (!this.isActive || this.completed) return;
 
     this.elapsed += dt;
@@ -1027,69 +1226,160 @@ export class FailureCinematicController {
     }
     this.currentPhase = phase;
 
-    // Physical continuous gravitational trajectory. The missed-route ending
-    // adds a visible spiral/fall starting from Phase 2 instead of waiting or static blackout.
+    // Lazily initialize 3D visuals if scene is provided
+    if (this.endingVariant === 'MISSED_ESCAPE_COLLAPSE' && scene && !this.sceneRef) {
+      this.initVisuals(scene, blackHoleCenter);
+    }
+
+    // Physical continuous gravitational trajectory during 30s Missed Safe Zone Sequence
     if (this.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-      if (this.currentPhase >= 2 && this.currentPhase <= 8) {
-        const start = durations[0];
-        const window = durations.slice(1, 8).reduce((a, b) => a + b, 0);
-        const pullFrac = (this.elapsed - start) / Math.max(0.001, window);
-        const eased = Math.pow(Math.max(0, Math.min(1, pullFrac)), 1.55);
-        const angle = this.elapsed * (1.5 + eased * 5.0);
-        const radius = THREE.MathUtils.lerp(this.shipInitialPosition.distanceTo(blackHoleCenter), 22, eased);
+      if (this.currentPhase === 1) {
+        // Event 1 (0-3s): Ship struggles at initial position with high-frequency thruster jitter
+        this.shipCurrentTrajectory.copy(this.shipInitialPosition);
+        this.shipRotation.x += (Math.random() - 0.5) * dt * 0.8;
+      } else if (this.currentPhase >= 2 && this.currentPhase <= 6) {
+        // Events 2-6 (3-18s): Accelerating inward spiral towards singularity core
+        const start = durations[0]; // 3.0s
+        const window = durations.slice(1, 6).reduce((a, b) => a + b, 0); // 15.0s
+        const pullFrac = Math.min(1.0, (this.elapsed - start) / Math.max(0.001, window));
+        const eased = Math.pow(pullFrac, 1.45);
+        const angle = this.elapsed * (1.2 + eased * 6.5);
+        const initialDist = Math.max(300, this.shipInitialPosition.distanceTo(blackHoleCenter));
+        const radius = THREE.MathUtils.lerp(initialDist, 8, eased);
         const center = blackHoleCenter.clone();
         const target = center.clone().add(new THREE.Vector3(
           Math.cos(angle) * radius,
-          Math.sin(angle * 1.7) * radius * 0.28,
+          Math.sin(angle * 1.6) * radius * 0.22,
           Math.sin(angle) * radius
         ));
-        this.shipCurrentTrajectory.lerp(target, Math.min(1, dt * 2.4));
-        this.shipRotation.x += dt * (1.5 + eased * 7.0);
-        this.shipRotation.y += dt * (2.0 + eased * 9.0);
-        this.shipRotation.z += dt * (2.5 + eased * 11.0);
+        this.shipCurrentTrajectory.lerp(target, Math.min(1, dt * 2.8));
+        this.shipRotation.x += dt * (1.5 + eased * 8.0);
+        this.shipRotation.y += dt * (2.0 + eased * 10.0);
+        this.shipRotation.z += dt * (2.5 + eased * 12.0);
       }
-    } else if (this.currentPhase >= 4 && this.currentPhase <= 7) {
-      const start = durations[0] + durations[1] + durations[2];
-      const window = durations[3] + durations[4] + durations[5] + durations[6];
-      const pullFrac = (this.elapsed - start) / Math.max(0.001, window);
-      const eased = Math.pow(Math.max(0, Math.min(1, pullFrac)), 1.55);
-      this.shipCurrentTrajectory.lerpVectors(this.shipInitialPosition, blackHoleCenter, eased);
-      this.shipRotation.x += dt * (1.2 + eased * 3.0);
-      this.shipRotation.y += dt * (0.8 + eased * 2.2);
-      this.shipRotation.z += dt * (1.5 + eased * 4.0);
-    }
 
-    // Section 35 & 40: Phase-specific cosmic failure audio triggers
-    if (this.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-      if (this.currentPhase === 7 && !this.phaseTriggered.has(7)) {
+      // Audio triggers for each of the 10 events
+      if (this.currentPhase === 2 && !this.phaseTriggered.has(2)) {
+        this.phaseTriggered.add(2);
+        sound.playStructureCreak();
+      } else if (this.currentPhase === 3 && !this.phaseTriggered.has(3)) {
+        this.phaseTriggered.add(3);
+        sound.playGravitationalWavePulse(1.5);
+      } else if (this.currentPhase === 4 && !this.phaseTriggered.has(4)) {
+        this.phaseTriggered.add(4);
+        sound.playStructureCreak();
+      } else if (this.currentPhase === 5 && !this.phaseTriggered.has(5)) {
+        this.phaseTriggered.add(5);
+        sound.playDarkGravitationalShockwave();
+      } else if (this.currentPhase === 6 && !this.phaseTriggered.has(6)) {
+        this.phaseTriggered.add(6);
+        sound.playSubBassGravitationalImplosion();
+      } else if (this.currentPhase === 7 && !this.phaseTriggered.has(7)) {
         this.phaseTriggered.add(7);
+        sound.playGravitationalRumble(5.0);
+      } else if (this.currentPhase === 8 && !this.phaseTriggered.has(8)) {
+        this.phaseTriggered.add(8);
         sound.playDeepCosmicBoom();
+        sound.playFlashbangBoom();
         sound.playDarkGravitationalShockwave();
       } else if (this.currentPhase === 10 && !this.phaseTriggered.has(10)) {
         this.phaseTriggered.add(10);
-        sound.playDeepCosmicBoom();
+        sound.playCheckpoint();
       }
+
+      // Update 3D visual groups across Events 7, 8, 9, 10
+      if (this.currentPhase === 7) {
+        // Event 7: Singularity Critical Overload — Debris Ring flares and spins rapidly
+        if (this.ringGroup) {
+          this.ringGroup.visible = true;
+          this.ringGroup.rotation.y += dt * (3.5 + (this.elapsed - 18.0) * 1.8);
+          this.ringGroup.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (m.material && (m.material as THREE.MeshStandardMaterial).emissiveIntensity !== undefined) {
+              (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.2 + Math.sin(this.elapsed * 10) * 1.2;
+            }
+          });
+        }
+      } else if (this.currentPhase === 8) {
+        // Event 8: Cosmic Detonation & Complete Destruction — Expanding Core & Shockwaves
+        if (this.ringGroup) this.ringGroup.visible = false;
+        const blastFrac = THREE.MathUtils.clamp((this.elapsed - 21.0) / 3.5, 0, 1);
+        if (this.detonationSphere) {
+          this.detonationSphere.visible = true;
+          this.detonationSphere.scale.setScalar(1.0 + blastFrac * 42.0);
+          (this.detonationSphere.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - blastFrac) * 0.95);
+        }
+        this.shockwaveRings.forEach((ring, idx) => {
+          ring.visible = true;
+          const rFrac = Math.max(0, blastFrac - idx * 0.1);
+          ring.scale.setScalar(1.0 + rFrac * 28.0);
+          (ring.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - rFrac) * 0.85);
+        });
+      } else if (this.currentPhase === 9) {
+        // Event 9: Prismatic Cosmic Aftermath — Multi-color nebula spectacle
+        if (this.detonationSphere) this.detonationSphere.visible = false;
+        this.shockwaveRings.forEach(r => (r.visible = false));
+        if (this.spectacleGroup) {
+          this.spectacleGroup.visible = true;
+          this.spectacleGroup.rotation.y += dt * 0.22;
+          const fade = Math.sin(THREE.MathUtils.clamp((this.elapsed - 24.5) / 2.5, 0, 1) * Math.PI);
+          this.spectacleGroup.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (m.material && (m.material as THREE.MeshBasicMaterial).opacity !== undefined) {
+              (m.material as THREE.MeshBasicMaterial).opacity = fade * 0.85;
+            }
+          });
+        }
+      } else if (this.currentPhase === 10) {
+        // Event 10: World Reconstruction & Celestial Stabilization — Holographic route networks rebuild
+        if (this.spectacleGroup) {
+          const rebFade = Math.max(0, 1.0 - (this.elapsed - 27.0) / 3.0);
+          this.spectacleGroup.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (m.material && (m.material as THREE.MeshBasicMaterial).opacity !== undefined) {
+              (m.material as THREE.MeshBasicMaterial).opacity = rebFade * 0.3;
+            }
+          });
+        }
+        if (this.rebuildTracksGroup) {
+          this.rebuildTracksGroup.visible = true;
+          const rebFrac = THREE.MathUtils.clamp((this.elapsed - 27.0) / 3.0, 0, 1);
+          this.rebuildTracksGroup.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (m.material && (m.material as THREE.MeshBasicMaterial).opacity !== undefined) {
+              (m.material as THREE.MeshBasicMaterial).opacity = rebFrac * (0.65 + Math.sin(this.elapsed * 4.0) * 0.25);
+            }
+          });
+        }
+      }
+
       this.blackScreenActive = false;
     } else if (this.isRouteConsumption) {
+      if (this.currentPhase >= 4 && this.currentPhase <= 7) {
+        const start = durations[0] + durations[1] + durations[2];
+        const window = durations[3] + durations[4] + durations[5] + durations[6];
+        const pullFrac = (this.elapsed - start) / Math.max(0.001, window);
+        const eased = Math.pow(Math.max(0, Math.min(1, pullFrac)), 1.55);
+        this.shipCurrentTrajectory.lerpVectors(this.shipInitialPosition, blackHoleCenter, eased);
+        this.shipRotation.x += dt * (1.2 + eased * 3.0);
+        this.shipRotation.y += dt * (0.8 + eased * 2.2);
+        this.shipRotation.z += dt * (1.5 + eased * 4.0);
+      }
       if (this.currentPhase === 8 && !this.phaseTriggered.has(8)) {
         this.phaseTriggered.add(8);
-        // Complete silence for 0.5-1.0s darkness
       } else if (this.currentPhase === 9 && !this.phaseTriggered.has(9)) {
         this.phaseTriggered.add(9);
-        // Massive Sub-bass Gravitational Implosion
         sound.playSubBassGravitationalImplosion();
       } else if (this.currentPhase === 10 && !this.phaseTriggered.has(10)) {
         this.phaseTriggered.add(10);
-        // Deep Cosmic Boom + Dark Gravitational Shockwave
         sound.playDeepCosmicBoom();
         sound.playDarkGravitationalShockwave();
       } else if (this.currentPhase === 11) {
         this.blackScreenActive = true;
       }
     } else {
-      // General failure sequence equivalent triggers
-      const gImplosionPhase = durations.length - 2; // Phase 8
-      const gBoomPhase = durations.length - 1;      // Phase 9
+      const gImplosionPhase = durations.length - 2;
+      const gBoomPhase = durations.length - 1;
       if (this.currentPhase === gImplosionPhase && !this.phaseTriggered.has(gImplosionPhase)) {
         this.phaseTriggered.add(gImplosionPhase);
         sound.playSubBassGravitationalImplosion();
@@ -1104,6 +1394,7 @@ export class FailureCinematicController {
 
     if (this.elapsed >= totalDuration) {
       this.completed = true;
+      this.totalProgress = 1.0;
       this.blackScreenActive = this.endingVariant !== 'MISSED_ESCAPE_COLLAPSE';
     }
   }
@@ -1118,6 +1409,7 @@ export class FailureCinematicController {
     this.completed = false;
     this.endingVariant = 'STANDARD';
     this.phaseTriggered.clear();
+    this.disposeVisuals();
   }
 }
 export type FailureCinematicDirector = FailureCinematicController;
@@ -1253,6 +1545,7 @@ export class FinalCollapseManager {
   public safeZoneActive = false;
   public towerEntryActive = false;
   public towerSealed = false;
+  public readonly blackHoleCenter = new THREE.Vector3(0, 180, -3500);
   public readonly escapeMissions = new EscapeMissionManager();
 
   constructor() {
@@ -1297,6 +1590,10 @@ export class FinalCollapseManager {
     this.escapeMissions.reset();
   }
 
+  public reset(): void {
+    this.start();
+  }
+
   public onZeroCountdown(): void {
     if (this.evacuation.evacuationFailed) return;
     this.phase = 'QUANTUM_LAUNCH_ACTIVE';
@@ -1320,7 +1617,8 @@ export class FinalCollapseManager {
       shelterHeading: number;
       blackHoleCenter?: THREE.Vector3;
     },
-    timelineOverrideSeconds?: number
+    timelineOverrideSeconds?: number,
+    scene?: THREE.Scene
   ): {
     telemetry: EvacuationTelemetry;
     impactForces: ShipImpactForces;
@@ -1465,7 +1763,7 @@ export class FinalCollapseManager {
     // 7. Update Failure / Success Cinematics
     const bhCenter = playerContext.blackHoleCenter ?? new THREE.Vector3(0, 180, -3500);
     if (this.failureCinematic.isActive) {
-      this.failureCinematic.update(delta, bhCenter);
+      this.failureCinematic.update(delta, bhCenter, scene);
     }
     if (this.cinematicCoordinator.isActive) {
       this.cinematicCoordinator.update(delta);
@@ -1488,7 +1786,8 @@ export class FinalCollapseManager {
   public triggerFailure(
     cause: FailureCause,
     isRouteConsumption: boolean,
-    startPosition?: THREE.Vector3
+    startPosition?: THREE.Vector3,
+    scene?: THREE.Scene
   ): void {
     if (this.evacuation.evacuationSuccess || this.evacuation.evacuationFailed) return;
     this.evacuation.markFailure(cause);
@@ -1496,7 +1795,7 @@ export class FinalCollapseManager {
     const endingVariant = cause === 'EVACUATION_DEADLINE_EXPIRED'
       ? 'MISSED_ESCAPE_COLLAPSE'
       : 'STANDARD';
-    this.failureCinematic.start(isRouteConsumption, startPosition, endingVariant);
+    this.failureCinematic.start(isRouteConsumption, startPosition, endingVariant, scene, this.blackHoleCenter);
   }
 
   public sealTower(): void {
@@ -1610,6 +1909,8 @@ export class FinalCollapseManager {
       } else {
         safeZoneLabel = 'ROUTE 01 // ORBITAL SANCTUARY HANGAR (SECURED)';
       }
+    } else if (this.evacuation.failureCause === 'EVACUATION_DEADLINE_EXPIRED') {
+      safeZoneLabel = 'MISSED // ULTIMATE COLLAPSE & WORLD REBUILT';
     }
 
     return {
@@ -1633,7 +1934,11 @@ export class FinalCollapseManager {
       missilesUsedCount: missilesCount,
       failureCause: survived ? null : this.evacuation.failureCause,
       safeZone: safeZoneLabel,
-      shipStatus: survived ? '100% INTACT // SECURED' : (this.evacuation.failureCause ? String(this.evacuation.failureCause).replace(/_/g, ' ') : 'DESTROYED // SINGULARITY ABSORPTION'),
+      shipStatus: survived
+        ? '100% INTACT // SECURED'
+        : (this.evacuation.failureCause === 'EVACUATION_DEADLINE_EXPIRED'
+            ? 'SINGULARITY CATALYST // INTEGRATED INTO NEW COSMOS'
+            : (this.evacuation.failureCause ? String(this.evacuation.failureCause).replace(/_/g, ' ') : 'DESTROYED // SINGULARITY ABSORPTION')),
     };
   }
 

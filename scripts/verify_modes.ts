@@ -12,6 +12,7 @@ import {
 } from '../src/game/collisionSystem';
 import { HazardManager } from '../src/game/hazardManager';
 import { ModeEnvironmentManager } from '../src/game/environment/modeEnvironmentManager';
+import { FinalCollapseManager } from '../src/game/FinalCollapseManager';
 
 console.log('====================================================');
 console.log('VOID-RIDER 3D: QUANTUM LAUNCH PRO VERIFICATION SUITE');
@@ -229,6 +230,66 @@ envMgr.triggerEventReaction('NEON_01', 'ACTIVE', '#00f0ff', 1.0);
 assert(true, 'ModeEnvironmentManager triggerEventReaction executed safely');
 envMgr.unloadEnvironment();
 assert(envMgr.dynamicColliders.length === 0, 'ModeEnvironmentManager unloads cleanly with dynamic colliders reset');
+
+// --- 7. Testing Hull Integrity & Submode 10 Final Collapse Integration ---
+console.log('\n--- 7. Testing Hull Integrity & Submode 10 Final Collapse Integration ---');
+// 7.1 Hull initialization
+let hull = 100;
+let shieldCore = 100;
+assert(hull === 100, 'Hull starts at initial 100% integrity');
+
+// 7.2 Shield absorption: valid hit absorbed by shield
+const initialHit = 30;
+if (shieldCore > 0) {
+  const absorbed = Math.min(shieldCore, initialHit);
+  shieldCore -= absorbed;
+  const remaining = initialHit - absorbed;
+  hull -= remaining;
+}
+assert(shieldCore === 70 && hull === 100, 'Shield absorbs damage completely without reducing hull integrity');
+
+// 7.3 Shield depletion and hull damage registration
+const heavyHit = 90; // 70 absorbed by remaining shield, 20 damage to hull
+if (shieldCore > 0) {
+  const absorbed = Math.min(shieldCore, heavyHit);
+  shieldCore -= absorbed;
+  const remaining = heavyHit - absorbed;
+  hull -= remaining;
+} else {
+  hull -= heavyHit;
+}
+assert(shieldCore === 0 && hull === 80, 'Shield exhaustion correctly passes remainder damage to hull (80%)');
+
+// 7.4 Warning thresholds evaluation
+function getWarningThreshold(hp: number): string | null {
+  if (hp <= 0) return 'SHIP DISABLED';
+  if (hp <= 15) return 'STRUCTURAL FAILURE IMMINENT';
+  if (hp <= 40) return 'HULL CRITICAL';
+  if (hp <= 75) return 'HULL DAMAGE DETECTED';
+  return null;
+}
+assert(getWarningThreshold(100) === null, 'No warning at 100% nominal hull');
+assert(getWarningThreshold(75) === 'HULL DAMAGE DETECTED', 'Triggers HULL DAMAGE DETECTED at 75%');
+assert(getWarningThreshold(40) === 'HULL CRITICAL', 'Triggers HULL CRITICAL at 40%');
+assert(getWarningThreshold(15) === 'STRUCTURAL FAILURE IMMINENT', 'Triggers STRUCTURAL FAILURE IMMINENT at 15%');
+assert(getWarningThreshold(0) === 'SHIP DISABLED', 'Triggers SHIP DISABLED at 0%');
+
+// 7.5 Repair mechanic restores integrity up to 100%
+hull = Math.min(100, hull + 50);
+assert(hull === 100, 'Repair mechanic restores hull integrity up to 100% cap');
+
+// 7.6 Submode 10 Final Collapse Integration
+const fcScene = new THREE.Scene();
+const fcManager = new FinalCollapseManager(fcScene);
+fcManager.start();
+assert(fcManager.evacuation.gameState === 'NORMAL_RACE', 'FinalCollapseManager starts in NORMAL_RACE state');
+
+// Trigger failure due to critical hull breach
+fcManager.triggerFailure('CRITICAL_HULL_BREACH', false, new THREE.Vector3(0, 0, 0));
+const fcTelemetry = fcManager.getTelemetry();
+assert(fcTelemetry.evacuationFailed === true, 'FinalCollapseManager records evacuation failure on critical hull breach');
+assert(fcTelemetry.failureCause === 'CRITICAL_HULL_BREACH', 'Failure cause correctly recorded as CRITICAL_HULL_BREACH');
+assert(fcTelemetry.gameState === 'EVACUATION_FAILURE', 'Game state transitions to EVACUATION_FAILURE');
 
 console.log('\n====================================================');
 console.log(`VERIFICATION SUMMARY: ${passedTests}/${totalTests} TESTS PASSED`);

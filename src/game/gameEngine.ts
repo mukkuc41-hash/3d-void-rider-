@@ -2015,6 +2015,8 @@ export class GameEngine {
           this.lastSubmode10EventIndex = -1;
           sound.resetFinalCollapseAudio();
         }
+        this.finalCollapse00Triggered = false;
+        this.finalCollapseRaceFinishSent = false;
         // Submode 10: Route 01/Route 02 unlock only after one complete lap.
         this.junctionManager?.setFinalCollapseRoutesUnlocked(false);
 
@@ -2211,10 +2213,15 @@ export class GameEngine {
     this.finalCollapseShipSecured = false;
     this.finalCollapseHangarSealed = false;
     this.finalCollapseAftermathStarted = false;
-    this.finalCollapseRaceFinishSent = false;
     this.shelterNavigationActive = false;
     this.shelterClampTimer = 0;
     this.finalCollapseManager?.escapeMissions.reset();
+    this.finalCollapseManager?.reset();
+    this.finalCollapse00Triggered = false;
+    if (this.playerShipGroup) {
+      this.playerShipGroup.visible = true;
+      this.playerShipGroup.scale.set(1, 1, 1);
+    }
 
     this.callbacks.onSpeedUpdate?.(0);
     this.callbacks.onBoostUpdate?.(100);
@@ -2279,7 +2286,13 @@ export class GameEngine {
     this.clearAIRacers();
     this.isWrongWay = false;
     this.callbacks.onIntroTelemetry?.(null);
-    this.callbacks.onCountdownTick?.(0);
+    this.finalCollapseManager?.failureCinematic.reset();
+    this.finalCollapse00Triggered = false;
+    this.finalCollapseRaceFinishSent = false;
+    if (this.playerShipGroup) {
+      this.playerShipGroup.visible = true;
+      this.playerShipGroup.scale.set(1, 1, 1);
+    }
     sound.stopEngine();
     sound.stopCosmicMusic();
   }
@@ -3227,8 +3240,16 @@ export class GameEngine {
         // If not, trigger the authoritative deadline failure.
         const routeProgress = this.junctionManager.playerRouteProgress;
         const hasValidSafeZoneArrival =
-          this.finalCollapsePlayerEscaped &&
-          (this.finalCollapseManager?.escapeMissions.isMissionCompleted() || this.finalCollapseShipSecured);
+          (this.finalCollapsePlayerEscaped &&
+            (this.finalCollapseManager?.escapeMissions.isMissionCompleted() || this.finalCollapseShipSecured)) ||
+          this.finalCollapseEscapeRouteEntered ||
+          this.finalCollapseWormholeRouteEntered ||
+          (routeProgress.isInBranch && (
+            routeProgress.activeRouteId === 'bh10_escape_route' ||
+            routeProgress.activeRouteId === 'bh10_wormhole_route' ||
+            routeProgress.activeRouteId === 'bh10_launcher_route'
+          )) ||
+          this.shelterNavigationActive;
 
         if (!hasValidSafeZoneArrival) {
           this.finalCollapseCatastropheActive = true;
@@ -3237,7 +3258,8 @@ export class GameEngine {
           this.finalCollapseManager.triggerFailure(
             'EVACUATION_DEADLINE_EXPIRED',
             false,
-            this.playerShipGroup?.position.clone()
+            this.playerShipGroup?.position.clone(),
+            this.scene
           );
           this.blackHoleCinematicManager.setObjective('00:00 // SAFE ZONE NOT SECURED BEFORE DEADLINE');
           this.blackHoleCinematicManager.start('ESCAPE_SEQUENCE');
@@ -3401,6 +3423,7 @@ export class GameEngine {
         }
         if (routeInteract.damageTaken > 0) {
           this.hullHealth = Math.max(0, this.hullHealth - routeInteract.damageTaken);
+          this.callbacks.onHullUpdate?.(this.hullHealth);
           if (this.hullHealth <= 0 && !this.isDestroyed) {
             this.destroyPlayerShip('PLASMA CORONA OVERHEAT');
           }
@@ -3529,13 +3552,33 @@ export class GameEngine {
         }
 
         if (envUpdate.collisionEvent && !this.shelterNavigationActive) {
-          this.hullHealth = Math.max(0, this.hullHealth - envUpdate.collisionEvent.damage);
+          const dmg = envUpdate.collisionEvent.damage;
+          if (this.activeShieldManager?.isActive() || this.phaseShieldTimer > 0) {
+            this.activeShieldManager?.absorbDamage(dmg);
+            sound.playShieldHit();
+            this.callbacks.onHazardHit?.(`SHIELD DEFLECTED: ${envUpdate.collisionEvent.name}`);
+          } else {
+            let remaining = dmg;
+            if (this.damageZones.shieldCore > 0) {
+              const absorbed = Math.min(this.damageZones.shieldCore, remaining);
+              this.damageZones.shieldCore = Math.max(0, this.damageZones.shieldCore - absorbed);
+              remaining -= absorbed;
+              sound.playShieldHit();
+            }
+            if (remaining > 0) {
+              this.hullHealth = Math.max(0, this.hullHealth - remaining);
+              this.callbacks.onHullUpdate?.(this.hullHealth);
+              const zone = Math.random() > 0.5 ? 'leftWing' : 'rightWing';
+              this.applyZoneDamage(zone, remaining);
+              if (this.hullHealth <= 0 && !this.isDestroyed) {
+                this.destroyPlayerShip(`COLLISION: ${envUpdate.collisionEvent.name}`);
+              }
+            }
+            this.callbacks.onDamageZonesUpdate?.({ ...this.damageZones });
+          }
           this.lateralOffset += envUpdate.collisionEvent.impulse.x * dt * 0.2;
           this.cameraShake = Math.max(this.cameraShake, 1.8);
           this.callbacks.onHazardHit?.(`COLLISION: ${envUpdate.collisionEvent.name}`);
-          if (this.hullHealth <= 0 && !this.isDestroyed) {
-            this.destroyPlayerShip('COLLISION WITH DEBRIS');
-          }
         }
 
         if (envUpdate.blackScreenActive && this.finalCollapseManager) {
@@ -3615,13 +3658,14 @@ export class GameEngine {
               shelterHeading: this.shelterHeading,
               blackHoleCenter: bhCenter,
             },
-            countdownTimelineSec
+            countdownTimelineSec,
+            this.scene
           );
 
           // Forward authoritative telemetry to cinematic manager for unified HUD
           this.blackHoleCinematicManager.setEvacuationTelemetry(collapseUpdate.telemetry);
 
-          // Synchronize authoritative state for Missed Escape sequence (11 distinct phases)
+          // Synchronize authoritative state for Missed Escape sequence (10 distinct events over 30s)
           if (this.finalCollapseManager.failureCinematic.isActive) {
             const fc = this.finalCollapseManager.failureCinematic;
             if (fc.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
@@ -3633,30 +3677,25 @@ export class GameEngine {
                     this.setFinalCollapseAuthoritativeState('FINAL_00_WARNING');
                     break;
                   case 2:
+                  case 3:
                     this.setFinalCollapseAuthoritativeState('FINAL_PLAYER_FALL');
                     break;
-                  case 3:
+                  case 4:
                     this.setFinalCollapseAuthoritativeState('FINAL_ROTATION');
                     break;
-                  case 4:
                   case 5:
                   case 6:
+                  case 7:
                     this.setFinalCollapseAuthoritativeState('FINAL_SINGULARITY_CHARGE');
                     break;
-                  case 7:
-                    this.setFinalCollapseAuthoritativeState('FINAL_COSMIC_DETONATION');
-                    break;
                   case 8:
-                    this.setFinalCollapseAuthoritativeState('FINAL_COMPLETE_DESTRUCTION');
+                    this.setFinalCollapseAuthoritativeState('FINAL_COSMIC_DETONATION');
                     break;
                   case 9:
                     this.setFinalCollapseAuthoritativeState('FINAL_AFTERMATH');
                     break;
                   case 10:
                     this.setFinalCollapseAuthoritativeState('FINAL_RECONSTRUCTION');
-                    break;
-                  case 11:
-                    this.setFinalCollapseAuthoritativeState('FINAL_CAMERA_REVEAL');
                     break;
                 }
               }
@@ -4980,78 +5019,75 @@ export class GameEngine {
           this.playerShipGroup.rotation.copy(fc.shipRotation);
         }
 
-        // Reference-Style Cinematic Camera Choreography (Prompt Section 15):
-        // WIDE -> MEDIUM -> CLOSE -> EXTREME CLOSE -> FINAL RAPID REVEAL
+        // Mode 21 Submode 10 — Missed Safe Zone Sequence:
+        // GRAND PANORAMIC VIEW OF THE ENTIRE BLACK HOLE AND COSMIC SYSTEM FROM FAR AWAY
+        // The camera stays elevated and far back during the entire 30-second sequence (all 10 events),
+        // capturing the whole black hole, accretion disk, infalling spiraling ship,
+        // detonation shockwaves, prismatic aftermath spectacle, and rebuilt routes.
         if (fc.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-          const phase = fc.currentPhase;
-          const progress = fc.totalProgress;
-
-          if (phase === 1) {
-            // WIDE: show black hole + environment + lost ship
-            const toBH = bhPos.clone().sub(this.playerShipGroup.position).normalize();
-            const camPos = this.playerShipGroup.position.clone()
-              .sub(toBH.clone().multiplyScalar(95))
-              .add(new THREE.Vector3(30, 45, 20));
-            this.camera.position.lerp(camPos, 0.06);
-            this.camera.lookAt(this.playerShipGroup.position.clone().lerp(bhPos, 0.35));
-          } else if (phase === 2) {
-            // MEDIUM: show falling player and rotating gravitational environment
-            const orbitAngle = fc.elapsed * 0.85;
-            const camPos = this.playerShipGroup.position.clone().add(
-              new THREE.Vector3(Math.cos(orbitAngle) * 48, 16 + Math.sin(fc.elapsed * 1.2) * 8, Math.sin(orbitAngle) * 48)
-            );
-            this.camera.position.lerp(camPos, 0.08);
-            this.camera.lookAt(this.playerShipGroup.position);
-          } else if (phase === 3) {
-            // CLOSE: show player ship being longitudinally spaghettified with energy trails
-            const orbitAngle = fc.elapsed * 1.1;
-            const camPos = this.playerShipGroup.position.clone().add(
-              new THREE.Vector3(Math.cos(orbitAngle) * 24, 8 + Math.sin(fc.elapsed * 2.0) * 4, Math.sin(orbitAngle) * 24)
-            );
-            this.camera.position.lerp(camPos, 0.1);
-            this.camera.lookAt(this.playerShipGroup.position);
-          } else if (phase === 4 || phase === 5) {
-            // EXTREME CLOSE: show striated luminous filaments and white-hot apex streaming into singularity
-            const toBH = bhPos.clone().sub(this.playerShipGroup.position).normalize();
-            const camPos = this.playerShipGroup.position.clone()
-              .sub(toBH.clone().multiplyScalar(14))
-              .add(new THREE.Vector3(Math.sin(fc.elapsed * 3.0) * 4, 5, Math.cos(fc.elapsed * 3.0) * 4));
-            this.camera.position.lerp(camPos, 0.12);
-            this.camera.lookAt(this.playerShipGroup.position);
-          } else if (phase === 6) {
-            // EXTREME CLOSE: luminous filaments entering singularity (brief cinematic pause beat)
-            const camPos = bhPos.clone().add(new THREE.Vector3(25, 35, 120));
-            this.camera.position.lerp(camPos, 0.08);
-            this.camera.lookAt(bhPos);
-          } else if (phase === 7 || phase === 8) {
-            // DETONATION & COMPLETE DESTRUCTION: massive cosmic blast & shockwave
-            const camPos = bhPos.clone().add(new THREE.Vector3(0, 90, 320));
-            this.camera.position.lerp(camPos, 0.06);
-            this.camera.lookAt(bhPos);
-          } else if (phase === 9) {
-            // AFTERMATH: slow camera drift in silent cosmic void with fading filaments
-            const camPos = bhPos.clone().add(new THREE.Vector3(
-              Math.sin(fc.elapsed * 0.15) * 60,
-              110,
-              280
-            ));
-            this.camera.position.lerp(camPos, 0.04);
-            this.camera.lookAt(bhPos.clone().add(new THREE.Vector3(0, -20, 200)));
-          } else if (phase === 10) {
-            // ROUTE RECONSTRUCTION: camera rises, panning over holographic rebuilt routes
-            const rebuildT = THREE.MathUtils.clamp((fc.elapsed - 17.5) / 5.0, 0, 1);
-            const camPos = bhPos.clone().add(new THREE.Vector3(
-              (1 - rebuildT) * -80,
-              140 + rebuildT * 80,
-              420 - rebuildT * 60
-            ));
-            this.camera.position.lerp(camPos, 0.05);
-            this.camera.lookAt(bhPos.clone().add(new THREE.Vector3(0, 10, 480)));
+          // Dynamic spaghettification stretching for the player ship
+          if (fc.currentPhase <= 6) {
+            this.playerShipGroup.visible = true;
+            let stretchZ = 1.0;
+            let squeezeXY = 1.0;
+            if (fc.currentPhase === 4) {
+              stretchZ = 2.4;
+              squeezeXY = 0.65;
+            } else if (fc.currentPhase === 5) {
+              stretchZ = 12.0;
+              squeezeXY = 0.15;
+            } else if (fc.currentPhase === 6) {
+              stretchZ = 24.0;
+              squeezeXY = 0.04;
+            }
+            this.playerShipGroup.scale.set(squeezeXY, squeezeXY, stretchZ);
           } else {
-            // FINAL REVEAL (Phase 11): high celestial vantage point revealing the entire rebuilt world
-            const camPos = bhPos.clone().add(new THREE.Vector3(0, 260, 520));
-            this.camera.position.lerp(camPos, 0.06);
-            this.camera.lookAt(bhPos.clone().add(new THREE.Vector3(0, 20, 420)));
+            // After Phase 6: Ship completely swallowed by the singularity
+            this.playerShipGroup.visible = false;
+          }
+
+          // Panoramic vantage point from far away:
+          // Distance: ~3400m, Elevation: ~1150m above black hole center
+          // Smooth, majestic orbital panoramic arc tracking around the singularity covering everything
+          const panTime = fc.elapsed;
+          const panAngle = panTime * 0.055;
+          const orbitDist = 3400;
+          const camHeight = bhPos.y + 1150 + Math.sin(panTime * 0.06) * 90;
+          const camX = bhPos.x + Math.sin(panAngle) * orbitDist;
+          const camY = camHeight;
+          const camZ = bhPos.z + Math.cos(panAngle) * orbitDist;
+          const targetCamPos = new THREE.Vector3(camX, camY, camZ);
+
+          if (panTime < 0.25) {
+            // Cut immediately to the far panoramic vantage at 00:00
+            this.camera.position.copy(targetCamPos);
+          } else {
+            this.camera.position.lerp(targetCamPos, 0.12);
+          }
+          this.camera.lookAt(bhPos.x, bhPos.y, bhPos.z);
+          this.camera.fov = 76;
+          this.camera.far = 40000;
+          this.camera.updateProjectionMatrix();
+
+          // Clear fog during the cinematic so the entire black hole and cosmic panorama are crystal clear
+          if (this.scene.fog instanceof THREE.FogExp2) {
+            this.scene.fog.density = 0.000005;
+          }
+
+          // Camera shake response tuned by event
+          if (fc.currentPhase === 8) {
+            // Cosmic Detonation
+            this.cameraShake = Math.max(this.cameraShake, 2.8);
+          } else if (fc.currentPhase === 7) {
+            // Singularity Critical Overload
+            this.cameraShake = Math.max(this.cameraShake, 1.4);
+          } else if (fc.currentPhase === 6) {
+            // Event Horizon Crossing
+            this.cameraShake = Math.max(this.cameraShake, 0.9);
+          } else if (fc.currentPhase <= 3) {
+            this.cameraShake = Math.min(this.cameraShake, 0.3);
+          } else {
+            this.cameraShake = 0;
           }
         } else if (fc.isRouteConsumption) {
           if (fc.currentPhase <= 3) {
@@ -6081,9 +6117,9 @@ export class GameEngine {
     if (this.invulnerableTimer > 0 || this.isDestroyed) return;
     this.isDestroyed = true;
 
-    // In Final Collapse mode during active evacuation, ship destruction triggers terminal evacuation failure
-    if (this.activeGameMode === 'BLACK_HOLE' && this.finalCollapseManager?.evacuation.evacuationActive) {
-      if (!this.finalCollapseManager.evacuation.evacuationSuccess && !this.finalCollapseManager.evacuation.evacuationFailed) {
+    // In Final Collapse mode (Submode 10 / active evacuation), ship destruction triggers terminal evacuation failure
+    if (this.activeGameMode === 'BLACK_HOLE' && (this.finalCollapseManager?.evacuation.evacuationActive || this.modeManager.blackHoleSubmode === 10)) {
+      if (this.finalCollapseManager && !this.finalCollapseManager.evacuation.evacuationSuccess && !this.finalCollapseManager.evacuation.evacuationFailed) {
         this.finalCollapseManager.triggerFailure('CRITICAL_HULL_BREACH', false, this.playerShipGroup?.position);
       }
     }

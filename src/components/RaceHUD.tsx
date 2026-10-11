@@ -65,6 +65,7 @@ import {
 } from '../game/submode10Events';
 import { HeartPulse, Activity, BookOpen } from 'lucide-react';
 import { sound } from '../game/audio';
+import { loadScreenLayout, DEFAULT_AV_HUD_LAYOUT } from '../game/layout/layoutStorage';
 
 interface RaceHUDProps {
   speed: number;
@@ -523,6 +524,7 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   const [showMinimap, setShowMinimap] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [isStagesModalOpen, setIsStagesModalOpen] = useState(false);
+  const [hudLayoutConfig] = useState(() => loadScreenLayout('AV_HUD', DEFAULT_AV_HUD_LAYOUT).elements);
 
   // Hull Warning State & Non-blocking Alert Management
   const [hullWarningMessage, setHullWarningMessage] = useState<{ text: string; severity: 'ALERT' | 'CRITICAL' | 'FATAL' } | null>(null);
@@ -771,7 +773,14 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
       {/* ================= 1. UNIFIED TOP COCKPIT VISOR ================= */}
       <div className="w-full flex flex-col items-center gap-1 sm:gap-1.5 z-30">
         {/* Row 1: Streamlined Cockpit Bar (Standings, Timer, Controls) */}
-        <div className="w-full flex items-center justify-between gap-1 sm:gap-2.5 bg-[#030712]/92 border border-cyan-500/35 rounded-xl sm:rounded-2xl px-2 sm:px-4 py-1 sm:py-1.5 backdrop-blur-md shadow-[0_0_20px_rgba(0,240,255,0.18)] pointer-events-auto">
+        <div
+          style={{
+            maxWidth: hudLayoutConfig.hud_cockpit_visor?.widthPx
+              ? `${hudLayoutConfig.hud_cockpit_visor.widthPx}px`
+              : undefined,
+          }}
+          className="w-full flex items-center justify-between gap-1 sm:gap-2.5 bg-[#030712]/92 border border-cyan-500/35 rounded-xl sm:rounded-2xl px-2 sm:px-4 py-1 sm:py-1.5 backdrop-blur-md shadow-[0_0_20px_rgba(0,240,255,0.18)] pointer-events-auto"
+        >
           {/* Left Wing: Branding & Position/Lap Badge */}
           <div className="flex items-center gap-1 sm:gap-2.5 shrink-0 min-w-0">
             <div className="hidden lg:flex flex-col">
@@ -1251,7 +1260,14 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
         {/* Bottom Right: Unified Speed & Power Cluster + Translucent Action Deck */}
         <div className="flex flex-col items-end pointer-events-auto select-none gap-1 sm:gap-2">
           {/* Unified Speedometer, Core Temperature & Ship Vitals Deck */}
-          <div className="flex flex-col gap-1 sm:gap-1.5 bg-[#050b14]/90 border border-cyan-500/40 rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 backdrop-blur-md shadow-[0_0_20px_rgba(0,240,255,0.25)] min-w-[140px] sm:min-w-[230px] max-w-[175px] sm:max-w-[240px]">
+          <div
+            style={{
+              width: hudLayoutConfig.hud_speed_vitals?.widthPx
+                ? `${hudLayoutConfig.hud_speed_vitals.widthPx}px`
+                : undefined,
+            }}
+            className="flex flex-col gap-1 sm:gap-1.5 bg-[#050b14]/90 border border-cyan-500/40 rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 backdrop-blur-md shadow-[0_0_20px_rgba(0,240,255,0.25)] min-w-[140px] sm:min-w-[200px]"
+          >
             {/* Top row: Digital Speed & Ship Core Temperature */}
             <div className="flex items-center justify-between gap-1.5 sm:gap-3 border-b border-cyan-500/20 pb-0.5 sm:pb-1.5">
               {/* Digital Speedometer */}

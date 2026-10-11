@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, RotateCcw, Home, Settings, Volume2, Shield } from 'lucide-react';
+import { Play, RotateCcw, Home, Settings, Shield, Layout } from 'lucide-react';
 import { sound } from '../game/audio';
 
 interface PauseModalProps {
@@ -7,7 +7,7 @@ interface PauseModalProps {
   onResume: () => void;
   onRestart: () => void;
   onReturnToLobby: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (tab?: 'COSMIC_TELEMETRY' | 'AV_HUD') => void;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -34,13 +34,13 @@ export const PauseModal: React.FC<PauseModalProps> = ({
         </p>
 
         {/* Action Menu */}
-        <div className="w-full space-y-3 mt-6">
+        <div className="w-full space-y-2.5 mt-6">
           <button
             onClick={() => {
               sound.playMenuClick();
               onResume();
             }}
-            className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-ui font-black text-sm uppercase tracking-widest shadow-[0_0_20px_#00f0ff] transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-ui font-black text-sm uppercase tracking-widest shadow-[0_0_20px_#00f0ff] transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
           >
             <Play className="w-4 h-4 fill-slate-950" /> RESUME RACE
           </button>
@@ -50,7 +50,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               sound.playMenuClick();
               onRestart();
             }}
-            className="w-full py-3 px-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-600 text-slate-200 hover:text-white font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 px-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-600 text-slate-200 hover:text-white font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" /> RESTART RUN
           </button>
@@ -58,11 +58,21 @@ export const PauseModal: React.FC<PauseModalProps> = ({
           <button
             onClick={() => {
               sound.playMenuClick();
-              onOpenSettings();
+              onOpenSettings('COSMIC_TELEMETRY');
             }}
-            className="w-full py-3 px-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-600 text-slate-200 hover:text-white font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 px-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-600 text-slate-200 hover:text-white font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Settings className="w-4 h-4" /> AV & TELEMETRY SETTINGS
+            <Settings className="w-4 h-4 text-cyan-400" /> AV & TELEMETRY SETTINGS
+          </button>
+
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenSettings('AV_HUD');
+            }}
+            className="w-full py-2.5 px-5 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 hover:text-white font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_12px_rgba(0,240,255,0.15)]"
+          >
+            <Layout className="w-3.5 h-3.5 text-cyan-400" /> EDIT HUD & AV LAYOUT
           </button>
 
           <button
@@ -70,7 +80,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               sound.playMenuClick();
               onReturnToLobby();
             }}
-            className="w-full py-3 px-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 hover:border-rose-500 text-rose-300 hover:text-rose-200 font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 px-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 hover:border-rose-500 text-rose-300 hover:text-rose-200 font-ui font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Home className="w-4 h-4" /> ABORT TO HANGAR
           </button>

@@ -23,47 +23,69 @@ export const FinalCollapseFailureOverlay: React.FC<FinalCollapseFailureOverlayPr
     );
   }
 
-  // Missed-all-routes ending: cinematic HUD remains over the world through
-  // the detonation and route reconstruction instead of a flat black frame.
+  // Missed-all-routes ending: 30-second 10-event cinematic overlay
+  // The panoramic camera view of the whole black hole remains completely unobstructed.
   if (evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-    const phase = evacuation.cinematicPhase;
+    const phase = Math.min(10, Math.max(1, evacuation.cinematicPhase));
     const titles = [
-      '00:00 // ESCAPE WINDOW CLOSED',
-      'PLAYER FALL TOWARD SINGULARITY',
-      'TIDAL STRETCHING',
-      'TRACK & OBJECTS ELONGATE',
-      'EXTREME SPAGHETTIFICATION',
-      'FILAMENTS PLUNGING INTO SINGULARITY',
-      'FINAL COSMIC DETONATION',
-      'COMPLETE DESTRUCTION',
-      'AFTERMATH',
-      'HOLOGRAPHIC RECONSTRUCTION',
-      'FINAL COLLAPSE COMPLETE',
+      'T-00:00 // ESCAPE WINDOW CLOSED',
+      'EVENT 02 // SHIP STRUGGLE & THRUST OVERLOAD',
+      'EVENT 03 // GRAVITATIONAL CAPTURE',
+      'EVENT 04 // TIDAL FORCE & ROTATIONAL DRAG',
+      'EVENT 05 // EXTREME SPAGHETTIFICATION',
+      'EVENT 06 // EVENT HORIZON CROSSING',
+      'EVENT 07 // SINGULARITY CRITICAL OVERLOAD',
+      'EVENT 08 // COSMIC DETONATION & DESTRUCTION',
+      'EVENT 09 // PRISMATIC COSMIC AFTERMATH',
+      'EVENT 10 // WORLD RECONSTRUCTION & STABILIZATION',
     ];
     const subtitles = [
-      'SAFE ZONE NOT REACHED — GRAVITATIONAL PULL ACTIVE',
-      'CONTROL LOST — SHIP ACCELERATING TOWARDS BLACK HOLE',
-      'LONGITUDINAL DISTORTION & ENERGY TRAILS EXTENDING',
-      'MATTER STRETCHING INTO LONG THIN FILAMENTS',
-      'SHIP AND SURROUNDING MATTER PULLED INTO LUMINOUS STREAMS',
-      'BRIGHT WHITE • ORANGE • RED TIDAL ENERGY SURGE',
-      'WHITE-HOT FLASH & MASSIVE GRAVITATIONAL SHOCKWAVE',
-      'STRETCHED MATTER AND ROUTE STRUCTURES VAPORIZED',
-      'FADING FILAMENTS & RESIDUAL ENERGY IN THE COSMIC VOID',
-      'PROCEDURAL REBUILDING OF TRACK AND ALL 3 ESCAPE ROUTES',
-      'QUANTUM LAUNCH PRO // REVEALING RESTORED UNIVERSE',
+      'SAFE ZONE NOT REACHED BEFORE DEADLINE — SPACETIME COLLAPSE ACTIVE',
+      'THRUSTERS AT MAXIMUM — LATERAL GRAVITATIONAL DRIFT TOWARDS VORTEX',
+      'INERTIAL DAMPERS OFFLINE — ACCELERATING INWARD ORBITAL SPIRAL',
+      'CRITICAL HULL STRAIN — VORTEX YAW ALIGNMENT TOWARDS CORE',
+      'LONGITUDINAL ELONGATION — HULL STRETCHING INTO LUMINOUS ENERGY FILAMENTS',
+      'PHOTON SPHERE BREACHED — SHIP DISSOLVING INTO INFALLING ENERGY RIBBONS',
+      'MASS OVERLOAD DETECTED — SUPERHEATED ACCRETION DEBRIS RING SURGE',
+      'CORE RUPTURE — SUB-BASS IMPLOSION & DEEP COSMIC BOOM SHOCKWAVES',
+      'TOTAL VOID ANNIHILATION — EXPANDING PRISMATIC MULTI-COLOR NEBULA SPECTACLE',
+      'HOLOGRAPHIC QUANTUM LATTICE RESTORED — ETERNAL KERR SINGULARITY STABILIZED',
     ];
     const idx = Math.min(titles.length - 1, Math.max(0, phase - 1));
+    const progressPercent = Math.min(100, Math.round(evacuation.cinematicProgress * 100));
+    const elapsedSec = (evacuation.cinematicProgress * 30.0).toFixed(1);
+
     return (
       <div className="fixed inset-0 z-[100] pointer-events-none flex flex-col items-center justify-between p-5 sm:p-8 font-mono select-none">
-        <div className="w-full max-w-2xl rounded-2xl border border-red-400/60 bg-black/35 p-4 text-center backdrop-blur-sm">
-          <div className="text-[10px] sm:text-xs tracking-[0.35em] text-red-200">QUANTUM LAUNCH PRO // FINAL COLLAPSE</div>
-          <h2 className="mt-2 text-2xl sm:text-5xl font-black uppercase tracking-widest text-white drop-shadow-[0_0_24px_rgba(255,80,40,0.9)]">{titles[idx]}</h2>
-          <div className="mt-2 text-[10px] sm:text-sm tracking-[0.18em] text-orange-100">{subtitles[idx]}</div>
+        {/* Top Header Card with glassmorphism */}
+        <div className="w-full max-w-2xl rounded-2xl border border-red-500/50 bg-black/40 p-4 text-center backdrop-blur-md shadow-[0_0_50px_rgba(255,50,0,0.35)]">
+          <div className="flex items-center justify-between text-[10px] sm:text-xs tracking-[0.3em] text-red-300 font-bold border-b border-red-500/30 pb-1.5 mb-2">
+            <span>QUANTUM LAUNCH PRO // FINAL COLLAPSE</span>
+            <span className="text-orange-300 bg-red-950/70 px-2 py-0.5 rounded border border-red-500/40">
+              EVENT {phase} / 10
+            </span>
+          </div>
+          <h2 className="text-xl sm:text-4xl font-black uppercase tracking-widest text-white drop-shadow-[0_0_24px_rgba(255,80,40,0.9)]">
+            {titles[idx]}
+          </h2>
+          <div className="mt-2 text-[10px] sm:text-xs tracking-[0.16em] text-orange-200 uppercase">
+            {subtitles[idx]}
+          </div>
         </div>
-        <div className="w-full max-w-md rounded-xl border border-white/20 bg-black/30 p-3 text-center">
-          <div className="flex justify-between text-[9px] sm:text-[10px] text-white/60"><span>COSMIC COLLAPSE</span><span>{Math.round(evacuation.cinematicProgress * 100)}%</span></div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-red-500 via-orange-300 to-white" style={{ width: `${Math.round(evacuation.cinematicProgress * 100)}%` }} /></div>
+
+        {/* Bottom Timeline and Progress Card */}
+        <div className="w-full max-w-md rounded-xl border border-white/20 bg-black/40 p-3 text-center backdrop-blur-md shadow-lg">
+          <div className="flex justify-between items-center text-[10px] sm:text-xs text-white/80 font-bold mb-1.5">
+            <span className="tracking-widest text-red-300">COLLAPSE SEQUENCE</span>
+            <span className="text-cyan-300 font-mono">{elapsedSec}s / 30.0s</span>
+            <span className="text-orange-300 font-mono">{progressPercent}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10 border border-white/15">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-red-600 via-orange-400 to-cyan-300 transition-all duration-150"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
       </div>
     );
