@@ -3672,31 +3672,27 @@ export class GameEngine {
               if (fc.completed) {
                 this.setFinalCollapseAuthoritativeState('FINAL_RESULTS');
               } else {
-                switch (fc.currentPhase) {
-                  case 1:
-                    this.setFinalCollapseAuthoritativeState('FINAL_00_WARNING');
-                    break;
-                  case 2:
-                  case 3:
-                    this.setFinalCollapseAuthoritativeState('FINAL_PLAYER_FALL');
-                    break;
-                  case 4:
-                    this.setFinalCollapseAuthoritativeState('FINAL_ROTATION');
-                    break;
-                  case 5:
-                  case 6:
-                  case 7:
-                    this.setFinalCollapseAuthoritativeState('FINAL_SINGULARITY_CHARGE');
-                    break;
-                  case 8:
-                    this.setFinalCollapseAuthoritativeState('FINAL_COSMIC_DETONATION');
-                    break;
-                  case 9:
-                    this.setFinalCollapseAuthoritativeState('FINAL_AFTERMATH');
-                    break;
-                  case 10:
-                    this.setFinalCollapseAuthoritativeState('FINAL_RECONSTRUCTION');
-                    break;
+                const ev = fc.currentPhase;
+                if (ev === 1) {
+                  this.setFinalCollapseAuthoritativeState('FINAL_00_WARNING');
+                } else if (ev >= 2 && ev <= 5) {
+                  this.setFinalCollapseAuthoritativeState('FINAL_PLAYER_FALL');
+                } else if (ev >= 6 && ev <= 13) {
+                  this.setFinalCollapseAuthoritativeState('FINAL_ROTATION');
+                } else if (ev >= 14 && ev <= 21) {
+                  this.setFinalCollapseAuthoritativeState('FINAL_SINGULARITY_CHARGE');
+                } else if (ev >= 22 && ev <= 31) {
+                  // Gravitational Waves 1 to 10
+                  this.setFinalCollapseAuthoritativeState('FINAL_COSMIC_DETONATION');
+                } else if (ev >= 32 && ev <= 49) {
+                  // Twin Debris Rings & Inward Absorption
+                  this.setFinalCollapseAuthoritativeState('FINAL_AFTERMATH');
+                } else if (ev === 50) {
+                  // Brilliant White Flash Climax
+                  this.setFinalCollapseAuthoritativeState('FINAL_COSMIC_DETONATION');
+                } else if (ev >= 51) {
+                  // Universe Regeneration
+                  this.setFinalCollapseAuthoritativeState('FINAL_RECONSTRUCTION');
                 }
               }
             }
@@ -5025,34 +5021,41 @@ export class GameEngine {
         // capturing the whole black hole, accretion disk, infalling spiraling ship,
         // detonation shockwaves, prismatic aftermath spectacle, and rebuilt routes.
         if (fc.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-          // Dynamic spaghettification stretching for the player ship
-          if (fc.currentPhase <= 6) {
+          // Dynamic spaghettification stretching for the player ship across Events 5–10
+          if (fc.currentPhase <= 10) {
             this.playerShipGroup.visible = true;
             let stretchZ = 1.0;
             let squeezeXY = 1.0;
-            if (fc.currentPhase === 4) {
-              stretchZ = 2.4;
+            if (fc.currentPhase === 5) {
+              stretchZ = 2.5;
               squeezeXY = 0.65;
-            } else if (fc.currentPhase === 5) {
-              stretchZ = 12.0;
-              squeezeXY = 0.15;
-            } else if (fc.currentPhase === 6) {
-              stretchZ = 24.0;
-              squeezeXY = 0.04;
+            } else if (fc.currentPhase >= 6 && fc.currentPhase <= 7) {
+              stretchZ = 7.0;
+              squeezeXY = 0.35;
+            } else if (fc.currentPhase >= 8 && fc.currentPhase <= 9) {
+              stretchZ = 16.0;
+              squeezeXY = 0.12;
+            } else if (fc.currentPhase === 10) {
+              stretchZ = 30.0;
+              squeezeXY = 0.03;
             }
             this.playerShipGroup.scale.set(squeezeXY, squeezeXY, stretchZ);
+          } else if (fc.currentPhase >= 66) {
+            // Ship systems stabilize in regenerated universe (Event 66+)
+            this.playerShipGroup.visible = true;
+            this.playerShipGroup.scale.set(1.0, 1.0, 1.0);
           } else {
-            // After Phase 6: Ship completely swallowed by the singularity
+            // During absorption & white flash: Ship swallowed into event horizon
             this.playerShipGroup.visible = false;
           }
 
           // Panoramic vantage point from far away:
           // Distance: ~3400m, Elevation: ~1150m above black hole center
-          // Smooth, majestic orbital panoramic arc tracking around the singularity covering everything
+          // Smooth, majestic orbital panoramic arc tracking around the singularity across 20 minutes
           const panTime = fc.elapsed;
-          const panAngle = panTime * 0.055;
+          const panAngle = panTime * 0.0075;
           const orbitDist = 3400;
-          const camHeight = bhPos.y + 1150 + Math.sin(panTime * 0.06) * 90;
+          const camHeight = bhPos.y + 1150 + Math.sin(panTime * 0.01) * 90;
           const camX = bhPos.x + Math.sin(panAngle) * orbitDist;
           const camY = camHeight;
           const camZ = bhPos.z + Math.cos(panAngle) * orbitDist;
@@ -5062,7 +5065,7 @@ export class GameEngine {
             // Cut immediately to the far panoramic vantage at 00:00
             this.camera.position.copy(targetCamPos);
           } else {
-            this.camera.position.lerp(targetCamPos, 0.12);
+            this.camera.position.lerp(targetCamPos, 0.08);
           }
           this.camera.lookAt(bhPos.x, bhPos.y, bhPos.z);
           this.camera.fov = 76;
@@ -5075,17 +5078,20 @@ export class GameEngine {
           }
 
           // Camera shake response tuned by event
-          if (fc.currentPhase === 8) {
-            // Cosmic Detonation
-            this.cameraShake = Math.max(this.cameraShake, 2.8);
-          } else if (fc.currentPhase === 7) {
-            // Singularity Critical Overload
-            this.cameraShake = Math.max(this.cameraShake, 1.4);
-          } else if (fc.currentPhase === 6) {
-            // Event Horizon Crossing
-            this.cameraShake = Math.max(this.cameraShake, 0.9);
-          } else if (fc.currentPhase <= 3) {
-            this.cameraShake = Math.min(this.cameraShake, 0.3);
+          if (fc.currentPhase === 25) {
+            // Midpoint Singularity Pulse (05:00)
+            this.cameraShake = Math.max(this.cameraShake, 2.2);
+          } else if (fc.currentPhase === 49) {
+            // Terminal Light Pulse
+            this.cameraShake = Math.max(this.cameraShake, 2.4);
+          } else if (fc.currentPhase === 36 || fc.currentPhase === 40) {
+            // Gravitational Surges
+            this.cameraShake = Math.max(this.cameraShake, 1.5);
+          } else if (fc.currentPhase === 9 || fc.currentPhase === 10) {
+            // Horizon Crossing & Initial Collapse
+            this.cameraShake = Math.max(this.cameraShake, 1.2);
+          } else if (fc.currentPhase <= 4) {
+            this.cameraShake = Math.min(this.cameraShake, 0.2);
           } else {
             this.cameraShake = 0;
           }

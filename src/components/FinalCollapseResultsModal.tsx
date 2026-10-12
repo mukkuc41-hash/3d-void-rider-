@@ -34,45 +34,39 @@ export const FinalCollapseResultsModal: React.FC<FinalCollapseResultsModalProps>
       >
         {/* Header Header Subtitle */}
         <div className="text-center mb-5">
-          <div className="inline-block px-3 py-1 rounded-full border text-[10px] font-black tracking-[0.3em] uppercase mb-2">
-            {isSurvived ? (
-              <span className="text-emerald-400 bg-emerald-950/80 border-emerald-500/50">
-                ✓ MISSION OUTCOME: SUCCESS
-              </span>
-            ) : (
-              <span className="text-red-400 bg-red-950/80 border-red-500/50 animate-pulse">
-                ✕ MISSION OUTCOME: FAILED
-              </span>
-            )}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border text-[10px] sm:text-xs font-black tracking-[0.25em] uppercase mb-2 bg-slate-900/90 border-cyan-500/40 text-cyan-300">
+            <span>MODE 21 — BLACK HOLE</span>
+            <span className="text-slate-500">|</span>
+            <span className="text-orange-400">SUBMODE 10 — FINAL COLLAPSE</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-ui font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400 drop-shadow-md">
-            THE FINAL COLLAPSE
+            {isSurvived ? 'EVACUATION SUCCESSFUL' : 'SAFE ZONE MISSED'}
           </h1>
 
           <div
-            className={`text-xl sm:text-2xl font-black tracking-widest mt-1 uppercase ${
+            className={`text-lg sm:text-2xl font-black tracking-widest mt-1 uppercase ${
               isSurvived ? 'text-emerald-400' : 'text-red-500'
             }`}
           >
-            {isSurvived ? 'EVACUATION SUCCESSFUL' : 'EVACUATION FAILED'}
+            {isSurvived ? 'SHIP SECURED IN SAFE ZONE' : 'FINAL COLLAPSE COMPLETE'}
           </div>
 
           <p className="text-xs sm:text-sm text-slate-300 mt-1 tracking-wider">
             {isSurvived
               ? (stats.safeZone && stats.safeZone !== 'NOT REACHED' ? `YOU REACHED THE SAFE ZONE // ${stats.safeZone}` : 'YOU REACHED THE SAFE ZONE // EVACUATION CONFIRMED')
-              : 'YOU DID NOT REACH THE SAFE ZONE // MISSED ALL ESCAPE ROUTES'}
+              : 'SAFE ZONE NOT SECURED BEFORE DEADLINE // SINGULARITY EVENT COMPLETE'}
           </p>
 
           {isSurvived && (
             <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-950/30 px-4 py-2 text-xs font-black tracking-[0.2em] text-cyan-200">
-              40 / 40 EVENTS SURVIVED • ESCAPE SUCCESSFUL • SHIP SECURED
+              50 / 50 EVENTS SURVIVED • ESCAPE SUCCESSFUL • SHIP SECURED
             </div>
           )}
 
           {!isSurvived && stats.failureCause && (
             <div className="mt-2 text-xs font-bold text-red-300 bg-red-950/50 py-1 px-3 rounded-lg border border-red-500/40 inline-block">
-              FAILURE CAUSE: <span className="text-white">{stats.failureCause.replace(/_/g, ' ')}</span>
+              FAILURE STATUS: <span className="text-white">{stats.failureCause === 'EVACUATION_DEADLINE_EXPIRED' ? 'SAFE ZONE MISSED' : stats.failureCause.replace(/_/g, ' ')}</span>
             </div>
           )}
         </div>
@@ -191,19 +185,19 @@ export const FinalCollapseResultsModal: React.FC<FinalCollapseResultsModalProps>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={onRestart}
-            className={`px-6 py-3 rounded-xl font-black text-sm tracking-wider uppercase transition-all shadow-lg ${
+            className={`px-6 py-3 rounded-xl font-black text-sm tracking-wider uppercase transition-all shadow-lg cursor-pointer ${
               isSurvived
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/30'
                 : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30'
             }`}
           >
-            {isSurvived ? 'REPLAY EVACUATION' : 'RETRY EVACUATION'}
+            RESTART MODE
           </button>
           <button
             onClick={onReturnToLobby}
-            className="px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/50 transition-colors"
+            className="px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/50 transition-colors cursor-pointer"
           >
-            RETURN TO HANGAR
+            MAIN MENU
           </button>
         </div>
       </div>

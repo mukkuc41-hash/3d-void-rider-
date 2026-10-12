@@ -1520,8 +1520,8 @@ export default function App() {
       {/* Arcade Collision Feedback HUD */}
       {appState === 'RACING' && <CollisionHUD feedback={collisionFeedback} />}
 
-      {/* Mode 21 — The Final Collapse Failure Cinematic Overlay */}
-      {blackHoleCinematicTelemetry?.evacuation && (
+      {/* Mode 21 — The Final Collapse Failure Cinematic Overlay (Exclusive to Mode 21 Submode 10) */}
+      {gameMode === 'BLACK_HOLE' && blackHoleCinematicTelemetry?.evacuation && (
         <FinalCollapseFailureOverlay evacuation={blackHoleCinematicTelemetry.evacuation} />
       )}
 

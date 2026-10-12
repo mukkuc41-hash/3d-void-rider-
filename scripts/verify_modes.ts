@@ -13,6 +13,14 @@ import {
 import { HazardManager } from '../src/game/hazardManager';
 import { ModeEnvironmentManager } from '../src/game/environment/modeEnvironmentManager';
 import { FinalCollapseManager } from '../src/game/FinalCollapseManager';
+import {
+  FINAL_COLLAPSE_100_EVENTS,
+  getFinalCollapse100Event,
+  formatCinematicElapsedTimer,
+  TOTAL_CINEMATIC_SECONDS,
+  EVENT_DURATION_SECONDS,
+  TOTAL_EVENTS_COUNT,
+} from '../src/game/finalCollapse100Events';
 
 console.log('====================================================');
 console.log('VOID-RIDER 3D: QUANTUM LAUNCH PRO VERIFICATION SUITE');
@@ -290,6 +298,88 @@ const fcTelemetry = fcManager.getTelemetry();
 assert(fcTelemetry.evacuationFailed === true, 'FinalCollapseManager records evacuation failure on critical hull breach');
 assert(fcTelemetry.failureCause === 'CRITICAL_HULL_BREACH', 'Failure cause correctly recorded as CRITICAL_HULL_BREACH');
 assert(fcTelemetry.gameState === 'EVACUATION_FAILURE', 'Game state transitions to EVACUATION_FAILURE');
+
+// --- 8. Testing Mode 21 Submode 10: 20-Minute 100-Event Final Collapse Specification ---
+console.log('\n--- 8. Testing Mode 21 Submode 10: 20-Minute 100-Event Final Collapse Specification ---');
+assert(FINAL_COLLAPSE_100_EVENTS.length === 100, 'Exactly 100 sequential events defined in master catalog');
+assert(TOTAL_CINEMATIC_SECONDS === 1200, 'Total cinematic duration is exactly 1,200 seconds (20:00)');
+assert(EVENT_DURATION_SECONDS === 12, 'Each event is exactly 12 seconds in duration');
+
+// Event 1 verification
+const ev1 = getFinalCollapse100Event(0);
+assert(ev1.eventNumber === 1 && ev1.event.title === 'Evacuation Window Expired', 'Event 1 starts at 00:00 with "Evacuation Window Expired"');
+assert(ev1.event.timeRange === '00:00–00:12', 'Event 1 occupies 00:00–00:12');
+
+// Event 4 (00:36–00:48) First Planetary Collision
+const ev4 = getFinalCollapse100Event(40);
+assert(ev4.eventNumber === 4 && ev4.event.title === 'First Planetary Collision', 'Event 4 occupies 00:36–00:48 ("First Planetary Collision")');
+
+// Event 8 (01:24–01:36) Route Tears Apart
+const ev8 = getFinalCollapse100Event(90);
+assert(ev8.eventNumber === 8 && ev8.event.title === 'Route Tears Apart', 'Event 8 occupies 01:24–01:36 ("Route Tears Apart")');
+
+// Events 22 to 31: Exactly 10 Distinct Gravitational Waves
+const ev22 = getFinalCollapse100Event(255);
+assert(ev22.eventNumber === 22 && ev22.event.title === 'Gravitational Wave 1 of 10', 'Event 22 triggers Gravitational Wave 1 of 10');
+assert(ev22.event.timeRange === '04:12–04:24', 'Wave 1 occupies 04:12–04:24');
+
+const ev31 = getFinalCollapse100Event(365);
+assert(ev31.eventNumber === 31 && ev31.event.title === 'Gravitational Wave 10 of 10', 'Event 31 triggers Gravitational Wave 10 of 10');
+assert(ev31.event.timeRange === '06:00–06:12', 'Wave 10 occupies 06:00–06:12');
+
+// Events 32 to 34: Separate Upper and Lower Debris Rings
+const ev32 = getFinalCollapse100Event(375);
+assert(ev32.eventNumber === 32 && ev32.event.title === 'Upper Debris Ring Begins Forming', 'Event 32 begins upper debris ring formation');
+
+const ev33 = getFinalCollapse100Event(385);
+assert(ev33.eventNumber === 33 && ev33.event.title === 'Lower Debris Ring Begins Forming', 'Event 33 begins lower debris ring formation');
+
+const ev34 = getFinalCollapse100Event(400);
+assert(ev34.eventNumber === 34 && ev34.event.title === 'Twin-Ring Orbit', 'Event 34 establishes twin-ring independent orbit');
+
+// Event 50 (09:48–10:00) Brilliant White Flash
+const ev50 = getFinalCollapse100Event(590);
+assert(ev50.eventNumber === 50 && ev50.event.title === 'Brilliant White Flash', 'Event 50 triggers Brilliant White Flash at 09:48–10:00');
+
+// Event 51 (10:00–10:12) Universe Regeneration Begins
+const ev51 = getFinalCollapse100Event(605);
+assert(ev51.eventNumber === 51 && ev51.event.title === 'Universe Regeneration Begins', 'Event 51 begins universe regeneration at 10:00');
+
+// Event 100 (19:48–20:00) Regeneration Completes
+const ev100 = getFinalCollapse100Event(1190);
+assert(ev100.eventNumber === 100 && ev100.event.title === 'Regeneration Completes', 'Event 100 is active during 19:48–20:00 ("Regeneration Completes")');
+assert(ev100.event.timeRange === '19:48–20:00', 'Event 100 occupies 19:48–20:00');
+
+// Exact 1200s (20:00) completion
+const evComplete = getFinalCollapse100Event(1200);
+assert(evComplete.isComplete === true && evComplete.totalProgress === 1.0, 'Cinematic completes at exactly 1,200s with 100% progress');
+
+// Timer formatting across 20 minutes
+assert(formatCinematicElapsedTimer(0) === '00:00', 'Cinematic timer correctly formats 0s as 00:00');
+assert(formatCinematicElapsedTimer(252) === '04:12', 'Cinematic timer correctly formats 252s as 04:12 (Wave 1 start)');
+assert(formatCinematicElapsedTimer(372) === '06:12', 'Cinematic timer correctly formats 372s as 06:12 (Upper ring start)');
+assert(formatCinematicElapsedTimer(600) === '10:00', 'Cinematic timer correctly formats 600s as 10:00 (White flash peak / Regen start)');
+assert(formatCinematicElapsedTimer(1200) === '20:00', 'Cinematic timer correctly formats 1200s as 20:00');
+
+// Failure trigger and state machine integration
+const fcManager100 = new FinalCollapseManager(new THREE.Scene());
+fcManager100.start();
+fcManager100.triggerFailure('EVACUATION_DEADLINE_EXPIRED', false, new THREE.Vector3(0, 0, 0));
+assert(fcManager100.failureCinematic.isActive === true, 'Failure cinematic activates on deadline expiration');
+assert(fcManager100.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE', 'Ending variant is MISSED_ESCAPE_COLLAPSE');
+
+// Telemetry verification
+const tel100 = fcManager100.getTelemetry();
+assert(tel100.cinematicTotalSeconds === 1200, 'Telemetry reports exactly 1,200s total duration');
+assert(tel100.currentEventNumber === 1, 'Telemetry reports initial event number as 1');
+assert(tel100.currentEventTitle === 'Evacuation Window Expired', 'Telemetry reports initial event title correctly');
+
+// Safe zone precedence guard: if survived, failure is prevented
+const fcManagerSurvived = new FinalCollapseManager(new THREE.Scene());
+fcManagerSurvived.start();
+fcManagerSurvived.markSurvived();
+fcManagerSurvived.triggerFailure('EVACUATION_DEADLINE_EXPIRED', false);
+assert(fcManagerSurvived.evacuation.evacuationFailed === false, 'Safe zone success takes precedence and prevents failure trigger');
 
 console.log('\n====================================================');
 console.log(`VERIFICATION SUMMARY: ${passedTests}/${totalTests} TESTS PASSED`);

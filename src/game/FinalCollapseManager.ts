@@ -10,6 +10,15 @@ import {
 } from './finalCollapse/finalCollapseMaster100Timeline';
 import { Submode10CinematicEventHandler } from './cinematics/Submode10CinematicEventHandler';
 import { EscapeMissionManager, type EscapeMissionTelemetry } from './finalCollapse/finalCollapseEscapeMissions';
+import {
+  getFinalCollapse100Event,
+  FINAL_COLLAPSE_100_EVENTS,
+  TOTAL_CINEMATIC_SECONDS,
+  EVENT_DURATION_SECONDS,
+  TOTAL_EVENTS_COUNT,
+  formatCinematicElapsedTimer,
+  type FinalCollapse100Event,
+} from './finalCollapse100Events';
 
 /**
  * 3. Evacuation State Machine
@@ -182,6 +191,12 @@ export interface EvacuationTelemetry {
   absoluteCollapseActive: boolean;
   hudGlitchIntensity: number;
   escapeMission?: EscapeMissionTelemetry;
+  cinematicElapsedSeconds?: number;
+  cinematicTotalSeconds?: number;
+  currentEventNumber?: number;
+  currentEventTitle?: string;
+  currentEventPresentation?: string;
+  currentEventTimeRange?: string;
 }
 
 /* =========================================================================
@@ -981,27 +996,43 @@ export class FailureCinematicController {
   private readonly rcPhaseDurations = [2.5, 2.5, 2.5, 2.5, 2.5, 2.0, 1.0, 1.0, 1.7, 2.0, 1.3];
   private readonly gfPhaseDurations = [2.5, 2.5, 2.5, 2.5, 1.0, 1.0, 1.7, 2.0, 1.3];
 
-  // SUBMODE 10: 10 DISTINCT EVENTS ACROSS EXACTLY 30.0 SECONDS (Missed Safe Zone Ending)
-  // Event 01 (00.0 - 03.0s): T-00:00 // ESCAPE WINDOW CLOSED
-  // Event 02 (03.0 - 06.0s): SHIP STRUGGLE & THRUST OVERLOAD
-  // Event 03 (06.0 - 09.0s): GRAVITATIONAL CAPTURE
-  // Event 04 (09.0 - 12.0s): TIDAL FORCE & ROTATIONAL DRAG
-  // Event 05 (12.0 - 15.0s): EXTREME SPAGHETTIFICATION
-  // Event 06 (15.0 - 18.0s): EVENT HORIZON CROSSING
-  // Event 07 (18.0 - 21.0s): SINGULARITY CRITICAL OVERLOAD
-  // Event 08 (21.0 - 24.5s): COSMIC DETONATION & DESTRUCTION
-  // Event 09 (24.5 - 27.0s): PRISMATIC COSMIC AFTERMATH
-  // Event 10 (27.0 - 30.0s): WORLD RECONSTRUCTION & STABILIZATION
-  private readonly missedEscapePhaseDurations = [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.5, 2.5, 3.0];
+  // SUBMODE 10: 100 SEQUENTIAL EVENTS ACROSS EXACTLY 20 MINUTES (1,200 SECONDS)
+  // Each event is exactly 12.0 seconds (100 × 12 = 1,200 seconds = 20:00)
+  private readonly missedEscapePhaseDurations = new Array(100).fill(12.0);
   private phaseTriggered: Set<number> = new Set();
 
-  // Procedural 3D Visual Groups for Cosmic Collapse Climax
+  // Procedural 3D Visual Groups for 20-Minute 100-Event Cosmic Collapse Climax
   private sceneRef: THREE.Scene | null = null;
   private ringGroup: THREE.Group | null = null;
   private detonationSphere: THREE.Mesh | null = null;
   private shockwaveRings: THREE.Mesh[] = [];
   private spectacleGroup: THREE.Group | null = null;
   private rebuildTracksGroup: THREE.Group | null = null;
+
+  // Mode 21 Submode 10 Specification 3D Elements:
+  private planetsGroup: THREE.Group | null = null;
+  private planetAMesh: THREE.Mesh | null = null;
+  private planetBMesh: THREE.Mesh | null = null;
+  private impactFlashMesh: THREE.Mesh | null = null;
+  private collisionDebrisGroup: THREE.Group | null = null;
+
+  private fracturedRouteGroup: THREE.Group | null = null;
+  private routeSlabs: THREE.Mesh[] = [];
+
+  // Exactly 10 Distinct Wave Releases above and below the main plane (Events 22 to 31)
+  private gravWaveUpperMeshes: THREE.Mesh[] = [];
+  private gravWaveLowerMeshes: THREE.Mesh[] = [];
+
+  // Separate Upper & Lower Debris Rings (Events 32 to 42, 88 to 91)
+  private upperDebrisRing: THREE.Group | null = null;
+  private lowerDebrisRing: THREE.Group | null = null;
+
+  // Climax White Flash & Universe Regeneration
+  private flashOverlayMesh: THREE.Mesh | null = null;
+  private regenerationGroup: THREE.Group | null = null;
+  private restoredStarfield: THREE.Points | null = null;
+  private restoredPlanetsGroup: THREE.Group | null = null;
+  private navigationBeaconsGroup: THREE.Group | null = null;
 
   public start(
     isRouteConsumption: boolean,
@@ -1037,7 +1068,117 @@ export class FailureCinematicController {
     this.disposeVisuals();
     this.sceneRef = scene;
 
-    // 1. Accretion Debris Ring (Event 7)
+    // 1. Moving & Colliding Planets (Events 2 to 5, 10, 38, 93)
+    this.planetsGroup = new THREE.Group();
+    this.planetsGroup.name = 'FinalCollapse_Planets';
+    this.planetsGroup.position.copy(bhCenter);
+
+    const planetAGeo = new THREE.SphereGeometry(130, 24, 24);
+    const planetAMat = new THREE.MeshStandardMaterial({
+      color: 0x3b82f6,
+      roughness: 0.7,
+      metalness: 0.1,
+      emissive: 0x1d4ed8,
+      emissiveIntensity: 0.4,
+    });
+    this.planetAMesh = new THREE.Mesh(planetAGeo, planetAMat);
+    this.planetAMesh.position.set(1650, 350, -1150);
+    this.planetsGroup.add(this.planetAMesh);
+
+    const planetBGeo = new THREE.SphereGeometry(100, 24, 24);
+    const planetBMat = new THREE.MeshStandardMaterial({
+      color: 0xf97316,
+      roughness: 0.8,
+      metalness: 0.2,
+      emissive: 0xc2410c,
+      emissiveIntensity: 0.5,
+    });
+    this.planetBMesh = new THREE.Mesh(planetBGeo, planetBMat);
+    this.planetBMesh.position.set(750, 150, -450);
+    this.planetsGroup.add(this.planetBMesh);
+
+    // Dramatic non-graphic cosmic flash at collision point (1200, 250, -800)
+    const flashGeo = new THREE.SphereGeometry(160, 24, 24);
+    const flashMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+    });
+    this.impactFlashMesh = new THREE.Mesh(flashGeo, flashMat);
+    this.impactFlashMesh.position.set(1200, 250, -800);
+    this.planetsGroup.add(this.impactFlashMesh);
+
+    // Collision debris cloud (36 fragments)
+    this.collisionDebrisGroup = new THREE.Group();
+    this.collisionDebrisGroup.position.set(1200, 250, -800);
+    const rockGeo = new THREE.BoxGeometry(16, 16, 20);
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      roughness: 0.9,
+      emissive: 0xff5500,
+      emissiveIntensity: 0.8,
+    });
+    for (let i = 0; i < 36; i++) {
+      const rock = new THREE.Mesh(rockGeo, rockMat);
+      const theta = (i / 36) * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI;
+      const r = 25 + Math.random() * 40;
+      rock.position.set(
+        Math.cos(theta) * Math.cos(phi) * r,
+        Math.sin(phi) * r,
+        Math.sin(theta) * Math.cos(phi) * r
+      );
+      rock.userData = {
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 60,
+          (Math.random() - 0.5) * 45,
+          (Math.random() - 0.5) * 60
+        ),
+      };
+      this.collisionDebrisGroup.add(rock);
+    }
+    this.planetsGroup.add(this.collisionDebrisGroup);
+    scene.add(this.planetsGroup);
+
+    // 2. Physical Route Sections Splitting and Separating (Events 6 to 9, 13, 35, 39)
+    this.fracturedRouteGroup = new THREE.Group();
+    this.fracturedRouteGroup.name = 'FinalCollapse_FracturedRoute';
+    this.fracturedRouteGroup.position.copy(bhCenter);
+    this.routeSlabs = [];
+
+    const slabGeo = new THREE.BoxGeometry(34, 4, 75);
+    for (let s = 0; s < 14; s++) {
+      const slabMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.3,
+        emissive: s % 2 === 0 ? 0x00f0ff : 0x06b6d4,
+        emissiveIntensity: 1.2,
+      });
+      const slab = new THREE.Mesh(slabGeo, slabMat);
+      const baseZ = -450 + s * 70;
+      const baseX = Math.sin(s * 0.3) * 60;
+      const baseY = -20 + Math.cos(s * 0.25) * 15;
+      slab.position.set(baseX, baseY, baseZ);
+      slab.userData = {
+        basePos: new THREE.Vector3(baseX, baseY, baseZ),
+        rotVel: new THREE.Vector3(
+          (Math.random() - 0.5) * 0.8,
+          (Math.random() - 0.5) * 1.2,
+          (Math.random() - 0.5) * 0.8
+        ),
+        driftDir: new THREE.Vector3(
+          (Math.random() - 0.5) * 350,
+          (Math.random() - 0.5) * 180,
+          (Math.random() - 0.5) * 350
+        ),
+      };
+      this.routeSlabs.push(slab);
+      this.fracturedRouteGroup.add(slab);
+    }
+    scene.add(this.fracturedRouteGroup);
+
+    // 3. Initial Debris Ring & Accretion Flare (Events 15, 16, 19, 20)
     this.ringGroup = new THREE.Group();
     this.ringGroup.name = 'FinalCollapse_DebrisRing';
     this.ringGroup.position.copy(bhCenter);
@@ -1063,7 +1204,93 @@ export class FailureCinematicController {
     }
     scene.add(this.ringGroup);
 
-    // 2. Detonation Core Sphere (Event 8)
+    // 4. Exactly 10 Distinct Gravitational Waves above and below the main plane (Events 22 to 31)
+    this.gravWaveUpperMeshes = [];
+    this.gravWaveLowerMeshes = [];
+    const waveColors = [
+      0x00f0ff, 0x38bdf8, 0x818cf8, 0xa855f7, 0xc084fc,
+      0xf472b6, 0xfb923c, 0xfacc15, 0x4ade80, 0xffffff,
+    ];
+
+    for (let w = 0; w < 10; w++) {
+      // Upper Wavefront (expanding upwards +Y and radially)
+      const upperGeo = new THREE.RingGeometry(85, 115, 64);
+      const upperMat = new THREE.MeshBasicMaterial({
+        color: waveColors[w],
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+      });
+      const upperMesh = new THREE.Mesh(upperGeo, upperMat);
+      upperMesh.position.copy(bhCenter);
+      upperMesh.position.y += 35;
+      upperMesh.rotation.x = Math.PI / 2;
+      upperMesh.visible = false;
+      this.gravWaveUpperMeshes.push(upperMesh);
+      scene.add(upperMesh);
+
+      // Lower Wavefront (expanding downwards -Y and radially)
+      const lowerGeo = new THREE.RingGeometry(85, 115, 64);
+      const lowerMat = new THREE.MeshBasicMaterial({
+        color: waveColors[w],
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+      });
+      const lowerMesh = new THREE.Mesh(lowerGeo, lowerMat);
+      lowerMesh.position.copy(bhCenter);
+      lowerMesh.position.y -= 35;
+      lowerMesh.rotation.x = Math.PI / 2;
+      lowerMesh.visible = false;
+      this.gravWaveLowerMeshes.push(lowerMesh);
+      scene.add(lowerMesh);
+    }
+
+    // 5. Separate Upper & Lower Debris Rings (Events 32 to 42, 88 to 91)
+    this.upperDebrisRing = new THREE.Group();
+    this.upperDebrisRing.name = 'FinalCollapse_UpperDebrisRing';
+    this.upperDebrisRing.position.copy(bhCenter);
+    this.upperDebrisRing.position.y += 95;
+    this.upperDebrisRing.visible = false;
+
+    this.lowerDebrisRing = new THREE.Group();
+    this.lowerDebrisRing.name = 'FinalCollapse_LowerDebrisRing';
+    this.lowerDebrisRing.position.copy(bhCenter);
+    this.lowerDebrisRing.position.y -= 95;
+    this.lowerDebrisRing.visible = false;
+
+    const ringBitGeo = new THREE.BoxGeometry(18, 5, 24);
+    for (let i = 0; i < 64; i++) {
+      const uAngle = (i / 64) * Math.PI * 2;
+      const uRad = 580 + Math.random() * 260;
+      const uMat = new THREE.MeshStandardMaterial({
+        color: 0x00f0ff,
+        emissive: 0x00f0ff,
+        emissiveIntensity: 1.9,
+      });
+      const uMesh = new THREE.Mesh(ringBitGeo, uMat);
+      uMesh.position.set(Math.cos(uAngle) * uRad, (Math.random() - 0.5) * 30, Math.sin(uAngle) * uRad);
+      uMesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      this.upperDebrisRing.add(uMesh);
+
+      const lAngle = (i / 64) * Math.PI * 2 + 0.3;
+      const lRad = 560 + Math.random() * 260;
+      const lMat = new THREE.MeshStandardMaterial({
+        color: 0xa855f7,
+        emissive: 0x9333ea,
+        emissiveIntensity: 1.9,
+      });
+      const lMesh = new THREE.Mesh(ringBitGeo, lMat);
+      lMesh.position.set(Math.cos(lAngle) * lRad, (Math.random() - 0.5) * 30, Math.sin(lAngle) * lRad);
+      lMesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      this.lowerDebrisRing.add(lMesh);
+    }
+    scene.add(this.upperDebrisRing);
+    scene.add(this.lowerDebrisRing);
+
+    // 6. Singularity Detonation Core & Shockwaves
     const ruptureGeo = new THREE.SphereGeometry(50, 32, 32);
     const ruptureMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
@@ -1076,7 +1303,6 @@ export class FailureCinematicController {
     this.detonationSphere.visible = false;
     scene.add(this.detonationSphere);
 
-    // 3. Shockwave Rings (Event 8)
     this.shockwaveRings = [];
     const ringColors = [0x00f0ff, 0xa855f7, 0xf59e0b, 0xef4444, 0xffffff];
     for (let i = 0; i < 5; i++) {
@@ -1096,7 +1322,7 @@ export class FailureCinematicController {
       scene.add(rMesh);
     }
 
-    // 4. Prismatic Cosmic Nebula Spectacle (Event 9)
+    // 7. Prismatic Cosmic Nebula Spectacle
     this.spectacleGroup = new THREE.Group();
     this.spectacleGroup.name = 'FinalCollapse_Spectacle';
     this.spectacleGroup.position.copy(bhCenter);
@@ -1122,7 +1348,99 @@ export class FailureCinematicController {
     }
     scene.add(this.spectacleGroup);
 
-    // 5. Holographic Reconstructed Route Tracks (Event 10)
+    // 8. Brilliant White Flash Mesh (Event 50)
+    const flashScreenGeo = new THREE.SphereGeometry(4500, 16, 16);
+    const flashScreenMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    this.flashOverlayMesh = new THREE.Mesh(flashScreenGeo, flashScreenMat);
+    this.flashOverlayMesh.position.copy(bhCenter);
+    this.flashOverlayMesh.visible = false;
+    scene.add(this.flashOverlayMesh);
+
+    // 9. Universe Regeneration Group (Events 51 to 77, 99 to 100)
+    this.regenerationGroup = new THREE.Group();
+    this.regenerationGroup.name = 'FinalCollapse_Regeneration';
+    this.regenerationGroup.position.copy(bhCenter);
+    this.regenerationGroup.visible = false;
+
+    // Restored Starfield
+    const starCount = 2000;
+    const starPositions = new Float32Array(starCount * 3);
+    const starColors = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const dist = 3200 + Math.random() * 2400;
+      starPositions[i * 3] = dist * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = dist * Math.sin(phi) * Math.sin(theta);
+      starPositions[i * 3 + 2] = dist * Math.cos(phi);
+
+      const isCyan = Math.random() > 0.4;
+      starColors[i * 3] = isCyan ? 0.3 : 1.0;
+      starColors[i * 3 + 1] = isCyan ? 0.8 : 0.9;
+      starColors[i * 3 + 2] = 1.0;
+    }
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+    const starMat = new THREE.PointsMaterial({
+      size: 4,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+    });
+    this.restoredStarfield = new THREE.Points(starGeo, starMat);
+    this.regenerationGroup.add(this.restoredStarfield);
+
+    // Restored Planetary Orbits (Events 54 to 55)
+    this.restoredPlanetsGroup = new THREE.Group();
+    const rPlanA = new THREE.Mesh(
+      new THREE.SphereGeometry(110, 24, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        roughness: 0.5,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.6,
+      })
+    );
+    rPlanA.position.set(2200, 200, -1800);
+    this.restoredPlanetsGroup.add(rPlanA);
+
+    const rPlanB = new THREE.Mesh(
+      new THREE.SphereGeometry(85, 24, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xfb923c,
+        roughness: 0.6,
+        emissive: 0xea580c,
+        emissiveIntensity: 0.5,
+      })
+    );
+    rPlanB.position.set(-1900, -150, 1600);
+    this.restoredPlanetsGroup.add(rPlanB);
+    this.regenerationGroup.add(this.restoredPlanetsGroup);
+
+    // Navigation Beacons (Event 65)
+    this.navigationBeaconsGroup = new THREE.Group();
+    const beaconGeo = new THREE.CylinderGeometry(3, 3, 20, 8);
+    const beaconMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0,
+    });
+    for (let b = 0; b < 10; b++) {
+      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.position.set(-40 + (b % 2) * 80, 10, -400 + b * 90);
+      this.navigationBeaconsGroup.add(beacon);
+    }
+    this.regenerationGroup.add(this.navigationBeaconsGroup);
+
+    // Holographic Reconstructed Route Tracks (Events 56 to 58)
     this.rebuildTracksGroup = new THREE.Group();
     this.rebuildTracksGroup.name = 'FinalCollapse_RebuildRoutes';
     this.rebuildTracksGroup.position.copy(bhCenter);
@@ -1135,9 +1453,21 @@ export class FailureCinematicController {
         const u = s / 20;
         const rad = 250 + u * 1600;
         const theta = rot + u * 1.5;
-        curvePts.push(new THREE.Vector3(Math.cos(theta) * rad, 15 + Math.sin(u * Math.PI) * 40, Math.sin(theta) * rad));
+        curvePts.push(
+          new THREE.Vector3(
+            Math.cos(theta) * rad,
+            15 + Math.sin(u * Math.PI) * 40,
+            Math.sin(theta) * rad
+          )
+        );
       }
-      const tubeGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(curvePts), 32, 2.8, 8, false);
+      const tubeGeo = new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(curvePts),
+        32,
+        2.8,
+        8,
+        false
+      );
       const tubeMat = new THREE.MeshBasicMaterial({
         color: trackColors[r % trackColors.length],
         transparent: true,
@@ -1148,10 +1478,40 @@ export class FailureCinematicController {
       this.rebuildTracksGroup.add(tubeMesh);
     }
     scene.add(this.rebuildTracksGroup);
+    scene.add(this.regenerationGroup);
   }
 
   public disposeVisuals(): void {
     if (this.sceneRef) {
+      if (this.planetsGroup) {
+        this.sceneRef.remove(this.planetsGroup);
+        this.planetsGroup.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.planetsGroup = null;
+        this.planetAMesh = null;
+        this.planetBMesh = null;
+        this.impactFlashMesh = null;
+        this.collisionDebrisGroup = null;
+      }
+      if (this.fracturedRouteGroup) {
+        this.sceneRef.remove(this.fracturedRouteGroup);
+        this.fracturedRouteGroup.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.fracturedRouteGroup = null;
+        this.routeSlabs = [];
+      }
       if (this.ringGroup) {
         this.sceneRef.remove(this.ringGroup);
         this.ringGroup.traverse(o => {
@@ -1163,6 +1523,44 @@ export class FailureCinematicController {
           }
         });
         this.ringGroup = null;
+      }
+      this.gravWaveUpperMeshes.forEach(m => {
+        this.sceneRef?.remove(m);
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+      });
+      this.gravWaveUpperMeshes = [];
+
+      this.gravWaveLowerMeshes.forEach(m => {
+        this.sceneRef?.remove(m);
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+      });
+      this.gravWaveLowerMeshes = [];
+
+      if (this.upperDebrisRing) {
+        this.sceneRef.remove(this.upperDebrisRing);
+        this.upperDebrisRing.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.upperDebrisRing = null;
+      }
+      if (this.lowerDebrisRing) {
+        this.sceneRef.remove(this.lowerDebrisRing);
+        this.lowerDebrisRing.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.lowerDebrisRing = null;
       }
       if (this.detonationSphere) {
         this.sceneRef.remove(this.detonationSphere);
@@ -1188,6 +1586,12 @@ export class FailureCinematicController {
         });
         this.spectacleGroup = null;
       }
+      if (this.flashOverlayMesh) {
+        this.sceneRef.remove(this.flashOverlayMesh);
+        this.flashOverlayMesh.geometry.dispose();
+        (this.flashOverlayMesh.material as THREE.Material).dispose();
+        this.flashOverlayMesh = null;
+      }
       if (this.rebuildTracksGroup) {
         this.sceneRef.remove(this.rebuildTracksGroup);
         this.rebuildTracksGroup.traverse(o => {
@@ -1200,6 +1604,21 @@ export class FailureCinematicController {
         });
         this.rebuildTracksGroup = null;
       }
+      if (this.regenerationGroup) {
+        this.sceneRef.remove(this.regenerationGroup);
+        this.regenerationGroup.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) {
+            if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+            else m.material.dispose();
+          }
+        });
+        this.regenerationGroup = null;
+        this.restoredStarfield = null;
+        this.restoredPlanetsGroup = null;
+        this.navigationBeaconsGroup = null;
+      }
       this.sceneRef = null;
     }
   }
@@ -1208,9 +1627,10 @@ export class FailureCinematicController {
     if (!this.isActive || this.completed) return;
 
     this.elapsed += dt;
-    const durations = this.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
-      ? this.missedEscapePhaseDurations
-      : (this.isRouteConsumption ? this.rcPhaseDurations : this.gfPhaseDurations);
+    const durations =
+      this.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+        ? this.missedEscapePhaseDurations
+        : (this.isRouteConsumption ? this.rcPhaseDurations : this.gfPhaseDurations);
     const totalDuration = durations.reduce((a, b) => a + b, 0);
 
     this.totalProgress = Math.min(1.0, this.elapsed / totalDuration);
@@ -1231,125 +1651,403 @@ export class FailureCinematicController {
       this.initVisuals(scene, blackHoleCenter);
     }
 
-    // Physical continuous gravitational trajectory during 30s Missed Safe Zone Sequence
+    // Physical continuous gravitational trajectory & orchestration for 20-Minute 100-Event Specification
     if (this.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-      if (this.currentPhase === 1) {
-        // Event 1 (0-3s): Ship struggles at initial position with high-frequency thruster jitter
+      const eventInfo = getFinalCollapse100Event(this.elapsed);
+      this.currentPhase = eventInfo.eventNumber;
+      this.totalProgress = eventInfo.totalProgress;
+      const evNum = eventInfo.eventNumber;
+      const progWithin = eventInfo.progressWithinEvent;
+
+      // 1. Ship Trajectory & Dynamics
+      if (evNum <= 10) {
+        // Events 1-10 (00:00-02:00): Ship holds and struggles at initial position
         this.shipCurrentTrajectory.copy(this.shipInitialPosition);
-        this.shipRotation.x += (Math.random() - 0.5) * dt * 0.8;
-      } else if (this.currentPhase >= 2 && this.currentPhase <= 6) {
-        // Events 2-6 (3-18s): Accelerating inward spiral towards singularity core
-        const start = durations[0]; // 3.0s
-        const window = durations.slice(1, 6).reduce((a, b) => a + b, 0); // 15.0s
-        const pullFrac = Math.min(1.0, (this.elapsed - start) / Math.max(0.001, window));
-        const eased = Math.pow(pullFrac, 1.45);
-        const angle = this.elapsed * (1.2 + eased * 6.5);
+        this.shipRotation.x += (Math.random() - 0.5) * dt * 0.4;
+      } else if (evNum >= 11 && evNum <= 14) {
+        // Events 11-14 (02:00-02:48): Ship drawn toward singularity & event horizon
+        const spiralProgress = Math.min(1.0, (this.elapsed - 120.0) / 48.0);
+        const eased = Math.pow(spiralProgress, 1.4);
+        const angle = this.elapsed * (0.8 + eased * 4.0);
         const initialDist = Math.max(300, this.shipInitialPosition.distanceTo(blackHoleCenter));
-        const radius = THREE.MathUtils.lerp(initialDist, 8, eased);
-        const center = blackHoleCenter.clone();
-        const target = center.clone().add(new THREE.Vector3(
-          Math.cos(angle) * radius,
-          Math.sin(angle * 1.6) * radius * 0.22,
-          Math.sin(angle) * radius
-        ));
-        this.shipCurrentTrajectory.lerp(target, Math.min(1, dt * 2.8));
-        this.shipRotation.x += dt * (1.5 + eased * 8.0);
-        this.shipRotation.y += dt * (2.0 + eased * 10.0);
-        this.shipRotation.z += dt * (2.5 + eased * 12.0);
+        const radius = THREE.MathUtils.lerp(initialDist, 6, eased);
+        const target = blackHoleCenter.clone().add(
+          new THREE.Vector3(
+            Math.cos(angle) * radius,
+            Math.sin(angle * 1.5) * radius * 0.2,
+            Math.sin(angle) * radius
+          )
+        );
+        this.shipCurrentTrajectory.lerp(target, Math.min(1, dt * 2.5));
+        this.shipRotation.x += dt * (1.2 + eased * 6.0);
+        this.shipRotation.y += dt * (1.5 + eased * 7.5);
+        this.shipRotation.z += dt * (2.0 + eased * 9.0);
       }
 
-      // Audio triggers for each of the 10 events
-      if (this.currentPhase === 2 && !this.phaseTriggered.has(2)) {
-        this.phaseTriggered.add(2);
-        sound.playStructureCreak();
-      } else if (this.currentPhase === 3 && !this.phaseTriggered.has(3)) {
-        this.phaseTriggered.add(3);
-        sound.playGravitationalWavePulse(1.5);
-      } else if (this.currentPhase === 4 && !this.phaseTriggered.has(4)) {
-        this.phaseTriggered.add(4);
-        sound.playStructureCreak();
-      } else if (this.currentPhase === 5 && !this.phaseTriggered.has(5)) {
-        this.phaseTriggered.add(5);
-        sound.playDarkGravitationalShockwave();
-      } else if (this.currentPhase === 6 && !this.phaseTriggered.has(6)) {
-        this.phaseTriggered.add(6);
-        sound.playSubBassGravitationalImplosion();
-      } else if (this.currentPhase === 7 && !this.phaseTriggered.has(7)) {
-        this.phaseTriggered.add(7);
-        sound.playGravitationalRumble(5.0);
-      } else if (this.currentPhase === 8 && !this.phaseTriggered.has(8)) {
-        this.phaseTriggered.add(8);
-        sound.playDeepCosmicBoom();
-        sound.playFlashbangBoom();
-        sound.playDarkGravitationalShockwave();
-      } else if (this.currentPhase === 10 && !this.phaseTriggered.has(10)) {
-        this.phaseTriggered.add(10);
-        sound.playCheckpoint();
+      // 2. Audio Triggers for each of the 100 events
+      if (!this.phaseTriggered.has(evNum)) {
+        this.phaseTriggered.add(evNum);
+        switch (evNum) {
+          case 1:
+            sound.playEmergencyAlarm();
+            break;
+          case 2:
+            sound.playGravitationalRumble(3.0);
+            break;
+          case 3:
+            sound.playStructureCreak();
+            break;
+          case 4:
+            // First Planetary Collision (00:36-00:48)
+            sound.playFlashbangBoom();
+            sound.playDeepCosmicBoom();
+            break;
+          case 5:
+            sound.playGravitationalWavePulse(1.5);
+            break;
+          case 6:
+          case 7:
+            sound.playStructureCreak();
+            break;
+          case 8:
+            // Route Tears Apart (01:24-01:36)
+            sound.playGravitationalWavePulse(2.0);
+            sound.playStructureCreak();
+            break;
+          case 11:
+            sound.playGravitationalRumble(4.0);
+            break;
+          case 15:
+            // Initial Debris Ring forms
+            sound.playShieldActivate();
+            break;
+          case 16:
+            // Accretion Ring Ignition
+            sound.playGravitationalWavePulse(2.2);
+            break;
+          case 19:
+          case 20:
+            // Criticality Pulses
+            sound.playSubBassGravitationalImplosion();
+            break;
+
+          // Events 22 to 31: Exactly 10 Distinct Gravitational Waves
+          case 22:
+          case 23:
+          case 24:
+          case 25:
+          case 26:
+          case 27:
+          case 28:
+          case 29:
+          case 30:
+            sound.playGravitationalWavePulse(1.6 + (evNum - 22) * 0.2);
+            break;
+          case 31:
+            // Wave 10 of 10: Climax wave release
+            sound.playGravitationalWavePulse(3.5);
+            sound.playDarkGravitationalShockwave();
+            break;
+
+          case 32:
+          case 33:
+            sound.playShieldDeflect();
+            break;
+          case 36:
+            sound.playSubBassGravitationalImplosion();
+            break;
+          case 40:
+          case 41:
+            sound.playGravitationalRumble(3.5);
+            break;
+          case 46:
+          case 47:
+            sound.playDarkGravitationalShockwave();
+            break;
+          case 49:
+            sound.playSubBassGravitationalImplosion();
+            break;
+          case 50:
+            // Brilliant White Flash (09:48-10:00)
+            sound.playFlashbangBoom();
+            sound.playDeepCosmicBoom();
+            break;
+          case 51:
+            sound.stopCosmicMusic();
+            break;
+          case 56:
+            sound.playCheckpoint();
+            break;
+          case 65:
+            sound.playCheckpoint();
+            break;
+          case 76:
+            sound.playShieldActivate();
+            break;
+          case 88:
+            sound.playGravitationalWavePulse(2.0);
+            break;
+          case 95:
+            sound.playDarkGravitationalShockwave();
+            break;
+          case 100:
+            sound.playCheckpoint();
+            break;
+        }
       }
 
-      // Update 3D visual groups across Events 7, 8, 9, 10
-      if (this.currentPhase === 7) {
-        // Event 7: Singularity Critical Overload — Debris Ring flares and spins rapidly
-        if (this.ringGroup) {
+      // 3. Moving & Colliding Planets (Events 1 to 5, 10, 38, 93)
+      if (this.planetsGroup && this.planetAMesh && this.planetBMesh) {
+        if (evNum <= 4) {
+          // Drifting along crossing trajectories toward collision point (1200, 250, -800)
+          const colProgress = THREE.MathUtils.clamp(this.elapsed / 48.0, 0, 1);
+          this.planetAMesh.position.lerpVectors(
+            new THREE.Vector3(1650, 350, -1150),
+            new THREE.Vector3(1200, 250, -800),
+            colProgress
+          );
+          this.planetBMesh.position.lerpVectors(
+            new THREE.Vector3(750, 150, -450),
+            new THREE.Vector3(1200, 250, -800),
+            colProgress
+          );
+        } else if (evNum >= 5 && evNum <= 10) {
+          // Collision debris expanding, planets disintegrating
+          this.planetAMesh.visible = false;
+          this.planetBMesh.visible = false;
+        } else if (evNum >= 54) {
+          // Restored planets in regeneration group take over
+          this.planetAMesh.visible = false;
+          this.planetBMesh.visible = false;
+        }
+
+        // Impact flash at Event 4
+        if (this.impactFlashMesh) {
+          if (evNum === 4) {
+            this.impactFlashMesh.visible = true;
+            const flashFade = Math.sin(progWithin * Math.PI);
+            (this.impactFlashMesh.material as THREE.MeshBasicMaterial).opacity = flashFade * 0.95;
+            this.impactFlashMesh.scale.setScalar(1.0 + progWithin * 8.0);
+          } else {
+            this.impactFlashMesh.visible = false;
+          }
+        }
+
+        // Collision debris expansion
+        if (this.collisionDebrisGroup) {
+          if (evNum >= 4 && evNum <= 10) {
+            this.collisionDebrisGroup.visible = true;
+            this.collisionDebrisGroup.children.forEach(c => {
+              const rock = c as THREE.Mesh;
+              if (rock.userData.vel) {
+                rock.position.addScaledVector(rock.userData.vel, dt * 0.4);
+                rock.rotation.x += dt * 2.0;
+                rock.rotation.y += dt * 1.5;
+              }
+            });
+          } else {
+            this.collisionDebrisGroup.visible = false;
+          }
+        }
+      }
+
+      // 4. Physical Route Sections Splitting and Separating (Events 6 to 9, 13, 35, 39)
+      if (this.fracturedRouteGroup) {
+        if (evNum >= 6 && evNum <= 39) {
+          this.fracturedRouteGroup.visible = true;
+          this.routeSlabs.forEach((slab, sIdx) => {
+            if (evNum === 6 || evNum === 7) {
+              // Seams opening: slight vibration & fissure glow
+              slab.position.copy(slab.userData.basePos);
+              slab.position.x += (Math.random() - 0.5) * 2.5;
+              slab.position.y += (Math.random() - 0.5) * 1.5;
+            } else if (evNum >= 8) {
+              // Physically split apart, tumbling inward toward black hole
+              const breakFrac = THREE.MathUtils.clamp((this.elapsed - 84.0) / 180.0, 0, 1);
+              slab.position.lerp(
+                new THREE.Vector3(0, 0, 0),
+                Math.min(1, dt * (0.08 + sIdx * 0.01) * breakFrac)
+              );
+              slab.rotation.x += slab.userData.rotVel.x * dt;
+              slab.rotation.y += slab.userData.rotVel.y * dt;
+              slab.rotation.z += slab.userData.rotVel.z * dt;
+            }
+          });
+        } else {
+          this.fracturedRouteGroup.visible = false;
+        }
+      }
+
+      // 5. Initial Debris Ring & Accretion Flare (Events 15, 16, 19, 20)
+      if (this.ringGroup) {
+        if (evNum >= 15 && evNum <= 50) {
           this.ringGroup.visible = true;
-          this.ringGroup.rotation.y += dt * (3.5 + (this.elapsed - 18.0) * 1.8);
+          this.ringGroup.rotation.y += dt * (1.2 + (evNum >= 16 ? 1.0 : 0));
           this.ringGroup.traverse(o => {
             const m = o as THREE.Mesh;
             if (m.material && (m.material as THREE.MeshStandardMaterial).emissiveIntensity !== undefined) {
-              (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.2 + Math.sin(this.elapsed * 10) * 1.2;
+              (m.material as THREE.MeshStandardMaterial).emissiveIntensity =
+                1.8 + Math.sin(this.elapsed * 4.0) * 1.0;
             }
           });
+        } else {
+          this.ringGroup.visible = false;
         }
-      } else if (this.currentPhase === 8) {
-        // Event 8: Cosmic Detonation & Complete Destruction — Expanding Core & Shockwaves
-        if (this.ringGroup) this.ringGroup.visible = false;
-        const blastFrac = THREE.MathUtils.clamp((this.elapsed - 21.0) / 3.5, 0, 1);
+      }
+
+      // 6. Exactly 10 Distinct Gravitational Waves (Events 22 to 31)
+      for (let w = 0; w < 10; w++) {
+        const waveEvent = 22 + w;
+        const upperM = this.gravWaveUpperMeshes[w];
+        const lowerM = this.gravWaveLowerMeshes[w];
+
+        if (evNum === waveEvent) {
+          const wFrac = THREE.MathUtils.clamp(progWithin, 0, 1);
+          if (upperM) {
+            upperM.visible = true;
+            upperM.scale.setScalar(1.0 + wFrac * 26.0);
+            upperM.position.copy(blackHoleCenter);
+            upperM.position.y += 35 + wFrac * 420; // Identifiable upper wavefront
+            (upperM.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - wFrac) * 0.9);
+          }
+          if (lowerM) {
+            lowerM.visible = true;
+            lowerM.scale.setScalar(1.0 + wFrac * 26.0);
+            lowerM.position.copy(blackHoleCenter);
+            lowerM.position.y -= 35 + wFrac * 420; // Identifiable lower wavefront
+            (lowerM.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - wFrac) * 0.9);
+          }
+        } else {
+          if (upperM) upperM.visible = false;
+          if (lowerM) lowerM.visible = false;
+        }
+      }
+
+      // 7. Separate Upper & Lower Debris Rings (Events 32 to 42, 88 to 91)
+      if (this.upperDebrisRing && this.lowerDebrisRing) {
+        if (evNum >= 32 && evNum <= 50) {
+          this.upperDebrisRing.visible = true;
+          this.lowerDebrisRing.visible = (evNum >= 33);
+
+          // Twin-Ring independent rotation
+          this.upperDebrisRing.rotation.y += dt * 1.5;
+          this.lowerDebrisRing.rotation.y -= dt * 1.2;
+
+          // Resonance pulse at Event 36
+          const pulse = evNum === 36 ? Math.sin(this.elapsed * 8.0) * 0.4 : 0;
+          this.upperDebrisRing.position.y = blackHoleCenter.y + 95 + pulse * 20;
+          this.lowerDebrisRing.position.y = blackHoleCenter.y - 95 - pulse * 20;
+
+          // Inward spiral contraction (Events 37 to 42)
+          if (evNum >= 37 && evNum <= 42) {
+            const spiralFrac = THREE.MathUtils.clamp((this.elapsed - 432.0) / 72.0, 0, 1);
+            const scale = 1.0 - spiralFrac * 0.65;
+            this.upperDebrisRing.scale.set(scale, 1, scale);
+            this.lowerDebrisRing.scale.set(scale, 1, scale);
+          }
+        } else {
+          this.upperDebrisRing.visible = false;
+          this.lowerDebrisRing.visible = false;
+        }
+      }
+
+      // 8. Singularity Criticality Core & Shockwaves (Events 18 to 21, 46 to 48)
+      if (evNum === 20 || evNum === 47) {
+        const pulseElapsed = evNum === 20 ? (this.elapsed - 228.0) : (this.elapsed - 552.0);
+        const pulseFrac = THREE.MathUtils.clamp(pulseElapsed / 12.0, 0, 1);
         if (this.detonationSphere) {
           this.detonationSphere.visible = true;
-          this.detonationSphere.scale.setScalar(1.0 + blastFrac * 42.0);
-          (this.detonationSphere.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - blastFrac) * 0.95);
+          this.detonationSphere.scale.setScalar(1.0 + pulseFrac * 36.0);
+          (this.detonationSphere.material as THREE.MeshBasicMaterial).opacity = Math.max(
+            0,
+            (1.0 - pulseFrac) * 0.9
+          );
         }
         this.shockwaveRings.forEach((ring, idx) => {
           ring.visible = true;
-          const rFrac = Math.max(0, blastFrac - idx * 0.1);
-          ring.scale.setScalar(1.0 + rFrac * 28.0);
-          (ring.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - rFrac) * 0.85);
+          const rFrac = Math.max(0, pulseFrac - idx * 0.12);
+          ring.scale.setScalar(1.0 + rFrac * 26.0);
+          (ring.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1.0 - rFrac) * 0.8);
         });
-      } else if (this.currentPhase === 9) {
-        // Event 9: Prismatic Cosmic Aftermath — Multi-color nebula spectacle
+      } else {
         if (this.detonationSphere) this.detonationSphere.visible = false;
         this.shockwaveRings.forEach(r => (r.visible = false));
-        if (this.spectacleGroup) {
-          this.spectacleGroup.visible = true;
-          this.spectacleGroup.rotation.y += dt * 0.22;
-          const fade = Math.sin(THREE.MathUtils.clamp((this.elapsed - 24.5) / 2.5, 0, 1) * Math.PI);
-          this.spectacleGroup.traverse(o => {
-            const m = o as THREE.Mesh;
-            if (m.material && (m.material as THREE.MeshBasicMaterial).opacity !== undefined) {
-              (m.material as THREE.MeshBasicMaterial).opacity = fade * 0.85;
-            }
-          });
+      }
+
+      // 9. Brilliant White Flash (Events 49 to 51)
+      if (this.flashOverlayMesh) {
+        if (evNum === 49) {
+          // White Flash Build-Up (no harsh strobe)
+          this.flashOverlayMesh.visible = true;
+          (this.flashOverlayMesh.material as THREE.MeshBasicMaterial).opacity = progWithin * 0.5;
+        } else if (evNum === 50) {
+          // Brilliant White Flash fills the view, then smoothly fades
+          this.flashOverlayMesh.visible = true;
+          (this.flashOverlayMesh.material as THREE.MeshBasicMaterial).opacity = Math.max(
+            0.15,
+            1.0 - progWithin * 0.6
+          );
+        } else if (evNum === 51) {
+          // Fade smoothly into Universe Regeneration
+          this.flashOverlayMesh.visible = true;
+          (this.flashOverlayMesh.material as THREE.MeshBasicMaterial).opacity = Math.max(
+            0,
+            0.4 * (1.0 - progWithin)
+          );
+        } else {
+          this.flashOverlayMesh.visible = false;
         }
-      } else if (this.currentPhase === 10) {
-        // Event 10: World Reconstruction & Celestial Stabilization — Holographic route networks rebuild
-        if (this.spectacleGroup) {
-          const rebFade = Math.max(0, 1.0 - (this.elapsed - 27.0) / 3.0);
-          this.spectacleGroup.traverse(o => {
-            const m = o as THREE.Mesh;
-            if (m.material && (m.material as THREE.MeshBasicMaterial).opacity !== undefined) {
-              (m.material as THREE.MeshBasicMaterial).opacity = rebFade * 0.3;
-            }
-          });
+      }
+
+      // 10. Universe Regeneration (Events 51 to 77, 99 to 100)
+      if (this.regenerationGroup) {
+        if (evNum >= 51) {
+          this.regenerationGroup.visible = true;
+          const regenFrac = THREE.MathUtils.clamp((this.elapsed - 600.0) / 180.0, 0, 1);
+
+          // Starfield reformation (Event 52)
+          if (this.restoredStarfield) {
+            (this.restoredStarfield.material as THREE.PointsMaterial).opacity = Math.min(
+              0.95,
+              regenFrac * 0.95
+            );
+            this.restoredStarfield.rotation.y += dt * 0.008;
+          }
+
+          // Restored planetary orbits (Events 54 to 55)
+          if (this.restoredPlanetsGroup) {
+            this.restoredPlanetsGroup.visible = evNum >= 54;
+            this.restoredPlanetsGroup.rotation.y += dt * 0.05;
+          }
+
+          // Navigation beacons return (Event 65)
+          if (this.navigationBeaconsGroup) {
+            this.navigationBeaconsGroup.visible = evNum >= 65;
+            this.navigationBeaconsGroup.children.forEach(b => {
+              const m = b as THREE.Mesh;
+              (m.material as THREE.MeshBasicMaterial).opacity =
+                0.6 + Math.sin(this.elapsed * 4.0) * 0.3;
+            });
+          }
+        } else {
+          this.regenerationGroup.visible = false;
         }
-        if (this.rebuildTracksGroup) {
+      }
+
+      // Holographic Reconstructed Route Tracks (Events 56 to 73)
+      if (this.rebuildTracksGroup) {
+        if (evNum >= 56) {
           this.rebuildTracksGroup.visible = true;
-          const rebFrac = THREE.MathUtils.clamp((this.elapsed - 27.0) / 3.0, 0, 1);
+          const rebFrac = THREE.MathUtils.clamp((this.elapsed - 660.0) / 48.0, 0, 1);
           this.rebuildTracksGroup.traverse(o => {
             const m = o as THREE.Mesh;
             if (m.material && (m.material as THREE.MeshBasicMaterial).opacity !== undefined) {
-              (m.material as THREE.MeshBasicMaterial).opacity = rebFrac * (0.65 + Math.sin(this.elapsed * 4.0) * 0.25);
+              (m.material as THREE.MeshBasicMaterial).opacity =
+                rebFrac * (0.65 + Math.sin(this.elapsed * 3.0) * 0.2);
             }
           });
+        } else {
+          this.rebuildTracksGroup.visible = false;
         }
       }
 
@@ -1392,6 +2090,7 @@ export class FailureCinematicController {
       }
     }
 
+    // Results only appear after Event 100 finishes at exactly 20:00 (1,200 seconds)
     if (this.elapsed >= totalDuration) {
       this.completed = true;
       this.totalProgress = 1.0;
@@ -2003,6 +2702,27 @@ export class FinalCollapseManager {
       absoluteCollapseActive: this.catastrophe.absoluteCollapse,
       hudGlitchIntensity: (this.catastrophe.activeEvent?.severity ?? 0) >= 6 ? 0.35 : 0,
       escapeMission: this.escapeMissions.getTelemetry(),
+      cinematicElapsedSeconds:
+        this.failureCinematic.isActive && this.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+          ? this.failureCinematic.elapsed
+          : 0,
+      cinematicTotalSeconds: TOTAL_CINEMATIC_SECONDS,
+      currentEventNumber:
+        this.failureCinematic.isActive && this.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+          ? getFinalCollapse100Event(this.failureCinematic.elapsed).eventNumber
+          : 1,
+      currentEventTitle:
+        this.failureCinematic.isActive && this.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+          ? getFinalCollapse100Event(this.failureCinematic.elapsed).event.title
+          : 'Evacuation Window Expired',
+      currentEventPresentation:
+        this.failureCinematic.isActive && this.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+          ? getFinalCollapse100Event(this.failureCinematic.elapsed).event.presentation
+          : 'Freeze evacuation timer at zero; show SAFE ZONE MISSED.',
+      currentEventTimeRange:
+        this.failureCinematic.isActive && this.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+          ? getFinalCollapse100Event(this.failureCinematic.elapsed).event.timeRange
+          : '00:00–00:12',
     };
   }
 }
