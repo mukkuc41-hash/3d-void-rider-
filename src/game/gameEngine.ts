@@ -3524,7 +3524,9 @@ export class GameEngine {
           isEvacActive,
           isMissedEscape,
           missedPhase,
-          authoritativeElapsed
+          authoritativeElapsed,
+          // Final Collapse only: environment destruction must never deform or absorb the player ship.
+          isSubmode10
         );
 
         if (envUpdate.pairTelemetry) {
@@ -6632,6 +6634,11 @@ export class GameEngine {
             );
             if (selectedSubmode) {
               this.modeManager.setBlackHoleSubmode(selectedSubmode.number);
+            }
+            // Haven-04 / Final Collapse is a three-lap objective, scoped only
+            // to Quantum Launch Pro's Black Hole Mode, Submode 10.
+            if (config.blackHoleSubmode === 'FINAL_COLLAPSE' || this.modeManager.blackHoleSubmode === 10) {
+              this.totalLaps = 3;
             }
           }
 

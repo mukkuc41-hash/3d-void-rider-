@@ -749,7 +749,8 @@ export class SpaghettificationVisuals {
     eventIndex: number,
     playerPos: THREE.Vector3,
     isMissedEscapeSequence = false,
-    missedEscapePhase = 0
+    missedEscapePhase = 0,
+    preservePlayerShip = false
   ): SpaghettificationTelemetry {
     this.elapsedSeconds += dt;
     this.currentEventIndex = eventIndex;
@@ -858,8 +859,15 @@ export class SpaghettificationVisuals {
     // 11. Update Bending Route Lines (Events 19, 27, 33)
     this.updateBendingRouteLines(dt);
 
-    // 12. Update Player Ship Spaghettification (Events 34, 37, 39, 40)
-    this.updatePlayerShipDeformation(dt, isMissedEscapeSequence, missedEscapePhase);
+    // 12. Player-ship deformation is disabled for Final Collapse (Mode 21 / Submode 10).
+    // The 00:00 failure ending destroys the surrounding environment only; the player's
+    // ship must remain visible, intact, and at its actual gameplay position. This is a
+    // local visual guard, not a change to shared black-hole gravity or other modes.
+    if (preservePlayerShip) {
+      this.restorePlayerShip();
+    } else {
+      this.updatePlayerShipDeformation(dt, isMissedEscapeSequence, missedEscapePhase);
+    }
 
     // 13. Update Detonation
     if (this.detonationActive) {

@@ -1059,7 +1059,8 @@ export class DynamicCollapseEnvironmentsManager {
     isEvacuationActive: boolean,
     isMissedEscapeSequence = false,
     missedEscapePhase = 0,
-    authoritativeElapsed?: number
+    authoritativeElapsed?: number,
+    preservePlayerShip = false
   ): {
     collisionEvent: { hit: boolean; damage: number; impulse: THREE.Vector3; name: string } | null;
     blackScreenActive: boolean;
@@ -1097,7 +1098,8 @@ export class DynamicCollapseEnvironmentsManager {
       activeEventIndex,
       playerPos,
       isMissedEscapeSequence,
-      missedEscapePhase
+      missedEscapePhase,
+      preservePlayerShip
     );
     this.latestSpaghettificationTelemetry = spaghettificationTelemetry;
 

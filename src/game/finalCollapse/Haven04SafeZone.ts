@@ -579,7 +579,7 @@ export class Haven04SafeZone {
      7. TELEMETRY & CLEANUP
      ========================================================================= */
   public getTelemetry(): Haven04Telemetry {
-    let objectiveText = 'ROUTE 04 // HAVEN-04 LOCKED [COMPLETE 4 LAPS]';
+    let objectiveText = 'ROUTE 04 // HAVEN-04 LOCKED [COMPLETE 3 LAPS]';
     if (this.isUnlocked) {
       if (this.isParkingValidated) {
         objectiveText = 'HAVEN-04 // SHIELDED SAFE-ZONE SECURED [FREE PASSAGE ACTIVE]';
