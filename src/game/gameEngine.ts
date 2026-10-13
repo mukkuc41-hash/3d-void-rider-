@@ -5016,38 +5016,16 @@ export class GameEngine {
         }
 
         // Mode 21 Submode 10 — Missed Safe Zone Sequence:
-        // GRAND PANORAMIC VIEW OF THE ENTIRE BLACK HOLE AND COSMIC SYSTEM FROM FAR AWAY
+        // GRAND PANORAMIC VIEW: cosmic destruction remains visible; player ship is never absorbed.
         // The camera stays elevated and far back during the entire 30-second sequence (all 10 events),
-        // capturing the whole black hole, accretion disk, infalling spiraling ship,
+        // capturing the whole black hole, accretion disk, visible player ship amid the collapsing environment,
         // detonation shockwaves, prismatic aftermath spectacle, and rebuilt routes.
         if (fc.endingVariant === 'MISSED_ESCAPE_COLLAPSE') {
-          // Dynamic spaghettification stretching for the player ship across Events 5–10
-          if (fc.currentPhase <= 10) {
-            this.playerShipGroup.visible = true;
-            let stretchZ = 1.0;
-            let squeezeXY = 1.0;
-            if (fc.currentPhase === 5) {
-              stretchZ = 2.5;
-              squeezeXY = 0.65;
-            } else if (fc.currentPhase >= 6 && fc.currentPhase <= 7) {
-              stretchZ = 7.0;
-              squeezeXY = 0.35;
-            } else if (fc.currentPhase >= 8 && fc.currentPhase <= 9) {
-              stretchZ = 16.0;
-              squeezeXY = 0.12;
-            } else if (fc.currentPhase === 10) {
-              stretchZ = 30.0;
-              squeezeXY = 0.03;
-            }
-            this.playerShipGroup.scale.set(squeezeXY, squeezeXY, stretchZ);
-          } else if (fc.currentPhase >= 66) {
-            // Ship systems stabilize in regenerated universe (Event 66+)
-            this.playerShipGroup.visible = true;
-            this.playerShipGroup.scale.set(1.0, 1.0, 1.0);
-          } else {
-            // During absorption & white flash: Ship swallowed into event horizon
-            this.playerShipGroup.visible = false;
-          }
+          // SUBMODE 10 missed-safe-zone outcome: preserve a visible, intact ship.
+          // The failure is caused by the surrounding universe/route being destroyed;
+          // never stretch, absorb, hide, or move the player ship into the event horizon.
+          this.playerShipGroup.visible = true;
+          this.playerShipGroup.scale.set(1.0, 1.0, 1.0);
 
           // Panoramic vantage point from far away:
           // Distance: ~3400m, Elevation: ~1150m above black hole center

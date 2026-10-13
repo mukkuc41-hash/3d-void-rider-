@@ -1,23 +1,22 @@
-# Submode 10 — Missed Safe-Zone Ship Sequence
+# Submode 10 — Missed Safe-Zone Cosmic Destruction (No Ship Absorption)
 
-When 00:00 is reached and the player has not entered Route 01, Route 02, or Route 03, the ending uses an extended 15-phase cinematic. The ship stays visible through the capture, tidal deformation, event-horizon crossing and final breakup before the existing cosmic destruction/rebuild.
+Scope: Quantum Launch Pro -> Mode 21 BLACK HOLE -> Submode 10 FINAL COLLAPSE only.
 
-1. Escape Window Closed
-2. Ship Struggle / Thrust Maximum
-3. Gravitational Capture
-4. Player Fall
-5. Ship Rotation
-6. Tidal Force
-7. Ship Filamentation
-8. Event Horizon Crossing
-9. Final Ship Breakup
-10. Singularity Charge
-11. Cosmic Detonation
-12. Complete Destruction
-13. Aftermath
-14. World Reconstruction
-15. Final Camera Reveal
+When the countdown reaches 00:00 and the player has not physically reached/validated any of the three valid escape routes, trigger the environmental absolute-destruction ending. The player ship remains visible and intact at its last real gameplay position throughout the sequence.
 
-The Results screen remains downstream of the completed cinematic. No quick Game Over is triggered at 00:00.
+## Required ending beats
+1. Escape window closes; alarms and route-failure warning.
+2. Track fractures, slabs detach and fall away.
+3. Orbital structures, stations and nearby celestial bodies break apart.
+4. A dark gravitational boom and expanding debris/shockwave visibly cross the environment.
+5. Navigation and route beacons fail; the world collapses around the player.
+6. Cosmic implosion and aftermath reveal; preserve a clear view of the ship.
+7. Results screen appears only after the destruction cinematic completes.
 
-The existing safe-route rule is preserved: entering any of the three escape routes counts as reaching an escape route.
+## Hard prohibitions
+- No ship absorption by the black hole.
+- No gravitational capture, inward spiral, event-horizon crossing, spaghettification, ship filamentation, ship disappearance, or ship-hidden phase.
+- Do not teleport the ship, auto-park it, or falsely report a safe-zone success.
+- Do not modify Mode 01 Singularity Run or the other nine Mode 21 submodes, the shared black-hole core, or general black-hole shader/physics behavior.
+
+Failure is the player failing to reach a safe zone before the deadline; the visible catastrophe destroys the route and environment, not by sucking the ship into the black hole. The existing rule remains: reaching any of the three valid escape routes counts as reaching an escape route.

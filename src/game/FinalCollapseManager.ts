@@ -1659,30 +1659,18 @@ export class FailureCinematicController {
       const evNum = eventInfo.eventNumber;
       const progWithin = eventInfo.progressWithinEvent;
 
-      // 1. Ship Trajectory & Dynamics
-      if (evNum <= 10) {
-        // Events 1-10 (00:00-02:00): Ship holds and struggles at initial position
-        this.shipCurrentTrajectory.copy(this.shipInitialPosition);
-        this.shipRotation.x += (Math.random() - 0.5) * dt * 0.4;
-      } else if (evNum >= 11 && evNum <= 14) {
-        // Events 11-14 (02:00-02:48): Ship drawn toward singularity & event horizon
-        const spiralProgress = Math.min(1.0, (this.elapsed - 120.0) / 48.0);
-        const eased = Math.pow(spiralProgress, 1.4);
-        const angle = this.elapsed * (0.8 + eased * 4.0);
-        const initialDist = Math.max(300, this.shipInitialPosition.distanceTo(blackHoleCenter));
-        const radius = THREE.MathUtils.lerp(initialDist, 6, eased);
-        const target = blackHoleCenter.clone().add(
-          new THREE.Vector3(
-            Math.cos(angle) * radius,
-            Math.sin(angle * 1.5) * radius * 0.2,
-            Math.sin(angle) * radius
-          )
-        );
-        this.shipCurrentTrajectory.lerp(target, Math.min(1, dt * 2.5));
-        this.shipRotation.x += dt * (1.2 + eased * 6.0);
-        this.shipRotation.y += dt * (1.5 + eased * 7.5);
-        this.shipRotation.z += dt * (2.0 + eased * 9.0);
-      }
+      // SUBMODE 10 ONLY: missed-safe-zone failure is environmental destruction,
+      // NOT ship absorption, gravitational capture, spaghettification, or event-horizon crossing.
+      // Keep the player's vessel physically present at its last real position while the
+      // surrounding route, stations, planets and cosmic environment collapse around it.
+      this.shipCurrentTrajectory.copy(this.shipInitialPosition);
+      const instability = Math.min(1, this.elapsed / 30);
+      this.shipCurrentTrajectory.x += Math.sin(this.elapsed * 2.3) * instability * 1.8;
+      this.shipCurrentTrajectory.y += Math.sin(this.elapsed * 3.1) * instability * 0.9;
+      this.shipCurrentTrajectory.z += Math.cos(this.elapsed * 1.7) * instability * 1.2;
+      this.shipRotation.x += Math.sin(this.elapsed * 1.7) * dt * 0.12;
+      this.shipRotation.y += Math.sin(this.elapsed * 1.3) * dt * 0.16;
+      this.shipRotation.z += Math.cos(this.elapsed * 1.9) * dt * 0.1;
 
       // 2. Audio Triggers for each of the 100 events
       if (!this.phaseTriggered.has(evNum)) {
@@ -2637,7 +2625,7 @@ export class FinalCollapseManager {
         ? '100% INTACT // SECURED'
         : (this.evacuation.failureCause === 'EVACUATION_DEADLINE_EXPIRED'
             ? 'SINGULARITY CATALYST // INTEGRATED INTO NEW COSMOS'
-            : (this.evacuation.failureCause ? String(this.evacuation.failureCause).replace(/_/g, ' ') : 'DESTROYED // SINGULARITY ABSORPTION')),
+            : (this.evacuation.failureCause ? String(this.evacuation.failureCause).replace(/_/g, ' ') : 'DESTROYED // COSMIC COLLAPSE')),
     };
   }
 

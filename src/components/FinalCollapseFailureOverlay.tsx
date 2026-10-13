@@ -268,13 +268,15 @@ export const FinalCollapseFailureOverlay: React.FC<FinalCollapseFailureOverlayPr
       <div className="fixed inset-0 z-[100] pointer-events-none flex flex-col items-center justify-center p-6 font-mono select-none">
         <div className="max-w-md w-full rounded-2xl border-2 border-red-600 bg-black/90 p-6 text-center shadow-[0_0_60px_rgba(239,68,68,0.7)] backdrop-blur-md animate-pulse">
           <div className="text-[10px] font-black text-red-400 tracking-[0.3em] uppercase mb-2">
-            CRITICAL TRAJECTORY FAILURE
+            CRITICAL EVACUATION FAILURE
           </div>
           <h2 className="text-3xl font-ui font-black uppercase tracking-widest text-white drop-shadow-[0_0_20px_rgba(239,68,68,1)]">
-            GRAVITATIONAL CAPTURE
+            {evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE' ? 'ESCAPE WINDOW MISSED' : 'GRAVITATIONAL CAPTURE'}
           </h2>
           <p className="text-xs text-red-300 mt-2 tracking-wider">
-            {evacuation.failureCause ? evacuation.failureCause.replace(/_/g, ' ') : 'VESSEL DRAWN INTO EVENT HORIZON'}
+            {evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
+              ? 'ROUTE DESTROYED — COSMIC COLLAPSE'
+              : (evacuation.failureCause ? evacuation.failureCause.replace(/_/g, ' ') : 'VESSEL DRAWN INTO EVENT HORIZON')}
           </p>
         </div>
       </div>
