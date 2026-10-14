@@ -172,6 +172,8 @@ export type FinalCollapseAuthoritativeState =
   | 'ROUTE_03_INITIATED'
   | 'ROUTE_03_SEQUENCE'
   | 'ROUTE_03_SUCCESS'
+  | 'ROUTE_04_SEQUENCE'
+  | 'ROUTE_04_SUCCESS'
   | 'FINAL_00_WARNING'
   | 'FINAL_MISSED_ESCAPE'
   | 'FINAL_PLAYER_FALL'

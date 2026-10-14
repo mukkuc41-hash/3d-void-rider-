@@ -1403,6 +1403,9 @@ export class JunctionManager {
   // existing junction configuration untouched.
   public finalCollapseMode = false;
   public readonly finalCollapseJunctionId = 'final_collapse_tower_access';
+  /** Separate last-lap spur that branches away from the main track directly to HAVEN-04. */
+  public readonly finalCollapseHaven04JunctionId = 'final_collapse_haven04_access';
+  public finalCollapseHaven04Unlocked = false;
   public finalCollapseShelter: THREE.Group | null = null;
   /** Visible Submode-10 landmark shown before the terminal routes unlock. */
   public finalCollapseLauncherPreview: THREE.Group | null = null;
@@ -1410,6 +1413,7 @@ export class JunctionManager {
   public finalCollapseEscapeTerminal: THREE.Group | null = null;
   /** Separate physical terminal for Route 03; never reconnects to Routes 01/02. */
   public finalCollapseWormholeTerminal: THREE.Group | null = null;
+  public finalCollapseHaven04Terminal: THREE.Group | null = null;
   public finalCollapseDoorLeft: THREE.Mesh | null = null;
   public finalCollapseDoorRight: THREE.Mesh | null = null;
   public finalCollapseDoorOpenFraction = 0; // 0 = closed, 1 = open
@@ -1522,6 +1526,7 @@ export class JunctionManager {
   public initJunctions(trackId: TrackId) {
     this.junctions.clear();
     this.finalCollapseRoutesUnlocked = false;
+    this.finalCollapseHaven04Unlocked = false;
     while (this.junctionMeshGroup.children.length > 0) {
       this.junctionMeshGroup.remove(this.junctionMeshGroup.children[0]);
     }
@@ -1543,6 +1548,10 @@ export class JunctionManager {
       this.junctionMeshGroup.remove(this.finalCollapseWormholeTerminal);
       this.finalCollapseWormholeTerminal = null;
     }
+    if (this.finalCollapseHaven04Terminal) {
+      this.junctionMeshGroup.remove(this.finalCollapseHaven04Terminal);
+      this.finalCollapseHaven04Terminal = null;
+    }
 
     const configs = [...(TRACK_JUNCTIONS_CONFIG[trackId] || TRACK_JUNCTIONS_CONFIG.circuit_alpha)];
 
@@ -1550,6 +1559,7 @@ export class JunctionManager {
     // only when explicitly enabled by GameEngine, so no existing mode changes.
     if (this.finalCollapseMode) {
       configs.push(this.createFinalCollapseJunctionConfig(trackId));
+      configs.push(this.createFinalCollapseHaven04JunctionConfig(trackId));
     }
 
     configs.forEach(cfg => {
@@ -1563,10 +1573,9 @@ export class JunctionManager {
       });
 
       if (cfg.id === this.finalCollapseJunctionId) {
-        // Submode 10 has three genuinely separate terminal ends. The launcher
-        // shelter, emergency gate, and wormhole gate each have their own
-        // independent endpoint. All are locked until the player completes
-        // the first normal lap.
+        // Submode 10's main fork keeps three independent terminal ends. HAVEN-04
+        // is a separate last-lap division before the finish line, not part
+        // of this shared fork.
         const launcherEnd = jInst.routeInstances.get('bh10_launcher_route')?.getSampleAt(1);
         if (launcherEnd) jInst.exitSample = launcherEnd;
         this.finalCollapseShelter = this.buildFinalCollapseShelter(jInst);
@@ -1582,6 +1591,19 @@ export class JunctionManager {
           this.junctionMeshGroup.add(this.finalCollapseWormholeTerminal);
         }
         this.setFinalCollapseRoutesUnlocked(false);
+      }
+      if (cfg.id === this.finalCollapseHaven04JunctionId) {
+        // The Haven-04 spur is an independent one-route division, positioned
+        // before the start/finish line and hidden until the third-lap approach.
+        const haven04Route = jInst.routeInstances.get('bh10_haven04_route');
+        if (haven04Route) {
+          this.finalCollapseHaven04Terminal = this.buildFinalCollapseEscapeTerminal(haven04Route);
+          this.finalCollapseHaven04Terminal.name = 'Submode10_Route04_Haven04_Terminal';
+          this.junctionMeshGroup.add(this.finalCollapseHaven04Terminal);
+        }
+        jInst.gantryGroup.visible = false;
+        jInst.routeInstances.forEach(routeInst => { routeInst.meshGroup.visible = false; });
+        if (this.finalCollapseHaven04Terminal) this.finalCollapseHaven04Terminal.visible = false;
       }
     });
   }
@@ -1752,6 +1774,7 @@ export class JunctionManager {
     });
     if (this.finalCollapseShelter) this.finalCollapseShelter.visible = visible;
     if (this.finalCollapseEscapeTerminal) this.finalCollapseEscapeTerminal.visible = visible;
+    if (this.finalCollapseWormholeTerminal) this.finalCollapseWormholeTerminal.visible = visible;
     if (unlocked) {
       this.setFinalCollapseDoorOpen(1.0);
       this.setFinalCollapsePressureDoorOpen(1.0);
@@ -1768,6 +1791,28 @@ export class JunctionManager {
       this.activeJunctionTelemetry = null;
     } else {
       this.isSelectionLocked = false;
+    }
+  }
+
+  /** Show only the dedicated Haven-04 branch when the third-lap approach is reached. */
+  public setFinalCollapseHaven04Unlocked(unlocked: boolean): void {
+    // Once revealed on lap 3, keep the spur visible through the branch approach
+    // and transit; reset it only when the Submode-10 junction system is rebuilt.
+    if (!unlocked && this.finalCollapseHaven04Unlocked) return;
+    this.finalCollapseHaven04Unlocked = unlocked;
+    const junction = this.junctions.get(this.finalCollapseHaven04JunctionId);
+    if (!junction) return;
+    junction.gantryGroup.visible = unlocked;
+    junction.routeInstances.forEach(routeInst => { routeInst.meshGroup.visible = unlocked; });
+    if (this.finalCollapseHaven04Terminal) this.finalCollapseHaven04Terminal.visible = unlocked;
+    if (!unlocked && this.activeJunctionTelemetry?.junctionId === this.finalCollapseHaven04JunctionId) {
+      this.activeJunctionTelemetry = null;
+      this.isSelectionLocked = false;
+      junction.selectedRouteId = null;
+      if (this.playerRouteProgress.activeJunctionId === this.finalCollapseHaven04JunctionId) {
+        this.playerRouteProgress.activeJunctionId = null;
+        this.playerRouteProgress.activeRouteId = null;
+      }
     }
   }
 
@@ -1903,6 +1948,52 @@ export class JunctionManager {
   }
 
   /**
+   * HAVEN-04 is a completely separate terminal spur. It diverges from the
+   * main route just before the finish line and never reconnects to the circuit.
+   */
+  private createFinalCollapseHaven04JunctionConfig(trackId: TrackId): JunctionZoneConfig {
+    return {
+      id: this.finalCollapseHaven04JunctionId,
+      name: 'FINAL COLLAPSE // HAVEN-04 LAST-LAP DIVISION',
+      trackId,
+      approachT: 0.765,
+      junctionStartT: 0.825,
+      junctionEndT: 0.905,
+      defaultRouteId: 'bh10_haven04_route',
+      bannerText: 'LAP 3 // HAVEN-04 SANCTUARY DIVISION',
+      routes: [{
+        id: 'bh10_haven04_route',
+        name: 'ROUTE 04 // HAVEN-04 OPEN DOME',
+        direction: 'SHORTCUT',
+        subtitle: 'Dedicated open-dome sanctuary spur',
+        detail: 'A physically separate last-lap division that leaves the main circuit before the finish line and terminates only at Haven-04.',
+        themeColor: '#34d399',
+        isShortcut: true,
+        riskLevel: 'MEDIUM',
+        hasBoostPads: true,
+        boostPadFractions: [0.10, 0.28, 0.46, 0.64, 0.82, 0.94],
+        hasObstacles: true,
+        obstacleFractions: [0.22, 0.43, 0.66, 0.86],
+        lengthMultiplier: 2.75,
+        width: 42,
+        lateralDivergence: 360,
+        elevationOffset: 12,
+        terminalLateralOffset: 300,
+        terminalElevationOffset: 12,
+        terminalForwardExtension: 900,
+        terminalRoute: true,
+        terminalCaptureFraction: 1.0,
+        requiredCheckpointIndices: [1, 2],
+        entryJunctionId: this.finalCollapseHaven04JunctionId,
+        hasShortcut: true,
+        description: 'Open dome, free-roaming sanctuary, sensing chamber gates, and a physical shielded parking bay.',
+        boostPadCount: 6,
+        obstacleCount: 4,
+      }],
+    };
+  }
+
+  /**
    * Build Route 02's independent terminal end. It is deliberately separate from
    * the Orbital Launcher shelter: entering Route 02 arms the escape sequence,
    * and reaching this gate provides the physical terminal for the escape vector.
@@ -1917,15 +2008,16 @@ export class JunctionManager {
     group.quaternion.setFromRotationMatrix(rot);
     group.name = 'Submode10_Route02_EmergencyEscape_Terminal';
 
+    const isHaven04Terminal = route.config.id === 'bh10_haven04_route';
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x170a22,
+      color: isHaven04Terminal ? 0x06281d : 0x170a22,
       metalness: 0.92,
       roughness: 0.2,
-      emissive: 0x5b0b72,
+      emissive: isHaven04Terminal ? 0x10b981 : 0x5b0b72,
       emissiveIntensity: 1.1,
     });
-    const cyan = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
-    const magenta = new THREE.MeshBasicMaterial({ color: 0xff2bd6 });
+    const cyan = new THREE.MeshBasicMaterial({ color: isHaven04Terminal ? 0x34d399 : 0x22d3ee });
+    const magenta = new THREE.MeshBasicMaterial({ color: isHaven04Terminal ? 0x86efac : 0xff2bd6 });
     const warning = new THREE.MeshBasicMaterial({ color: 0xff5b35 });
 
     const left = new THREE.Mesh(new THREE.BoxGeometry(12, 150, 18), frameMat);
@@ -2549,9 +2641,8 @@ export class JunctionManager {
 
       const cfg = junction.config;
       // In Submode 10, the terminal fork to Route 01 / Route 02 is locked until lap 1 is completed
-      if (cfg.id === this.finalCollapseJunctionId && !this.finalCollapseRoutesUnlocked) {
-        continue;
-      }
+      if (cfg.id === this.finalCollapseJunctionId && !this.finalCollapseRoutesUnlocked) continue;
+      if (cfg.id === this.finalCollapseHaven04JunctionId && !this.finalCollapseHaven04Unlocked) continue;
       const startT = cfg.junctionStartT;
       const endT = cfg.junctionEndT;
       const approachT = cfg.approachT;
@@ -2630,6 +2721,7 @@ export class JunctionManager {
 
     if (!jId) return false;
     if (jId === this.finalCollapseJunctionId && !this.finalCollapseRoutesUnlocked) return false;
+    if (jId === this.finalCollapseHaven04JunctionId && !this.finalCollapseHaven04Unlocked) return false;
     const junction = this.junctions.get(jId);
     if (!junction) return false;
 
@@ -2976,7 +3068,8 @@ export class JunctionManager {
 
       // Submode 10 is explicitly arrow-controlled: do not auto-commit a route.
       // The player must choose LEFT (Route 01) or RIGHT (Route 02).
-      const isFinalCollapseFork = junction.config.id === this.finalCollapseJunctionId;
+      const isFinalCollapseFork = junction.config.id === this.finalCollapseJunctionId ||
+        junction.config.id === this.finalCollapseHaven04JunctionId;
       if (!isFinalCollapseFork && (isCommitmentZone || isInJunction)) {
         if (!this.isSelectionLocked) {
           const autoRouteId = junction.selectedRouteId || this.playerRouteProgress.activeRouteId || this.getDefaultRoute(junction).id;

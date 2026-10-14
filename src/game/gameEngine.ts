@@ -103,6 +103,7 @@ import { BlackHoleEventCinematicDirector } from './blackHoleEventCinematicDirect
 import { BLACK_HOLE_SUBMODES } from './blackHoleSubmodes';
 import { getFinalCollapseEventByNumber } from './finalCollapse/finalCollapse100EventsCatalog';
 import { getMasterEventByNumber } from './finalCollapse/finalCollapseMaster100Timeline';
+import { Haven04SafeZone } from './finalCollapse/Haven04SafeZone';
 
 export interface LocalAIRacer {
   id: string;
@@ -351,6 +352,9 @@ export class GameEngine {
   public finalCollapsePlayerEscaped = false;
   public finalCollapseEscapedRouteId: string | null = null;
   public finalCollapseControlsLocked = false;
+  // HAVEN-04 is scoped to Quantum Launch Pro / Black Hole Mode / Submode 10 only.
+  private haven04SafeZone: Haven04SafeZone | null = null;
+  private haven04Parent: THREE.Object3D | null = null;
   public finalCollapsePreviousCountdown = 900;
   public finalCollapseEscapeEndingActive = false;
   public finalCollapseEscapeEndingElapsed = 0;
@@ -2215,6 +2219,7 @@ export class GameEngine {
     this.finalCollapseAftermathStarted = false;
     this.shelterNavigationActive = false;
     this.shelterClampTimer = 0;
+    this.haven04SafeZone?.reset();
     this.finalCollapseManager?.escapeMissions.reset();
     this.finalCollapseManager?.reset();
     this.finalCollapse00Triggered = false;
@@ -2952,6 +2957,13 @@ export class GameEngine {
         this.callbacks.onShortcutUsed?.('ROUTE 02 // EMERGENCY ESCAPE CORRIDOR ENGAGED');
       }
 
+      // Route 04: Haven-04 open-dome sanctuary
+      if (isQLPSubmode10 && activeBranchRouteId === 'bh10_haven04_route') {
+        this.finalCollapseEscapedRouteId = 'bh10_haven04_route';
+        this.finalCollapseManager?.escapeMissions.selectRoute('bh10_haven04_route');
+        this.blackHoleCinematicManager?.setObjective('ROUTE 04 // HAVEN-04 OPEN-DOME SANCTUARY');
+      }
+
       // Route 03: Gravity Slingshot Escape
       if (isQLPSubmode10 && activeBranchRouteId === 'bh10_wormhole_route' && !this.finalCollapseWormholeRouteEntered) {
         this.finalCollapseWormholeRouteEntered = true;
@@ -3039,7 +3051,7 @@ export class GameEngine {
             sound.playMagneticLock();
             sound.playBlastDoorOpen();
             this.cameraShake = Math.max(this.cameraShake, 0.45);
-          } else if (completedRouteId === 'bh10_escape_route' || completedRouteId === 'bh10_wormhole_route') {
+          } else if (completedRouteId === 'bh10_escape_route' || completedRouteId === 'bh10_wormhole_route' || completedRouteId === 'bh10_haven04_route') {
             this.finalCollapseTerminalRouteId = completedRouteId;
             this.finalCollapseTerminalPoint = branchUpdate.terminalPoint.clone();
             this.finalCollapseTerminalTangent = branchUpdate.terminalTangent?.clone() || new THREE.Vector3(0, 0, -1);
@@ -3047,19 +3059,24 @@ export class GameEngine {
             this.finalCollapseTerminalSequenceComplete = false;
             this.finalCollapseCatastropheActive = true;
             this.finalCollapseEscapedRouteId = completedRouteId;
-            this.buildFinalCollapseEscapeSequence(completedRouteId as 'bh10_escape_route' | 'bh10_wormhole_route');
+            this.buildFinalCollapseEscapeSequence(completedRouteId as 'bh10_escape_route' | 'bh10_wormhole_route' | 'bh10_haven04_route');
             if (completedRouteId === 'bh10_escape_route') {
               this.finalCollapseEscapeRouteEntered = true;
               this.setFinalCollapseAuthoritativeState('ROUTE_02_SEQUENCE');
               this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
               this.blackHoleCinematicManager?.setObjective('ROUTE 02 // SUBTERRANEAN BUNKER APPROACH');
               this.callbacks.onShortcutUsed?.('ROUTE 02 // SUBTERRANEAN BUNKER APPROACH');
-            } else {
+            } else if (completedRouteId === 'bh10_wormhole_route') {
               this.finalCollapseWormholeRouteEntered = true;
               this.setFinalCollapseAuthoritativeState('ROUTE_03_SEQUENCE');
               this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
               this.blackHoleCinematicManager?.setObjective('ROUTE 03 // EINSTEIN-ROSEN GATEWAY APPROACH');
               this.callbacks.onShortcutUsed?.('ROUTE 03 // EINSTEIN-ROSEN GATEWAY APPROACH');
+            } else {
+              this.setFinalCollapseAuthoritativeState('ROUTE_04_SEQUENCE');
+              this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
+              this.blackHoleCinematicManager?.setObjective('ROUTE 04 // HAVEN-04 OPEN-DOME BAY APPROACH');
+              this.callbacks.onShortcutUsed?.('ROUTE 04 // HAVEN-04 OPEN-DOME BAY APPROACH');
             }
           }
 
@@ -3159,6 +3176,7 @@ export class GameEngine {
     }
 
     this.updateShipTransform(dt);
+    this.updateHaven04SafeZone(dt);
 
     const sampleAfter = this.track.getSampleAt(this.splineT);
     const shipHeading = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShipGroup.quaternion);
@@ -3239,17 +3257,14 @@ export class GameEngine {
         // A valid safe-zone arrival must have been achieved and validated before 00:00.
         // If not, trigger the authoritative deadline failure.
         const routeProgress = this.junctionManager.playerRouteProgress;
+        const haven04Secured =
+          routeProgress.activeRouteId === 'bh10_haven04_route' &&
+          this.haven04SafeZone?.isParkingValidated === true;
+        const missionSecured = this.finalCollapseManager?.escapeMissions.isMissionCompleted() === true;
+        const launcherSecured = this.finalCollapseShipSecured && this.shelterNavigationActive;
         const hasValidSafeZoneArrival =
-          (this.finalCollapsePlayerEscaped &&
-            (this.finalCollapseManager?.escapeMissions.isMissionCompleted() || this.finalCollapseShipSecured)) ||
-          this.finalCollapseEscapeRouteEntered ||
-          this.finalCollapseWormholeRouteEntered ||
-          (routeProgress.isInBranch && (
-            routeProgress.activeRouteId === 'bh10_escape_route' ||
-            routeProgress.activeRouteId === 'bh10_wormhole_route' ||
-            routeProgress.activeRouteId === 'bh10_launcher_route'
-          )) ||
-          this.shelterNavigationActive;
+          (this.finalCollapsePlayerEscaped && (missionSecured || this.finalCollapseShipSecured)) ||
+          haven04Secured || launcherSecured;
 
         if (!hasValidSafeZoneArrival) {
           this.finalCollapseCatastropheActive = true;
@@ -4415,7 +4430,7 @@ export class GameEngine {
     }
   }
 
-  private buildFinalCollapseEscapeSequence(routeId: 'bh10_escape_route' | 'bh10_wormhole_route') {
+  private buildFinalCollapseEscapeSequence(routeId: 'bh10_escape_route' | 'bh10_wormhole_route' | 'bh10_haven04_route') {
     if (!this.finalCollapseTerminalPoint || !this.finalCollapseTerminalTangent) return;
     if (this.finalCollapseEscapeSequenceGroup) this.scene.remove(this.finalCollapseEscapeSequenceGroup);
 
@@ -4426,8 +4441,8 @@ export class GameEngine {
     if (side.lengthSq() < 0.01) side.set(1, 0, 0);
     const local = (x:number,y:number,z:number) => this.finalCollapseTerminalPoint!.clone().add(side.clone().multiplyScalar(x)).add(up.clone().multiplyScalar(y)).add(tangent.clone().multiplyScalar(z));
 
-    const accent = routeId === 'bh10_escape_route' ? 0xff5a36 : 0xa855f7;
-    const glow = routeId === 'bh10_escape_route' ? 0xffc266 : 0x7dd3fc;
+    const accent = routeId === 'bh10_escape_route' ? 0xff5a36 : routeId === 'bh10_haven04_route' ? 0x34d399 : 0xa855f7;
+    const glow = routeId === 'bh10_escape_route' ? 0xffc266 : routeId === 'bh10_haven04_route' ? 0xa7f3d0 : 0x7dd3fc;
     const mat = (color:number, emissive=color, opacity=1) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 2.5, transparent: opacity < 1, opacity, metalness: 0.2, roughness: 0.25 });
 
     // Route-specific corridor hardware: physical-looking gates, beacons and energy structures.
@@ -4454,6 +4469,21 @@ export class GameEngine {
       barrier.position.copy(local(0, 4, -125));
       barrier.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), tangent);
       g.add(barrier);
+    } else if (routeId === 'bh10_haven04_route') {
+      for (let i=0;i<4;i++) {
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(44, 22, 2.5), mat(0x102a25, accent, 0.95));
+        frame.position.copy(local(0, 8, -18-i*26));
+        g.add(frame);
+        for (const x of [-20,20]) {
+          const sensor = new THREE.Mesh(new THREE.BoxGeometry(1.2, 12, 1.2), mat(glow));
+          sensor.position.copy(local(x, 8, -18-i*26));
+          g.add(sensor);
+        }
+      }
+      const bay = new THREE.Mesh(new THREE.TorusGeometry(20, 1.1, 12, 64), mat(accent, glow, 0.85));
+      bay.position.copy(local(0, 5, -132));
+      bay.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), tangent);
+      g.add(bay);
     } else {
       for (let i=0;i<6;i++) {
         const worm = new THREE.Mesh(new THREE.TorusGeometry(7+i*1.2, 0.32, 10, 48), mat(glow, accent, 0.72));
@@ -4472,13 +4502,14 @@ export class GameEngine {
 
     this.scene.add(g);
     this.finalCollapseEscapeSequenceGroup = g;
-    this.finalCollapseEscapeSequenceRoute = routeId === 'bh10_escape_route' ? 'ROUTE_02' : 'ROUTE_03';
+    this.finalCollapseEscapeSequenceRoute = routeId === 'bh10_escape_route' ? 'ROUTE_02' : routeId === 'bh10_haven04_route' ? 'ROUTE_04' : 'ROUTE_03';
   }
 
   private updateFinalCollapseEscapeSequenceVisuals(dt:number, t:number, routeId:string|null) {
-    if (routeId !== 'bh10_escape_route' && routeId !== 'bh10_wormhole_route') return;
-    if (!this.finalCollapseEscapeSequenceGroup || this.finalCollapseEscapeSequenceRoute !== (routeId === 'bh10_escape_route' ? 'ROUTE_02' : 'ROUTE_03')) {
-      this.buildFinalCollapseEscapeSequence(routeId as 'bh10_escape_route' | 'bh10_wormhole_route');
+    if (routeId !== 'bh10_escape_route' && routeId !== 'bh10_wormhole_route' && routeId !== 'bh10_haven04_route') return;
+    const expectedRoute = routeId === 'bh10_escape_route' ? 'ROUTE_02' : routeId === 'bh10_haven04_route' ? 'ROUTE_04' : 'ROUTE_03';
+    if (!this.finalCollapseEscapeSequenceGroup || this.finalCollapseEscapeSequenceRoute !== expectedRoute) {
+      this.buildFinalCollapseEscapeSequence(routeId as 'bh10_escape_route' | 'bh10_wormhole_route' | 'bh10_haven04_route');
     }
     const g = this.finalCollapseEscapeSequenceGroup;
     if (!g) return;
@@ -4495,6 +4526,67 @@ export class GameEngine {
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       materials.forEach((m:any) => { if (m && 'emissiveIntensity' in m) m.emissiveIntensity = intensity; });
     });
+  }
+
+  /**
+   * Mounts HAVEN-04 at the physical end of the Submode-10 shelter ramp.
+   * The module is isolated from all other modes/submodes and does not alter
+   * the existing authoritative Final Collapse success state.
+   */
+  private updateHaven04SafeZone(dt: number): void {
+    const enabled = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+    if (!enabled) {
+      if (this.haven04SafeZone) {
+        this.haven04Parent?.remove(this.haven04SafeZone.rootGroup);
+        this.haven04SafeZone.dispose();
+        this.haven04SafeZone = null;
+        this.haven04Parent = null;
+      }
+      return;
+    }
+
+    const activeRouteId = this.junctionManager?.playerRouteProgress.activeRouteId;
+    const shelter = activeRouteId === 'bh10_haven04_route'
+      ? this.junctionManager?.finalCollapseHaven04Terminal
+      : this.junctionManager?.finalCollapseShelter;
+    if (!shelter || !this.playerShipGroup) return;
+
+    if (!this.haven04SafeZone) {
+      this.haven04SafeZone = new Haven04SafeZone();
+      this.haven04SafeZone.rootGroup.position.set(0, -14, activeRouteId === 'bh10_haven04_route' ? 130 : -130);
+      shelter.add(this.haven04SafeZone.rootGroup);
+      this.haven04Parent = shelter;
+    } else if (this.haven04Parent !== shelter) {
+      this.haven04Parent?.remove(this.haven04SafeZone.rootGroup);
+      shelter.add(this.haven04SafeZone.rootGroup);
+      this.haven04Parent = shelter;
+      this.haven04SafeZone.rootGroup.position.set(0, -14, activeRouteId === 'bh10_haven04_route' ? 130 : -130);
+    }
+
+    // Unlocking updates objective telemetry only. The physical doorway always
+    // remains passable and does not become an alternate success condition.
+    this.haven04SafeZone.isUnlocked =
+      this.currentLap >= this.totalLaps || this.shelterNavigationActive || this.finalCollapseShelterEntered;
+
+    shelter.updateMatrixWorld(true);
+    this.haven04SafeZone.rootGroup.updateMatrixWorld(true);
+    const remaining = this.quantumCountdownClock?.getRemainingSeconds()
+      ?? this.blackHoleCinematicManager?.finalCountdownSeconds
+      ?? 0;
+    this.haven04SafeZone.update(
+      Math.max(0, Math.min(0.1, dt)),
+      this.playerShipGroup.position,
+      Math.max(0, this.currentSpeed),
+      remaining,
+      () => {
+        if (activeRouteId === 'bh10_haven04_route') {
+          this.finalCollapseShipSecured = true;
+          this.finalCollapsePlayerEscaped = true;
+          this.setFinalCollapseAuthoritativeState('ROUTE_04_SUCCESS');
+        }
+      },
+      12,
+    );
   }
 
   private updateShipTransform(dt: number) {
@@ -4736,15 +4828,14 @@ export class GameEngine {
       }
     }
 
-    // Mode 21 / Submode 10 — THE FINAL COLLAPSE has no finish line.
-    // The physical TOWER BASEMENT ACCESS branch is the only completion point.
+    // Mode 21 / Submode 10: retain genuine three-lap tracking. Haven-04 is a
+    // separate branch near the finish line and becomes visible only on lap 3.
     const isFinalCollapse =
       this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
-    if (isFinalCollapse && this.currentLap >= 2) {
-      // After the first normal lap, Submode 10 no longer uses the main-track
-      // finish line. Route 01/Route 02 are now the only terminal choices.
-      return;
-    }
+    const haven04ApproachWindow = this.splineT >= 0.74 && this.splineT <= 0.965;
+    this.junctionManager.setFinalCollapseHaven04Unlocked(
+      isFinalCollapse && this.currentLap >= 3 && haven04ApproachWindow && !this.hasFinished
+    );
 
     // 2. Check Finish Line / Lap Completion (Gate 0 or Spline Loop Wrap)
     const gate0 = this.track.checkpoints[0];
@@ -4804,10 +4895,10 @@ export class GameEngine {
           this.currentLap++;
           this.callbacks.onLapUpdate(this.currentLap, this.totalLaps);
           if (isFinalCollapse && this.currentLap >= 2) {
-            // The first normal lap is the gate. Open both physical terminal
-            // routes and expose their LEFT/RIGHT arrow controls now.
+            // Existing launcher/emergency/wormhole terminal choices remain available.
+            // Haven-04 is intentionally separate and stays hidden until lap 3's approach.
             this.junctionManager.setFinalCollapseRoutesUnlocked(true);
-            this.junctionManager.feedbackMessage = 'ROUTE 01 / ROUTE 02 UNLOCKED — SELECT WITH LEFT / RIGHT ARROW';
+            this.junctionManager.feedbackMessage = 'TERMINAL ROUTES UNLOCKED — HAVEN-04 OPENS ON LAP 3 BEFORE FINISH';
             this.junctionManager.feedbackTimer = 5.0;
           }
         }
@@ -7935,6 +8026,12 @@ export class GameEngine {
       this.resizeObserver = null;
     }
     this.stopRace();
+    if (this.haven04SafeZone) {
+      this.haven04Parent?.remove(this.haven04SafeZone.rootGroup);
+      this.haven04SafeZone.dispose();
+      this.haven04SafeZone = null;
+      this.haven04Parent = null;
+    }
     if (this.beamSystem) {
       this.beamSystem.dispose();
       this.scene.remove(this.beamSystem.containerGroup);

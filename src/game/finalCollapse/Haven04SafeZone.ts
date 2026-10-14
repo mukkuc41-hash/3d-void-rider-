@@ -72,6 +72,8 @@ export class Haven04SafeZone {
   public isParkingValidated: boolean = false;
   public settleTimer: number = 0.0;
   public readonly requiredSettleDuration: number = 1.8;
+  private lastInsideShield = false;
+  private lastInsideBay = false;
 
   // Visual text & signs
   private canvasTextures: THREE.CanvasTexture[] = [];
@@ -281,6 +283,55 @@ export class Haven04SafeZone {
     this.shieldDomeMesh.position.set(0, 0, 0);
     this.shieldGroup.add(this.shieldDomeMesh);
 
+    // Structural dome ribs: visible meridian arcs and concentric support rings.
+    // These are real low-cost tube meshes, not a texture or background effect.
+    const ribMaterial = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+    });
+    const ribCurveMaterial = ribMaterial;
+    const ribRadiusX = domeRadiusX * 1.003;
+    const ribRadiusY = domeRadiusY * 1.003;
+    const ribRadiusZ = domeRadiusZ * 1.003;
+    for (let i = 0; i < 12; i++) {
+      const theta = (i / 12) * Math.PI * 2;
+      const points: THREE.Vector3[] = [];
+      for (let j = 0; j <= 32; j++) {
+        const phi = (j / 32) * (Math.PI / 2);
+        points.push(new THREE.Vector3(
+          Math.cos(theta) * Math.sin(phi) * ribRadiusX,
+          Math.cos(phi) * ribRadiusY,
+          Math.sin(theta) * Math.sin(phi) * ribRadiusZ,
+        ));
+      }
+      const curve = new THREE.CatmullRomCurve3(points);
+      const rib = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 32, 0.65, 5, false),
+        ribCurveMaterial,
+      );
+      rib.frustumCulled = true;
+      this.shieldGroup.add(rib);
+    }
+    for (const phi of [0.22, 0.48, 0.76, 1.08, 1.36]) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(
+          Math.max(1, Math.sin(phi) * domeRadiusX),
+          0.6,
+          5,
+          64,
+        ),
+        ribMaterial,
+      );
+      // A torus is circular, so scale it into an ellipse and orient it as a
+      // dome latitude ring; phi is measured down from the dome apex.
+      ring.scale.set(1, domeRadiusZ / domeRadiusX, 1);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = Math.cos(phi) * domeRadiusY;
+      this.shieldGroup.add(ring);
+    }
+
     // 8 Perimeter Shield Emitter Pylons around the platform edge
     const emitterPylonGeo = new THREE.CylinderGeometry(2.5, 4.0, 24, 12);
     const pylonMat = new THREE.MeshStandardMaterial({
@@ -402,7 +453,8 @@ export class Haven04SafeZone {
     shipWorldPos?: THREE.Vector3,
     shipSpeedMps: number = 0,
     countdownRemainingSeconds: number = 900,
-    onParkingValidatedCallback?: () => void
+    onParkingValidatedCallback?: () => void,
+    shipRadius: number = 12
   ): Haven04Telemetry {
     // A. Pulse overhead shield visual energy wave
     this.shieldDomeMat.emissiveIntensity =
@@ -426,16 +478,23 @@ export class Haven04SafeZone {
 
     // B. Automatic Chamber Door Sensors (Multi-Directional Arrival & Departure)
     // 1. Outside Arrival Zone: Ship approaching from front corridor (Z between 0 and 115, |X| < 40)
+    const boundsMargin = Math.max(0, Number.isFinite(shipRadius) ? shipRadius : 12);
+    const inDoorLateralRange = Math.abs(localPos.x) <= 38 + boundsMargin;
+    const inDoorVerticalRange = localPos.y >= -8 - boundsMargin && localPos.y <= 38 + boundsMargin;
+
+    // Sensors include a conservative ship-bounds margin, not just the ship centre.
+    // Both approach zones are intentionally bidirectional and overlap the threshold.
     const isApproachingFromOutside =
-      localPos.z >= 0 && localPos.z <= 115 && Math.abs(localPos.x) <= 38 && localPos.y >= -8 && localPos.y <= 38;
+      localPos.z >= -boundsMargin && localPos.z <= 115 + boundsMargin &&
+      inDoorLateralRange && inDoorVerticalRange;
 
-    // 2. Doorway Clearance Zone: Ship occupying threshold (-22 <= Z <= 22, |X| < 38)
     const isOccupyingClearanceZone =
-      localPos.z >= -24 && localPos.z <= 24 && Math.abs(localPos.x) <= 38 && localPos.y >= -8 && localPos.y <= 38;
+      localPos.z >= -24 - boundsMargin && localPos.z <= 24 + boundsMargin &&
+      inDoorLateralRange && inDoorVerticalRange;
 
-    // 3. Inside Departure Zone: Ship moving towards exit from inside platform (-95 <= Z <= 0, |X| < 40)
     const isApproachingFromInside =
-      localPos.z >= -95 && localPos.z <= 0 && Math.abs(localPos.x) <= 38 && localPos.y >= -8 && localPos.y <= 38;
+      localPos.z >= -95 - boundsMargin && localPos.z <= boundsMargin &&
+      inDoorLateralRange && inDoorVerticalRange;
 
     const shipNeedsPassage =
       isApproachingFromOutside || isOccupyingClearanceZone || isApproachingFromInside;
@@ -502,6 +561,7 @@ export class Haven04SafeZone {
 
     // C. Functional Shield Protection Check
     const insideShield = this.isInsideProtectionVolume(shipWorldPos);
+    this.lastInsideShield = insideShield;
 
     // D. Real Parking Validation in Bay 01
     const distToBay = Math.hypot(
@@ -513,9 +573,10 @@ export class Haven04SafeZone {
       localPos.y >= -2.0 &&
       localPos.y <= 16.0;
 
+    this.lastInsideBay = isInsideBay;
     const isSpeedSettled = shipSpeedMps <= 18.0;
 
-    if (isInsideBay && isSpeedSettled) {
+    if (this.isUnlocked && isInsideBay && isSpeedSettled) {
       this.settleTimer += dt;
       if (this.settleTimer >= this.requiredSettleDuration && !this.isParkingValidated) {
         // Authoritative deadline check: must be BEFORE countdown expires!
@@ -597,8 +658,8 @@ export class Haven04SafeZone {
       isUnlocked: this.isUnlocked,
       doorState: this.doorState,
       doorOpenAmount: this.doorOpenAmount,
-      isInsideShield: this.shieldDeflectPulse > 0.05,
-      isInsideBay: this.settleTimer > 0,
+      isInsideShield: this.lastInsideShield,
+      isInsideBay: this.lastInsideBay,
       settleProgress: Math.min(1.0, this.settleTimer / this.requiredSettleDuration),
       isParkingValidated: this.isParkingValidated,
       objectiveText,
@@ -612,6 +673,8 @@ export class Haven04SafeZone {
     this.isParkingValidated = false;
     this.settleTimer = 0.0;
     this.shieldDeflectPulse = 0.0;
+    this.lastInsideShield = false;
+    this.lastInsideBay = false;
     if (this.leftDoorPanel) this.leftDoorPanel.position.x = -12.5;
     if (this.rightDoorPanel) this.rightDoorPanel.position.x = 12.5;
   }

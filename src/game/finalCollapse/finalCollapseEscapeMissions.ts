@@ -5,7 +5,8 @@ import { getMasterEventByNumber } from './finalCollapseMaster100Timeline';
 export type EscapeMissionId =
   | 'ROUTE_01_ORBITAL_LAUNCHER'
   | 'ROUTE_02_EMERGENCY_ESCAPE'
-  | 'ROUTE_03_GRAVITY_SLINGSHOT';
+  | 'ROUTE_03_GRAVITY_SLINGSHOT'
+  | 'ROUTE_04_HAVEN_04';
 
 export interface EscapeStageDefinition {
   stageId: string;
@@ -335,6 +336,22 @@ export const ESCAPE_MISSIONS_CONFIG: Record<EscapeMissionId, EscapeMissionDefini
       },
     ],
   },
+
+  ROUTE_04_HAVEN_04: {
+    id: 'ROUTE_04_HAVEN_04', routeId: 'bh10_haven04_route',
+    name: 'ROUTE 04 // HAVEN-04 OPEN DOME', subtitle: 'Free-roaming shielded sanctuary with sensing chamber gates',
+    themeColorHex: 0x34d399, themeColorStr: '#34d399', safeZoneName: 'HAVEN-04 SHIELDED PARKING BAY',
+    stages: [
+      { stageId: 'H04-01', stageNumber: 1, name: 'HAVEN BEACON ACQUIRED', subtitle: 'Open-dome sanctuary beacon detected', connectedEventNumbers: [40,70], progressThreshold: 0.02, objectiveText: 'COMMIT TO THE HAVEN-04 APPROACH', audioCue: 'advisory' },
+      { stageId: 'H04-02', stageNumber: 2, name: 'OPEN DOME APPROACH', subtitle: 'Upper dome remains open; free movement enabled', connectedEventNumbers: [46,68], progressThreshold: 0.15, requiredCheckpointIndex: 1, objectiveText: 'FOLLOW THE GREEN SANCTUARY RUNWAY', audioCue: 'warning' },
+      { stageId: 'H04-03', stageNumber: 3, name: 'SENSING ARRAY', subtitle: 'Approach sensors detect the incoming ship', connectedEventNumbers: [19,83], progressThreshold: 0.30, objectiveText: 'PASS THE APPROACH SENSOR ARCH', audioCue: 'advisory' },
+      { stageId: 'H04-04', stageNumber: 4, name: 'CHAMBER GATES OPEN', subtitle: 'Automatic doors retract; no lock mechanism', connectedEventNumbers: [70,85], progressThreshold: 0.45, objectiveText: 'ENTER THROUGH THE OPENING CHAMBER GATES', audioCue: 'warning' },
+      { stageId: 'H04-05', stageNumber: 5, name: 'FREE-PASSAGE TRANSIT', subtitle: 'Maintain steering freedom inside the dome', connectedEventNumbers: [90,91], progressThreshold: 0.60, objectiveText: 'KEEP CONTROL AND FOLLOW THE BAY MARKINGS', audioCue: 'danger' },
+      { stageId: 'H04-06', stageNumber: 6, name: 'BAY ALIGNMENT', subtitle: 'Shielded parking bay alignment guides active', connectedEventNumbers: [96], progressThreshold: 0.75, requiredCheckpointIndex: 2, objectiveText: 'ALIGN WITH HAVEN-04 BAY 01', audioCue: 'critical' },
+      { stageId: 'H04-07', stageNumber: 7, name: 'PHYSICAL PARKING APPROACH', subtitle: 'Reduce speed and enter the marked parking volume', connectedEventNumbers: [98], progressThreshold: 0.90, objectiveText: 'ENTER BAY 01 AND SETTLE THE SHIP', audioCue: 'critical' },
+      { stageId: 'H04-08', stageNumber: 8, name: 'HAVEN-04 SAFE-ZONE VALIDATION', subtitle: 'Physical bay entry and settling required before 00:00', connectedEventNumbers: [99,100], progressThreshold: 0.98, objectiveText: 'SECURE THE SHIP INSIDE HAVEN-04 BEFORE 00:00', audioCue: 'emergency' }
+    ]
+  }
 };
 
 /**
@@ -410,6 +427,8 @@ export class EscapeMissionManager {
       missionId = 'ROUTE_02_EMERGENCY_ESCAPE';
     } else if (routeId === 'bh10_wormhole_route' || routeId === 'bh10_slingshot_route') {
       missionId = 'ROUTE_03_GRAVITY_SLINGSHOT';
+    } else if (routeId === 'bh10_haven04_route') {
+      missionId = 'ROUTE_04_HAVEN_04';
     }
 
     if (!missionId) return false;
