@@ -964,10 +964,10 @@ export type EvacuationCinematicController = CollapseCinematicCoordinator;
    Phase 1: Camera moves behind/above ship; track ahead breaks.
    Phase 2: Track cracks, breaks, detaches, falls inward, consumed.
    Phase 3: Ship loses route support, drifts, controls difficult.
-   Phase 4: Track beneath breaks, ship rises from actual location, rotates toward singularity.
-   Phase 5: Camera moves behind ship, black hole dominates.
-   Phase 6: Stylized non-graphic tidal distortion, ship stretches/distorts.
-   Phase 7: Camera pulls away, event horizon absorbs ship (dark implosion, boom, shockwave, black screen).
+   Phase 4: Track beneath breaks; ship remains at its actual failure location.
+   Phase 5: Camera moves behind ship; collapsing environment dominates.
+   Phase 6: Environmental shockwaves and route destruction, with the ship intact.
+   Phase 7: Camera pulls away to show the collapse; ship is never captured or absorbed.
    ========================================================================= */
 export class FailureCinematicController {
   public isActive = false;
@@ -987,10 +987,10 @@ export class FailureCinematicController {
   // Phase 1 (0-2.5s): Camera moves behind/above ship; track ahead breaks.
   // Phase 2 (2.5-5.0s): Track cracks, breaks, detaches, falls inward.
   // Phase 3 (5.0-7.5s): Ship loses route support, drifts, controls difficult.
-  // Phase 4 (7.5-10.0s): Track beneath breaks, ship rises from actual location, rotates toward singularity.
-  // Phase 5 (10.0-12.5s): Camera behind ship, black hole dominates.
-  // Phase 6 (12.5-14.5s): Stylized non-graphic tidal distortion, ship stretches/distorts.
-  // Phase 7 (14.5-15.5s): Ship absorbed into event horizon and disappears.
+  // Phase 4 (7.5-10.0s): Track beneath breaks; ship remains at its actual location.
+  // Phase 5 (10.0-12.5s): Camera behind ship; collapsing environment dominates.
+  // Phase 6 (12.5-14.5s): Environmental shockwaves; ship remains intact.
+  // Phase 7 (14.5-15.5s): Wide environmental collapse shot; ship remains visible.
   // Phase 8 (15.5-16.5s): Complete silence + darkness (0.5–1s).
   // Section 35: Standard failure durations
   private readonly rcPhaseDurations = [2.5, 2.5, 2.5, 2.5, 2.5, 2.0, 1.0, 1.0, 1.7, 2.0, 1.3];
@@ -1661,16 +1661,11 @@ export class FailureCinematicController {
 
       // SUBMODE 10 ONLY: missed-safe-zone failure is environmental destruction,
       // NOT ship absorption, gravitational capture, spaghettification, or event-horizon crossing.
-      // Keep the player's vessel physically present at its last real position while the
-      // surrounding route, stations, planets and cosmic environment collapse around it.
+      // Keep the player's vessel fixed at its last real position while the
+      // surrounding route and environment collapse. No capture trajectory or
+      // forced ship rotation is applied.
       this.shipCurrentTrajectory.copy(this.shipInitialPosition);
-      const instability = Math.min(1, this.elapsed / 30);
-      this.shipCurrentTrajectory.x += Math.sin(this.elapsed * 2.3) * instability * 1.8;
-      this.shipCurrentTrajectory.y += Math.sin(this.elapsed * 3.1) * instability * 0.9;
-      this.shipCurrentTrajectory.z += Math.cos(this.elapsed * 1.7) * instability * 1.2;
-      this.shipRotation.x += Math.sin(this.elapsed * 1.7) * dt * 0.12;
-      this.shipRotation.y += Math.sin(this.elapsed * 1.3) * dt * 0.16;
-      this.shipRotation.z += Math.cos(this.elapsed * 1.9) * dt * 0.1;
+      this.shipRotation.set(0, 0, 0);
 
       // 2. Audio Triggers for each of the 100 events
       if (!this.phaseTriggered.has(evNum)) {
@@ -2041,16 +2036,10 @@ export class FailureCinematicController {
 
       this.blackScreenActive = false;
     } else if (this.isRouteConsumption) {
-      if (this.currentPhase >= 4 && this.currentPhase <= 7) {
-        const start = durations[0] + durations[1] + durations[2];
-        const window = durations[3] + durations[4] + durations[5] + durations[6];
-        const pullFrac = (this.elapsed - start) / Math.max(0.001, window);
-        const eased = Math.pow(Math.max(0, Math.min(1, pullFrac)), 1.55);
-        this.shipCurrentTrajectory.lerpVectors(this.shipInitialPosition, blackHoleCenter, eased);
-        this.shipRotation.x += dt * (1.2 + eased * 3.0);
-        this.shipRotation.y += dt * (0.8 + eased * 2.2);
-        this.shipRotation.z += dt * (1.5 + eased * 4.0);
-      }
+      // Environmental destruction only: never pull or rotate the ship toward
+      // the singularity. Keep it anchored at its actual failure position.
+      this.shipCurrentTrajectory.copy(this.shipInitialPosition);
+      this.shipRotation.set(0, 0, 0);
       if (this.currentPhase === 8 && !this.phaseTriggered.has(8)) {
         this.phaseTriggered.add(8);
       } else if (this.currentPhase === 9 && !this.phaseTriggered.has(9)) {
@@ -2303,6 +2292,8 @@ export class FinalCollapseManager {
       shelterZ: number;
       shelterHeading: number;
       blackHoleCenter?: THREE.Vector3;
+      /** For Submode 10, physical collapse failure is forbidden until the authoritative clock reaches 00:00. */
+      finalCollapseDeadlineReached?: boolean;
     },
     timelineOverrideSeconds?: number,
     scene?: THREE.Scene
@@ -2330,6 +2321,11 @@ export class FinalCollapseManager {
       };
     }
 
+    // Submode 10's deadline is authoritative: before 00:00, environmental collapse
+    // may be visible, but it must not capture the player or force a failure ending.
+    // Undefined keeps legacy behavior for other Black Hole submodes.
+    const mayTriggerCollapseFailure = playerContext.finalCollapseDeadlineReached !== false;
+
     // 1. Update Evacuation Lifecycle
     this.evacuation.update(delta);
 
@@ -2348,6 +2344,7 @@ export class FinalCollapseManager {
     this.destructionFrontDistance = this.destructionFront.distanceToPlayerM;
 
     if (
+      mayTriggerCollapseFailure &&
       !playerContext.shelterNavigationActive &&
       frontCaughtPlayer &&
       !this.evacuation.evacuationSuccess &&
@@ -2367,6 +2364,7 @@ export class FinalCollapseManager {
     );
 
     if (
+      mayTriggerCollapseFailure &&
       collapseResult.routeConsumedTriggered &&
       !this.evacuation.evacuationSuccess &&
       !this.evacuation.evacuationFailed
@@ -2375,7 +2373,7 @@ export class FinalCollapseManager {
     }
 
     // 4b. Explicit Failure Condition Checks (Section 37)
-    if (this.evacuation.evacuationActive && !this.evacuation.evacuationSuccess && !this.evacuation.evacuationFailed) {
+    if (mayTriggerCollapseFailure && this.evacuation.evacuationActive && !this.evacuation.evacuationSuccess && !this.evacuation.evacuationFailed) {
       if (this.tower.isSealed && !this.evacuation.towerEntryReached) {
         this.triggerFailure('TOWER_ENTRANCE_SEALED', false, playerContext.position);
       } else if (this.evacuation.evacuationElapsedTime >= this.raceDuration) {
@@ -2457,7 +2455,21 @@ export class FinalCollapseManager {
     }
 
     const telemetry = this.getTelemetry();
-    const impactForces = this.catastrophe.getShipImpactForces(this.elapsed);
+    const impactForces: ShipImpactForces = playerContext.finalCollapseDeadlineReached === false
+      ? {
+          lateralForce: 0,
+          steeringResistance: 0,
+          velocityDisturbance: 0,
+          pitchDisturbance: 0,
+          rollDisturbance: 0,
+          yawDisturbance: 0,
+          cameraShake: 0,
+          fovDistortion: 0,
+          hudInterference: 0,
+          shieldStress: 0,
+          navigationInterference: 0,
+        }
+      : this.catastrophe.getShipImpactForces(this.elapsed);
 
     return {
       telemetry,

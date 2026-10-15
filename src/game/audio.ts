@@ -3839,6 +3839,88 @@ class SoundSystem {
       });
     } catch (_) {}
   }
+
+  /** Tactical Radio Chirp / Beep */
+  public playTacticalRadioChirp() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1760, now);
+      osc.frequency.setValueAtTime(2640, now + 0.04);
+      gain.gain.setValueAtTime(0.18 * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.13);
+    } catch (_) {}
+  }
+
+  /** Nanite Repair & Shield Recharge Hum */
+  public playNaniteRepairSound() {
+    this.initContext();
+    if (!this.ctx || !this.sfxEnabled) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc1.type = 'triangle';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(440, now);
+      osc1.frequency.exponentialRampToValueAtTime(880, now + 0.6);
+      osc2.frequency.setValueAtTime(660, now);
+      osc2.frequency.exponentialRampToValueAtTime(1320, now + 0.6);
+      gain.gain.setValueAtTime(0.2 * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.75);
+      osc2.stop(now + 0.75);
+    } catch (_) {}
+  }
+
+  /** Haven-04 Tactical Radio ATC Voice Dispatcher */
+  private lastSpeechText = '';
+  private lastSpeechTime = 0;
+  public playHavenATCVoice(stage: 'APPROACH' | 'DOME_ENTERED' | 'BAY_ALIGNMENT' | 'SECURED') {
+    this.playTacticalRadioChirp();
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const now = Date.now();
+    let text = '';
+    switch (stage) {
+      case 'APPROACH':
+        text = 'Haven 04 Control. Approach vector detected. Automatic blast gates disengaging.';
+        break;
+      case 'DOME_ENTERED':
+        text = 'Sanctuary Dome entered. Maintain speed below 18 km per hour for Bay 01 alignment.';
+        break;
+      case 'BAY_ALIGNMENT':
+        text = 'Bay 01 contact. Hold position for hydraulic clamp lock.';
+        break;
+      case 'SECURED':
+        text = 'Hydraulic clamps locked. Evacuation verified. Pilot status: SECURED.';
+        break;
+    }
+    if (text === this.lastSpeechText && now - this.lastSpeechTime < 5000) return;
+    this.lastSpeechText = text;
+    this.lastSpeechTime = now;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 0.95;
+      utterance.volume = Math.min(1.0, this.volume * 0.9);
+      window.speechSynthesis.speak(utterance);
+    } catch (_) {}
+  }
 }
 
 export const sound = new SoundSystem();

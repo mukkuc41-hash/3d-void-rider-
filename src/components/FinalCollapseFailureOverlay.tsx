@@ -21,7 +21,7 @@ export const FinalCollapseFailureOverlay: React.FC<FinalCollapseFailureOverlayPr
     return (
       <div className="fixed inset-0 z-[110] bg-black flex flex-col items-center justify-center p-6 text-center select-none pointer-events-none">
         <div className="font-mono text-xs text-red-500/60 uppercase tracking-[0.4em] animate-pulse">
-          SINGULARITY ABSORPTION COMPLETE
+          COSMIC COLLAPSE SEQUENCE COMPLETE
         </div>
       </div>
     );
@@ -248,7 +248,7 @@ export const FinalCollapseFailureOverlay: React.FC<FinalCollapseFailureOverlayPr
         {/* Bottom Phase Progress Bar */}
         <div className="w-full max-w-md bg-black/80 border border-red-500/40 rounded-xl p-3 text-center">
           <div className="flex justify-between text-[10px] text-red-400 mb-1">
-            <span>SINGULARITY CAPTURE PROGRESS</span>
+            <span>COSMIC COLLAPSE PROGRESS</span>
             <span>{Math.round(evacuation.cinematicProgress * 100)}%</span>
           </div>
           <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-red-500/30">
@@ -271,12 +271,12 @@ export const FinalCollapseFailureOverlay: React.FC<FinalCollapseFailureOverlayPr
             CRITICAL EVACUATION FAILURE
           </div>
           <h2 className="text-3xl font-ui font-black uppercase tracking-widest text-white drop-shadow-[0_0_20px_rgba(239,68,68,1)]">
-            {evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE' ? 'ESCAPE WINDOW MISSED' : 'GRAVITATIONAL CAPTURE'}
+            {evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE' ? 'ESCAPE WINDOW MISSED' : 'COSMIC DESTRUCTION'}
           </h2>
           <p className="text-xs text-red-300 mt-2 tracking-wider">
             {evacuation.endingVariant === 'MISSED_ESCAPE_COLLAPSE'
               ? 'ROUTE DESTROYED — COSMIC COLLAPSE'
-              : (evacuation.failureCause ? evacuation.failureCause.replace(/_/g, ' ') : 'VESSEL DRAWN INTO EVENT HORIZON')}
+              : (evacuation.failureCause ? evacuation.failureCause.replace(/_/g, ' ') : 'SAFE ZONE MISSED — ENVIRONMENTAL DESTRUCTION')}
           </p>
         </div>
       </div>

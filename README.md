@@ -32,3 +32,7 @@ Submode 10 uses exactly one shared start and one fork with two independent termi
 - 40-event 08:00 to 00:00 collapse timeline with event warnings/cautions/alerts.
 - Panoramic whole-black-hole event camera for Submode 10.
 - Planetary collection and progressive planetary spaghettification during the collapse.
+
+## INTO UNKNOWN — Seven Frontier Menu Integration
+
+The main menu now includes an additive INTO UNKNOWN entry for seven experimental frontiers (11–17): Paradox Circuit, Twin-Reality Pursuit, Gravity Surfer, Forge the Void, Aftermath Protocol, Nemesis Intelligence, and Exodus Zero. The selection dialog launches through existing gameplay foundations so existing systems remain intact. These are mapped playable prototypes, not yet seven fully independent physics/gameplay implementations.

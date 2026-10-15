@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  Sparkles,
   X,
   Crown,
 } from 'lucide-react';
@@ -38,6 +39,13 @@ interface MainMenuProps {
   onOpenSettings: () => void;
   onOpenSpaceHub?: () => void;
   onOpenStory?: () => void;
+  onOpenIntoUnknown?: () => void;
+  onOpenChampionship?: () => void;
+  onOpenTrackBuilder?: () => void;
+  onOpenSkillTree?: () => void;
+  onOpenReplay?: () => void;
+  onOpenLivery?: () => void;
+  onStartHyperspaceGauntlet?: () => void;
   credits: number;
   playerLevel: number;
   ping: number;
@@ -63,6 +71,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onOpenSettings,
   onOpenSpaceHub,
   onOpenStory,
+  onOpenIntoUnknown,
+  onOpenChampionship,
+  onOpenTrackBuilder,
+  onOpenSkillTree,
+  onOpenReplay,
+  onOpenLivery,
+  onStartHyperspaceGauntlet,
   credits,
   playerLevel,
   ping,
@@ -333,6 +348,42 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           >
             <Globe className="w-3.5 h-3.5 text-pink-400" />
             <span>STORY</span>
+          </button>
+
+          {/* INTO UNKNOWN — additive seven-frontier entry; existing menu entries remain intact */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenIntoUnknown?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#071b2b]/95 via-[#16102d]/95 to-[#250b2a]/95 border border-cyan-400/60 hover:border-fuchsia-400 text-white hover:text-cyan-100 font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_18px_rgba(34,211,238,0.2)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+            <span>INTO UNKNOWN · 7 FRONTIERS</span>
+          </button>
+
+          {/* CHAMPIONSHIP CUPS */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenChampionship?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#1f1205]/90 border border-amber-500/50 hover:border-amber-400 text-amber-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <span>CHAMPIONSHIP</span>
+          </button>
+
+          {/* TRACK BUILDER */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenTrackBuilder?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#031d28]/90 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+            <span>TRACK BUILDER</span>
           </button>
         </div>
 

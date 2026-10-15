@@ -1419,6 +1419,8 @@ export class JunctionManager {
   public finalCollapseDoorOpenFraction = 0; // 0 = closed, 1 = open
   /** Submode 10: terminal routes unlock only after the player completes one normal lap. */
   public finalCollapseRoutesUnlocked = false;
+  /** Lap 3+: allow the player to continue straight through the terminal fork without entering Routes 01–03. */
+  public finalCollapseMainRouteBypassUnlocked = false;
 
   // Secondary Pressure Doors & Hangar Shield
   public finalCollapsePressureDoorLeft: THREE.Mesh | null = null;
@@ -1526,6 +1528,7 @@ export class JunctionManager {
   public initJunctions(trackId: TrackId) {
     this.junctions.clear();
     this.finalCollapseRoutesUnlocked = false;
+    this.finalCollapseMainRouteBypassUnlocked = false;
     this.finalCollapseHaven04Unlocked = false;
     while (this.junctionMeshGroup.children.length > 0) {
       this.junctionMeshGroup.remove(this.junctionMeshGroup.children[0]);
@@ -1589,6 +1592,12 @@ export class JunctionManager {
         if (wormholeRoute) {
           this.finalCollapseWormholeTerminal = this.buildFinalCollapseWormholeTerminal(wormholeRoute);
           this.junctionMeshGroup.add(this.finalCollapseWormholeTerminal);
+        }
+        const haven04Route = jInst.routeInstances.get('bh10_haven04_route');
+        if (haven04Route && !this.finalCollapseHaven04Terminal) {
+          this.finalCollapseHaven04Terminal = this.buildFinalCollapseEscapeTerminal(haven04Route);
+          this.finalCollapseHaven04Terminal.name = 'Submode10_Route04_Haven04_Terminal';
+          this.junctionMeshGroup.add(this.finalCollapseHaven04Terminal);
         }
         this.setFinalCollapseRoutesUnlocked(false);
       }
@@ -1784,6 +1793,7 @@ export class JunctionManager {
     }
 
     if (!unlocked) {
+      this.finalCollapseMainRouteBypassUnlocked = false;
       junction.selectedRouteId = null;
       this.playerRouteProgress.activeRouteId = null;
       this.playerRouteProgress.activeJunctionId = null;
@@ -1791,6 +1801,19 @@ export class JunctionManager {
       this.activeJunctionTelemetry = null;
     } else {
       this.isSelectionLocked = false;
+    }
+  }
+
+  /**
+   * After two full laps, let Submode 10 players bypass the three terminal escape
+   * branches and remain on the continuous main circuit. This does not disable
+   * any route: a branch is entered only when the player explicitly selects it.
+   */
+  public setFinalCollapseMainRouteBypassUnlocked(unlocked: boolean): void {
+    this.finalCollapseMainRouteBypassUnlocked = unlocked;
+    if (unlocked) {
+      this.feedbackMessage = 'MAIN ROUTE BYPASS AVAILABLE — KEEP STRAIGHT TO SKIP ROUTES 01–03';
+      this.feedbackTimer = 4.0;
     }
   }
 
@@ -1851,13 +1874,13 @@ export class JunctionManager {
   private createFinalCollapseJunctionConfig(trackId: TrackId): JunctionZoneConfig {
     return {
       id: this.finalCollapseJunctionId,
-      name: 'QUANTUM LAUNCH SPLIT // THREE TERMINAL ENDS',
+      name: 'QUANTUM LAUNCH SPLIT // FOUR TERMINAL ESCAPE SEQUENCES',
       trackId,
       approachT: 0.10,
       junctionStartT: 0.18,
       junctionEndT: 0.23,
       defaultRouteId: 'bh10_launcher_route',
-      bannerText: 'FINAL COLLAPSE // SELECT TERMINAL ROUTE',
+      bannerText: 'FINAL COLLAPSE // SELECT TERMINAL ROUTE (1-4)',
       routes: [
         {
           id: 'bh10_launcher_route',
@@ -1942,6 +1965,35 @@ export class JunctionManager {
           description: 'Multi-stage gravity slingshot escape with ergosphere alignment, relativistic hazard dodging, slingshot boost, and Einstein-Rosen gateway validation.',
           boostPadCount: 8,
           obstacleCount: 8,
+        },
+        {
+          id: 'bh10_haven04_route',
+          name: 'ROUTE 04 // HAVEN-04 SHIELDED PARKING',
+          direction: 'SHORTCUT',
+          subtitle: 'Open-dome shielded sanctuary // Bay 01 parking validation',
+          detail: 'Direct sanctuary corridor to Haven-04. Pass automatic chamber blast doors, settle speed in Bay 01, and secure ship before 00:00.',
+          themeColor: '#34d399',
+          isShortcut: true,
+          riskLevel: 'HIGH',
+          hasBoostPads: true,
+          boostPadFractions: [0.10, 0.28, 0.46, 0.64, 0.82, 0.94],
+          hasObstacles: true,
+          obstacleFractions: [0.22, 0.43, 0.66, 0.86],
+          lengthMultiplier: 2.75,
+          width: 42,
+          lateralDivergence: 340,
+          elevationOffset: 16,
+          terminalLateralOffset: 260,
+          terminalElevationOffset: 16,
+          terminalForwardExtension: 900,
+          terminalRoute: true,
+          terminalCaptureFraction: 1.0,
+          requiredCheckpointIndices: [1, 2],
+          entryJunctionId: this.finalCollapseJunctionId,
+          hasShortcut: true,
+          description: 'Open-dome sanctuary with automatic sliding chamber doors, Bay 01 hydraulic clamps, nanite hull repair, and panoramic observation deck.',
+          boostPadCount: 6,
+          obstacleCount: 4,
         },
       ],
     };
@@ -2788,9 +2840,9 @@ export class JunctionManager {
     let jId = this.activeJunctionTelemetry?.junctionId;
     let junction = jId ? this.junctions.get(jId) : null;
 
-    // Submode 10 has one common start and three independent terminal branches.
-    // LEFT = Route 01, CENTER = Route 03, RIGHT = Route 02.
-    if (jId === this.finalCollapseJunctionId && !['LEFT', 'CENTER', 'RIGHT'].includes(direction)) {
+    // Submode 10 has one common start and four independent terminal branches.
+    // LEFT = Route 01, RIGHT = Route 02, CENTER = Route 03, SHORTCUT = Route 04 (Haven-04).
+    if (jId === this.finalCollapseJunctionId && !['LEFT', 'CENTER', 'RIGHT', 'SHORTCUT'].includes(direction)) {
       return false;
     }
     
@@ -3083,8 +3135,16 @@ export class JunctionManager {
       const selectedId = junction.selectedRouteId || this.playerRouteProgress.activeRouteId;
       const selectedRoute = junction.config.routes.find(r => r.id === selectedId);
 
-      // If entered junction boundary and hasn't started branch transition yet
-      if (isInJunction && !this.playerRouteProgress.isInBranch) {
+      // Lap-3 main-route bypass: no explicit route choice means continue on
+      // the original circuit. Do not silently auto-select the default branch.
+      const bypassMainRoute =
+        junction.config.id === this.finalCollapseJunctionId &&
+        this.finalCollapseMainRouteBypassUnlocked &&
+        !selectedId;
+
+      // If entered junction boundary and hasn't started branch transition yet.
+      // Routes 01–03 remain selectable; only an unselected fork is bypassed.
+      if (isInJunction && !this.playerRouteProgress.isInBranch && !bypassMainRoute) {
         const finalRouteId = selectedId || this.getDefaultRoute(junction).id;
         this.transitionToRoute(junction, finalRouteId, currentSpeed);
       }
@@ -3109,7 +3169,9 @@ export class JunctionManager {
         availableRoutes: junction.config.routes,
         selectedRouteId: selectedId,
         selectedRouteDirection: selectedRoute ? selectedRoute.direction : null,
-        statusMessage: this.feedbackMessage,
+        statusMessage: bypassMainRoute
+          ? 'MAIN ROUTE BYPASS — CONTINUE STRAIGHT TO SKIP ESCAPE ROUTES 01–03'
+          : this.feedbackMessage,
         isInJunction: isInJunction || this.playerRouteProgress.isInBranch,
         progressInRoute: this.playerRouteProgress.progress,
         bannerText: junction.config.bannerText,

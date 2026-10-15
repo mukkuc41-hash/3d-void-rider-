@@ -57,6 +57,7 @@ import { MissionsModal } from './components/MissionsModal';
 import { LeaderboardsModal } from './components/LeaderboardsModal';
 import { ProfileModal } from './components/ProfileModal';
 import { GameModeSelectModal } from './components/GameModeSelectModal';
+import { IntoUnknownModal } from './components/IntoUnknownModal';
 import { AIRaceModal } from './components/AIRaceModal';
 import { SpaceHubModal } from './components/SpaceHubModal';
 import { StoryUniverseModal } from './components/StoryUniverseModal';
@@ -76,6 +77,19 @@ import { BlackHoleCinematicTelemetry } from './game/blackHoleCinematicManager';
 import { FinalCollapseResultsModal } from './components/FinalCollapseResultsModal';
 import { FinalCollapseFailureOverlay } from './components/FinalCollapseFailureOverlay';
 import { FinalCollapseStats } from './game/FinalCollapseManager';
+import { PhotoModeOverlay } from './components/PhotoModeOverlay';
+import { ChampionshipModal } from './components/ChampionshipModal';
+import { TrackBuilderModal } from './components/TrackBuilderModal';
+import { cosmicRadio } from './game/cosmicRadio';
+import { championshipCups } from './game/championshipCups';
+import { DEFAULT_PHOTO_SETTINGS } from './game/photoModeManager';
+import {
+  PhotoModeSettings,
+  RadioTelemetry,
+  TacticalModuleTelemetry,
+  GhostTelemetry,
+  CustomTrackNode,
+} from './types';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -144,10 +158,18 @@ export default function App() {
   const [isLeaderboardsOpen, setIsLeaderboardsOpen] = useState<boolean>(false);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isGameModesOpen, setIsGameModesOpen] = useState<boolean>(false);
+  const [isIntoUnknownOpen, setIsIntoUnknownOpen] = useState<boolean>(false);
   const [isAIRaceModalOpen, setIsAIRaceModalOpen] = useState<boolean>(false);
   const [isSpaceHubOpen, setIsSpaceHubOpen] = useState<boolean>(false);
   const [isStoryOpen, setIsStoryOpen] = useState<boolean>(false);
   const [isMultiplayerModalOpen, setIsMultiplayerModalOpen] = useState<boolean>(false);
+  const [isChampionshipOpen, setIsChampionshipOpen] = useState<boolean>(false);
+  const [isTrackBuilderOpen, setIsTrackBuilderOpen] = useState<boolean>(false);
+  const [isPhotoModeOpen, setIsPhotoModeOpen] = useState<boolean>(false);
+  const [photoModeSettings, setPhotoModeSettings] = useState<PhotoModeSettings>({ ...DEFAULT_PHOTO_SETTINGS });
+  const [tacticalTelemetry, setTacticalTelemetry] = useState<TacticalModuleTelemetry | null>(null);
+  const [radioTelemetry, setRadioTelemetry] = useState<RadioTelemetry | null>(null);
+  const [ghostTelemetry, setGhostTelemetry] = useState<GhostTelemetry | null>(null);
   const [spectatorTargetName, setSpectatorTargetName] = useState<string>('');
   const [damageZones, setDamageZones] = useState<ShipDamageZones>({
     frontHull: 0,
@@ -459,7 +481,18 @@ export default function App() {
       setPing(networkClient.ping || 16);
     }, 1500);
 
-    return () => clearInterval(pingTimer);
+    const telemTimer = setInterval(() => {
+      setRadioTelemetry(cosmicRadio.getTelemetry());
+      if (engineRef.current) {
+        setTacticalTelemetry(engineRef.current.getTacticalTelemetry());
+        setGhostTelemetry(engineRef.current.getGhostTelemetry());
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(pingTimer);
+      clearInterval(telemTimer);
+    };
   }, []);
 
   // 3. Desktop Keyboard Event Listeners
@@ -504,6 +537,32 @@ export default function App() {
         }
       }
 
+      if (e.code === 'KeyP') {
+        if (appState === 'RACING') {
+          if (engineRef.current?.isPhotoModeActive()) {
+            engineRef.current.exitPhotoMode();
+            setIsPhotoModeOpen(false);
+          } else {
+            engineRef.current?.enterPhotoMode();
+            setIsPhotoModeOpen(true);
+          }
+        }
+      }
+
+      if (e.code === 'KeyT') {
+        if (engineRef.current && appState === 'RACING') {
+          engineRef.current.activateTacticalModule();
+        }
+      }
+
+      if (e.code === 'BracketRight') {
+        cosmicRadio.nextChannel();
+      }
+
+      if (e.code === 'BracketLeft') {
+        cosmicRadio.prevChannel();
+      }
+
       if (e.code === 'KeyO') {
         if (engineRef.current) {
           const nextDebug = engineRef.current.toggleAIDebug();
@@ -542,7 +601,7 @@ export default function App() {
         }
       }
 
-      // Branch Route Switching Input (A / D / W or Arrow keys, E to confirm)
+      // Branch Route Switching Input (A / D / W / S or Arrow keys, E to confirm)
       if (engineRef.current?.junctionManager?.activeJunctionTelemetry) {
         let dir: BranchRouteDirection | null = null;
         if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
@@ -551,6 +610,8 @@ export default function App() {
           dir = 'RIGHT';
         } else if (e.code === 'KeyW' || e.code === 'ArrowUp') {
           dir = 'CENTER';
+        } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+          dir = 'SHORTCUT';
         } else if (e.code === 'KeyE') {
           engineRef.current.junctionManager.commitRoute();
           if (engineRef.current.junctionManager.activeJunctionTelemetry) {
@@ -567,6 +628,14 @@ export default function App() {
               setJunctionTelemetry({ ...engineRef.current.junctionManager.activeJunctionTelemetry });
             }
           }
+        }
+      }
+
+      // Camera Toggle / Whole Black Hole Panorama Shortcut (Key V)
+      if (e.code === 'KeyV' && appState === 'RACING') {
+        if (engineRef.current) {
+          const m = engineRef.current.toggleWholeBlackHoleCamera();
+          setCameraMode(m);
         }
       }
 
@@ -688,7 +757,15 @@ export default function App() {
     setIsResultsOpen(true);
     setAppState('MAIN_MENU');
     const isWinner = rank === 1;
-    const prize = isWinner ? 500 : 250;
+    let prize = isWinner ? 500 : 250;
+
+    if (championshipCups.getState()) {
+      const champOutcome = championshipCups.recordStageFinish(rank || 1);
+      if (champOutcome.creditsEarned > 0) {
+        prize += champOutcome.creditsEarned;
+      }
+    }
+
     setEarnedCredits(prize);
 
     setProgression(prev => {
@@ -1084,6 +1161,9 @@ export default function App() {
           }}
           onOpenSpaceHub={() => setIsSpaceHubOpen(true)}
           onOpenStory={() => setIsStoryOpen(true)}
+          onOpenIntoUnknown={() => setIsIntoUnknownOpen(true)}
+          onOpenChampionship={() => setIsChampionshipOpen(true)}
+          onOpenTrackBuilder={() => setIsTrackBuilderOpen(true)}
           credits={progression.credits}
           playerLevel={progression.level}
           ping={ping}
@@ -1316,6 +1396,26 @@ export default function App() {
               setIsAIDebugOpen(next);
             }
           }}
+          photoModeActive={isPhotoModeOpen}
+          onOpenPhotoMode={() => {
+            engineRef.current?.enterPhotoMode();
+            setIsPhotoModeOpen(true);
+          }}
+          tacticalTelemetry={tacticalTelemetry}
+          onActivateTacticalModule={() => {
+            engineRef.current?.activateTacticalModule();
+          }}
+          onCycleTacticalModule={() => {
+            engineRef.current?.cycleTacticalModule();
+          }}
+          radioTelemetry={radioTelemetry}
+          onNextRadioStation={() => {
+            cosmicRadio.nextChannel();
+          }}
+          onToggleRadioPlay={() => {
+            cosmicRadio.togglePlay();
+          }}
+          ghostTelemetry={ghostTelemetry}
         />
       )}
 
@@ -1674,6 +1774,35 @@ export default function App() {
         />
       )}
 
+      {/* INTO UNKNOWN — seven frontier concepts, launched through existing gameplay foundations */}
+      <IntoUnknownModal
+        isOpen={isIntoUnknownOpen}
+        onClose={() => setIsIntoUnknownOpen(false)}
+        onStartMode={mode => {
+          setIsIntoUnknownOpen(false);
+          setGameMode(mode);
+          handleStartAIRace({
+            mode,
+            difficulty: mode === 'RIVAL_DUEL' ? 'ELITE' : 'ACE',
+            trackId:
+              mode === 'WORMHOLE_EXPRESS' || mode === 'PLASMA_STORM' || mode === 'ENERGY_HEIST'
+                ? 'quantum_highway'
+                : mode === 'DEBRIS_SURVIVAL'
+                  ? 'asteroid_run'
+                  : mode === 'GRAVITY_FREE'
+                    ? 'nebula_rift'
+                    : 'circuit_alpha',
+            botCount:
+              mode === 'RIVAL_DUEL'
+                ? 1
+                : mode === 'GRAVITY_FREE' || mode === 'ENERGY_HEIST' || mode === 'DEBRIS_SURVIVAL'
+                  ? 3
+                  : 4,
+            laps: mode === 'DEBRIS_SURVIVAL' ? 99 : mode === 'GRAVITY_FREE' ? 2 : 3,
+          });
+        }}
+      />
+
       {/* Game Mode Select Modal */}
       {isGameModesOpen && (
         <GameModeSelectModal
@@ -1771,6 +1900,66 @@ export default function App() {
           handleJoinRoom(code, isSpectator, team);
         }}
       />
+
+      {/* Deep-Space Photo Mode Studio Overlay */}
+      {isPhotoModeOpen && (
+        <PhotoModeOverlay
+          settings={photoModeSettings}
+          onUpdateSettings={partial => {
+            setPhotoModeSettings(prev => ({ ...prev, ...partial }));
+            engineRef.current?.photoModeManager.updateSettings(partial);
+          }}
+          onCapture={() => {
+            engineRef.current?.photoModeManager.captureScreenshot('void-rider-' + Date.now() + '.png');
+          }}
+          onClose={() => {
+            engineRef.current?.exitPhotoMode();
+            setIsPhotoModeOpen(false);
+          }}
+          shipName={currentShipId}
+          speedKmh={speed}
+        />
+      )}
+
+      {/* Galactic Championship Cups Modal */}
+      {isChampionshipOpen && (
+        <ChampionshipModal
+          isOpen={isChampionshipOpen}
+          onClose={() => setIsChampionshipOpen(false)}
+          onStartStage={(trackId, laps) => {
+            setIsChampionshipOpen(false);
+            handleStartAIRace({
+              mode: 'VOID_CHAMPIONSHIP',
+              difficulty: 'ACE',
+              trackId: trackId as any,
+              botCount: 6,
+              laps,
+            });
+          }}
+          playerName={progression.playerName}
+          playerLevel={progression.level}
+          currentShipId={currentShipId}
+          currentShipName={currentShipId}
+        />
+      )}
+
+      {/* 3D Track Architect & Custom Circuit Builder Modal */}
+      {isTrackBuilderOpen && (
+        <TrackBuilderModal
+          isOpen={isTrackBuilderOpen}
+          onClose={() => setIsTrackBuilderOpen(false)}
+          onTestDrive={() => {
+            setIsTrackBuilderOpen(false);
+            handleStartAIRace({
+              mode: 'NEON_CIRCUIT',
+              difficulty: 'NORMAL',
+              trackId: 'circuit_alpha',
+              botCount: 3,
+              laps: 2,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

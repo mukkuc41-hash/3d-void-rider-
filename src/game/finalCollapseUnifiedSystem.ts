@@ -621,7 +621,7 @@ export class FailureCinematicDirector {
           return { position: pos, lookAt: look, fov: 75, shake: 1.8 };
         }
         case 4: {
-          // Phase 4: Gravitational capture: sideways pull & instability
+          // Phase 4: Environmental instability; the ship is not gravitationally captured.
           const pos = playerShipPosition.clone().add(right.clone().multiplyScalar(10)).add(up.clone().multiplyScalar(4)).add(fwd.clone().multiplyScalar(-10));
           const look = playerShipPosition.clone();
           return { position: pos, lookAt: look, fov: 80, shake: 2.2 };
@@ -634,7 +634,7 @@ export class FailureCinematicDirector {
         }
         case 6:
         default: {
-          // Phase 6: Final pull into black hole, cut to black
+          // Phase 6: Wide environmental-collapse shot; no ship capture or absorption.
           const pos = new THREE.Vector3(-450, 750, -1800);
           const look = blackHolePosition.clone();
           return { position: pos, lookAt: look, fov: 75, shake: 3.5 };

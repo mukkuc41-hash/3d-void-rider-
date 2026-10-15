@@ -104,6 +104,23 @@ import { BLACK_HOLE_SUBMODES } from './blackHoleSubmodes';
 import { getFinalCollapseEventByNumber } from './finalCollapse/finalCollapse100EventsCatalog';
 import { getMasterEventByNumber } from './finalCollapse/finalCollapseMaster100Timeline';
 import { Haven04SafeZone } from './finalCollapse/Haven04SafeZone';
+import { GhostSystem } from './ghostSystem';
+import { TacticalModuleSystem } from './tacticalModules';
+import { PhotoModeManager } from './photoModeManager';
+import { cosmicRadio } from './cosmicRadio';
+import { cosmicWeatherDirector } from './cosmicWeather';
+import { replaySystem } from './replaySystem';
+import { pilotSkillManager } from './pilotSkillTree';
+import { rivalNemesisSystem } from './rivalNemesisSystem';
+import { hyperspaceGauntlet } from './hyperspaceGauntlet';
+import {
+  TacticalModuleType,
+  TacticalModuleTelemetry,
+  GhostTelemetry,
+  PhotoModeSettings,
+  CosmicWeatherTelemetry,
+  RivalRadioChatter,
+} from '../types';
 
 export interface LocalAIRacer {
   id: string;
@@ -271,6 +288,11 @@ export class GameEngine {
   public raceIntroManager: RaceIntroManager;
   public finishCinematicManager: FinishCinematicManager;
 
+  // Tactical Modules, Ghost Lap & Photo Studio Systems
+  public ghostSystem: GhostSystem = new GhostSystem();
+  public tacticalModules: TacticalModuleSystem = new TacticalModuleSystem();
+  public photoModeManager: PhotoModeManager = new PhotoModeManager();
+
   // Collectibles & Power-Ups
   private creditsInstancedMesh: THREE.InstancedMesh | null = null;
   private creditsDummy: THREE.Object3D = new THREE.Object3D();
@@ -355,6 +377,25 @@ export class GameEngine {
   // HAVEN-04 is scoped to Quantum Launch Pro / Black Hole Mode / Submode 10 only.
   private haven04SafeZone: Haven04SafeZone | null = null;
   private haven04Parent: THREE.Object3D | null = null;
+  // HAVEN-04 becomes a freely drivable sanctuary after the player reaches its door.
+  private haven04FreeRoamActive = false;
+  private haven04FreeRoamPosition = new THREE.Vector3();
+  private haven04FreeRoamHeading = 0;
+  // At 00:00 the camera transitions to a wide black-hole panorama, including on a successful escape.
+  private finalCollapseDeadlinePanoramaActive = false;
+  public haven04CameraMode: 'FREE_ROAM' | 'OBSERVATION_DECK' | 'PANORAMA' = 'FREE_ROAM';
+
+  public toggleHaven04Camera(): 'FREE_ROAM' | 'OBSERVATION_DECK' | 'PANORAMA' {
+    if (this.haven04CameraMode === 'FREE_ROAM') {
+      this.haven04CameraMode = 'OBSERVATION_DECK';
+    } else if (this.haven04CameraMode === 'OBSERVATION_DECK') {
+      this.haven04CameraMode = 'PANORAMA';
+    } else {
+      this.haven04CameraMode = 'FREE_ROAM';
+    }
+    return this.haven04CameraMode;
+  }
+
   public finalCollapsePreviousCountdown = 900;
   public finalCollapseEscapeEndingActive = false;
   public finalCollapseEscapeEndingElapsed = 0;
@@ -412,6 +453,9 @@ export class GameEngine {
   private nextCheckpointIdx: number = 0;
   private hasFinished: boolean = false;
   public finishLineCooldownTimer: number = 0;
+  // One valid forward finish-line crossing is consumed per circuit traversal.
+  // Re-arm only after the ship has left the start/finish region.
+  private finishLineCrossingArmed: boolean = true;
   public wormholeCooldownTimer: number = 0;
   public raceStartTime: number = 0;
   public totalDistanceTraveled: number = 0;
@@ -1941,6 +1985,7 @@ export class GameEngine {
     this.boostEnergy = 100;
     this.currentLap = 1;
     this.nextCheckpointIdx = 1;
+    this.finishLineCrossingArmed = true;
     this.hasFinished = false;
     this.totalDistanceTraveled = 0;
     this.totalTimeElapsed = 0;
@@ -2063,6 +2108,7 @@ export class GameEngine {
     this.lapStartTime = Date.now();
     this.currentLap = 1;
     this.nextCheckpointIdx = 1;
+    this.finishLineCrossingArmed = true;
     this.boostEnergy = 100;
     this.totalTimeElapsed = 0;
     this.isDestroyed = false;
@@ -2113,6 +2159,7 @@ export class GameEngine {
     this.finalCollapseManager?.start();
     this.hasFinished = false;
     this.finishLineCooldownTimer = 0;
+    this.finishLineCrossingArmed = true;
     this.wormholeCooldownTimer = 0;
     this.raceStartTime = 0;
     this.lapStartTime = Date.now();
@@ -2120,6 +2167,7 @@ export class GameEngine {
     this.totalDistanceTraveled = 0;
     this.currentLap = 1;
     this.nextCheckpointIdx = 1;
+    this.finishLineCrossingArmed = true;
     this.checkpointsPassedThisLap.clear();
     this.junctionManager?.clearLapJunctions();
     if (this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10) {
@@ -2210,6 +2258,10 @@ export class GameEngine {
     this.finalCollapseTerminalTangent = null;
     this.finalCollapseTerminalSequenceElapsed = 0;
     this.finalCollapseTerminalSequenceComplete = false;
+    this.haven04FreeRoamActive = false;
+    this.haven04FreeRoamPosition.set(0, 0, 0);
+    this.haven04FreeRoamHeading = 0;
+    this.finalCollapseDeadlinePanoramaActive = false;
     this.finalCollapseDescending = false;
     this.finalCollapseHangarEntered = false;
     this.finalCollapseParkingAligned = false;
@@ -2918,6 +2970,7 @@ export class GameEngine {
     const forkT = 0.18;
     const forkWindow = 0.012;
     if (isQLPSubmode10Fork &&
+        !this.junctionManager.finalCollapseMainRouteBypassUnlocked &&
         !this.junctionManager.playerRouteProgress.isInBranch &&
         !this.junctionManager.playerRouteProgress.activeRouteId &&
         this.splineT >= forkT - forkWindow && this.splineT < forkT) {
@@ -3005,7 +3058,7 @@ export class GameEngine {
 
       // Update multi-stage escape mission progression during branch traversal
       if (isQLPSubmode10 && this.finalCollapseManager) {
-        const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+        const remainingSec = this.blackHoleCinematicManager?.finalCountdownSeconds ?? this.quantumCountdownClock?.getRemainingSeconds() ?? 900;
         const missionUpdate = this.finalCollapseManager.escapeMissions.updateProgress(
           this.junctionManager.playerRouteProgress.progress,
           this.currentSpeed,
@@ -3057,9 +3110,25 @@ export class GameEngine {
             this.finalCollapseTerminalTangent = branchUpdate.terminalTangent?.clone() || new THREE.Vector3(0, 0, -1);
             this.finalCollapseTerminalSequenceElapsed = 0;
             this.finalCollapseTerminalSequenceComplete = false;
-            this.finalCollapseCatastropheActive = true;
+            const isHaven04Route = completedRouteId === 'bh10_haven04_route';
+            this.finalCollapseCatastropheActive = !isHaven04Route;
             this.finalCollapseEscapedRouteId = completedRouteId;
-            this.buildFinalCollapseEscapeSequence(completedRouteId as 'bh10_escape_route' | 'bh10_wormhole_route' | 'bh10_haven04_route');
+            if (isHaven04Route && this.finalCollapseTerminalTangent) {
+              // Place the ship just inside the open dome, past the sensing-door threshold.
+              // The route tangent points outward, so move back along it into the sanctuary.
+              this.haven04FreeRoamActive = true;
+              this.haven04FreeRoamHeading = Math.atan2(
+                -this.finalCollapseTerminalTangent.x,
+                -this.finalCollapseTerminalTangent.z
+              );
+              this.haven04FreeRoamPosition.copy(this.finalCollapseTerminalPoint)
+                .addScaledVector(this.finalCollapseTerminalTangent, -72)
+                .add(new THREE.Vector3(0, -10.0, 0));
+              this.finalCollapseTerminalSequenceComplete = true;
+              this.currentSpeed = Math.min(Math.max(this.currentSpeed, 0), 24);
+            } else {
+              this.buildFinalCollapseEscapeSequence(completedRouteId as 'bh10_escape_route' | 'bh10_wormhole_route');
+            }
             if (completedRouteId === 'bh10_escape_route') {
               this.finalCollapseEscapeRouteEntered = true;
               this.setFinalCollapseAuthoritativeState('ROUTE_02_SEQUENCE');
@@ -3073,10 +3142,13 @@ export class GameEngine {
               this.blackHoleCinematicManager?.setObjective('ROUTE 03 // EINSTEIN-ROSEN GATEWAY APPROACH');
               this.callbacks.onShortcutUsed?.('ROUTE 03 // EINSTEIN-ROSEN GATEWAY APPROACH');
             } else {
-              this.setFinalCollapseAuthoritativeState('ROUTE_04_SEQUENCE');
-              this.blackHoleCinematicManager?.start('ESCAPE_SEQUENCE');
-              this.blackHoleCinematicManager?.setObjective('ROUTE 04 // HAVEN-04 OPEN-DOME BAY APPROACH');
-              this.callbacks.onShortcutUsed?.('ROUTE 04 // HAVEN-04 OPEN-DOME BAY APPROACH');
+              this.setFinalCollapseAuthoritativeState('ROUTE_04_FREE_ROAM');
+              if (this.blackHoleCinematicManager) {
+                this.blackHoleCinematicManager.gameplayLocked = false;
+                this.blackHoleCinematicManager.cameraOverride = false;
+                this.blackHoleCinematicManager.setObjective('HAVEN-04 // FREE ROAM ACTIVE — DRIVE INSIDE OR OUTSIDE THE DOME');
+              }
+              this.callbacks.onShortcutUsed?.('ROUTE 04 // HAVEN-04 FREE ROAM ACTIVE');
             }
           }
 
@@ -3253,12 +3325,15 @@ export class GameEngine {
       // aftermath to show the same black hole consuming the outside world.
       if (isFinalCollapse && blackHoleCinematic.finalCountdown === 0 && !this.finalCollapse00Triggered) {
         this.finalCollapse00Triggered = true;
+        this.finalCollapseDeadlinePanoramaActive = true;
         // 00:00 is the hard escape deadline for Quantum Launch Pro / Final Collapse.
         // A valid safe-zone arrival must have been achieved and validated before 00:00.
         // If not, trigger the authoritative deadline failure.
         const routeProgress = this.junctionManager.playerRouteProgress;
         const haven04Secured =
-          routeProgress.activeRouteId === 'bh10_haven04_route' &&
+          (routeProgress.activeRouteId === 'bh10_haven04_route' ||
+           this.finalCollapseTerminalRouteId === 'bh10_haven04_route' ||
+           this.finalCollapseEscapedRouteId === 'bh10_haven04_route') &&
           this.haven04SafeZone?.isParkingValidated === true;
         const missionSecured = this.finalCollapseManager?.escapeMissions.isMissionCompleted() === true;
         const launcherSecured = this.finalCollapseShipSecured && this.shelterNavigationActive;
@@ -3282,12 +3357,14 @@ export class GameEngine {
           // Valid safe-zone arrival was validated prior to 00:00 deadline!
           this.finalCollapsePlayerEscaped = true;
           this.finalCollapseManager?.markSurvived();
-          if (this.finalCollapseAuthoritativeState === 'NORMAL_GAMEPLAY') {
-            const activeId = routeProgress.activeRouteId;
+          if (this.finalCollapseAuthoritativeState === 'NORMAL_GAMEPLAY' || this.finalCollapseAuthoritativeState === 'ROUTE_04_FREE_ROAM') {
+            const activeId = routeProgress.activeRouteId || this.finalCollapseTerminalRouteId;
             if (activeId === 'bh10_escape_route' || this.finalCollapseEscapeRouteEntered) {
               this.setFinalCollapseAuthoritativeState('ROUTE_02_SUCCESS');
             } else if (activeId === 'bh10_wormhole_route' || this.finalCollapseWormholeRouteEntered) {
               this.setFinalCollapseAuthoritativeState('ROUTE_03_SUCCESS');
+            } else if (activeId === 'bh10_haven04_route' || haven04Secured) {
+              this.setFinalCollapseAuthoritativeState('ROUTE_04_SUCCESS');
             } else {
               this.setFinalCollapseAuthoritativeState('ROUTE_01_SUCCESS');
             }
@@ -3653,10 +3730,14 @@ export class GameEngine {
           const bay07World = this.junctionManager.bay07WorldPosition ?? new THREE.Vector3(0, -14, -1085);
           const bhCenter = this.supermassiveBlackHole?.root.position ?? new THREE.Vector3(0, 180, -3500);
 
+          // Use the same authoritative clock as the visible Final Collapse countdown.
+          // Do not let a secondary HUD clock advance events or failure logic early.
           let countdownTimelineSec: number | undefined = undefined;
-          if (this.quantumCountdownClock) {
-            const initialDurSec = Math.max(30, this.quantumCountdownClock.initialDurationMs / 1000);
-            countdownTimelineSec = (this.quantumCountdownClock.elapsedMs / 1000) * (900 / initialDurSec);
+          const authoritativeRemaining = this.blackHoleCinematicManager?.finalCountdownSeconds;
+          if (authoritativeRemaining !== null && authoritativeRemaining !== undefined) {
+            countdownTimelineSec = authoritativeRemaining > 0
+              ? Math.max(0, Math.min(900, 900 - authoritativeRemaining))
+              : 900 + Math.max(0, this.blackHoleCinematicManager?.postZeroElapsedSeconds || 0);
           }
 
           const collapseUpdate = this.finalCollapseManager.update(
@@ -3674,6 +3755,10 @@ export class GameEngine {
               shelterZ: this.shelterZ,
               shelterHeading: this.shelterHeading,
               blackHoleCenter: bhCenter,
+              finalCollapseDeadlineReached:
+                this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10
+                  ? blackHoleCinematic.finalCountdown === 0
+                  : undefined,
             },
             countdownTimelineSec,
             this.scene
@@ -4222,7 +4307,7 @@ export class GameEngine {
             // Phase 4: Pilot safe confirmation
             if (t >= 2.8 && !this.finalCollapseShipSecured) {
               this.finalCollapseShipSecured = true;
-              const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+              const remainingSec = this.blackHoleCinematicManager?.finalCountdownSeconds ?? this.quantumCountdownClock?.getRemainingSeconds() ?? 900;
               const validated = this.finalCollapseManager?.escapeMissions.validateSafeZoneEntry(remainingSec);
               if (validated) {
                 this.finalCollapsePlayerEscaped = true;
@@ -4536,6 +4621,8 @@ export class GameEngine {
   private updateHaven04SafeZone(dt: number): void {
     const enabled = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
     if (!enabled) {
+      this.haven04FreeRoamActive = false;
+      this.finalCollapseDeadlinePanoramaActive = false;
       if (this.haven04SafeZone) {
         this.haven04Parent?.remove(this.haven04SafeZone.rootGroup);
         this.haven04SafeZone.dispose();
@@ -4570,10 +4657,10 @@ export class GameEngine {
 
     shelter.updateMatrixWorld(true);
     this.haven04SafeZone.rootGroup.updateMatrixWorld(true);
-    const remaining = this.quantumCountdownClock?.getRemainingSeconds()
-      ?? this.blackHoleCinematicManager?.finalCountdownSeconds
-      ?? 0;
-    this.haven04SafeZone.update(
+    const remaining = this.blackHoleCinematicManager?.finalCountdownSeconds
+      ?? this.quantumCountdownClock?.getRemainingSeconds()
+      ?? 900;
+    const havenTelem = this.haven04SafeZone.update(
       Math.max(0, Math.min(0.1, dt)),
       this.playerShipGroup.position,
       Math.max(0, this.currentSpeed),
@@ -4587,19 +4674,56 @@ export class GameEngine {
       },
       12,
     );
+    this.blackHoleCinematicManager?.setHaven04Telemetry(havenTelem);
+
+    // Active Nanite Hull Repair inside Bay 01
+    if (havenTelem.naniteRepairActive && this.hullHealth < 100) {
+      this.hullHealth = Math.min(100, this.hullHealth + 25 * dt);
+    }
   }
 
   private updateShipTransform(dt: number) {
     if (!this.playerShipGroup) return;
 
-    // Mode 21 — Physical Gravitational Capture Trajectory during Failure Cinematic (Phase 2+ for missed escape, 4+ for others)
-    const minCapturePhase = this.finalCollapseManager?.failureCinematic.endingVariant === 'MISSED_ESCAPE_COLLAPSE' ? 2 : 4;
+    // Mode 21 / Submode 10 failure cinematic: keep the ship at its actual
+    // failure location. Do not force a gravitational capture trajectory,
+    // event-horizon movement, rotation, scaling, or absorption.
+    if (this.finalCollapseManager?.failureCinematic.isActive) {
+      this.playerShipGroup.position.copy(this.finalCollapseManager.failureCinematic.shipInitialPosition);
+      this.playerShipGroup.visible = true;
+      this.playerShipGroup.scale.set(1, 1, 1);
+      return;
+    }
+
+    // HAVEN-04 is a drivable sanctuary, not a terminal cinematic. Keep normal
+    // throttle/reverse controls active and allow continuous circular movement
+    // through the open door, around the dome, and back outside without a radius clamp.
     if (
-      this.finalCollapseManager?.failureCinematic.isActive &&
-      this.finalCollapseManager.failureCinematic.currentPhase >= minCapturePhase
+      this.haven04FreeRoamActive &&
+      this.finalCollapseTerminalRouteId === 'bh10_haven04_route' &&
+      this.finalCollapseTerminalPoint &&
+      this.finalCollapseTerminalTangent
     ) {
-      this.playerShipGroup.position.copy(this.finalCollapseManager.failureCinematic.shipCurrentTrajectory);
-      this.playerShipGroup.rotation.copy(this.finalCollapseManager.failureCinematic.shipRotation);
+      const safeDt = Math.max(0, Math.min(dt, 0.1));
+      const steer = this.input.steer;
+      const speedForTurn = Math.min(1.6, 0.65 + Math.abs(this.currentSpeed) * 0.035);
+      this.haven04FreeRoamHeading += steer * speedForTurn * safeDt;
+      const forward = new THREE.Vector3(
+        -Math.sin(this.haven04FreeRoamHeading),
+        0,
+        -Math.cos(this.haven04FreeRoamHeading)
+      );
+      const side = new THREE.Vector3(forward.z, 0, -forward.x);
+      const forwardStep = this.currentSpeed * safeDt;
+      // Steering has a small direct lateral component so slow-speed turns remain responsive.
+      this.haven04FreeRoamPosition.addScaledVector(forward, forwardStep);
+      this.haven04FreeRoamPosition.addScaledVector(side, steer * Math.min(18, Math.abs(this.currentSpeed) * 0.18) * safeDt);
+      this.playerShipGroup.position.copy(this.haven04FreeRoamPosition);
+      this.playerShipGroup.rotation.set(0, this.haven04FreeRoamHeading, 0);
+      this.playerShipGroup.position.y = this.finalCollapseTerminalPoint.y - 10.0;
+      this.playerShipGroup.visible = true;
+      const flameScale = 0.8 + Math.abs(this.currentSpeed) / 40 + (this.isBoosting ? 1.0 : 0);
+      this.playerThrusters.forEach(flame => flame.scale.set(1, flameScale, 1));
       return;
     }
 
@@ -4626,7 +4750,7 @@ export class GameEngine {
         if (t >= 3.5 && t < 5.0) this.blackHoleCinematicManager?.setObjective('ROUTE 02 // ESCAPE THRUST ARMED');
         if (t >= 5.0 && !this.finalCollapseTerminalSequenceComplete) {
           this.finalCollapseTerminalSequenceComplete = true;
-          const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+          const remainingSec = this.blackHoleCinematicManager?.finalCountdownSeconds ?? this.quantumCountdownClock?.getRemainingSeconds() ?? 900;
           const validated = this.finalCollapseManager?.escapeMissions.validateSafeZoneEntry(remainingSec);
           if (validated) {
             this.finalCollapsePlayerEscaped = true;
@@ -4653,7 +4777,7 @@ export class GameEngine {
         if (t >= 3.5 && t < 5.0) this.blackHoleCinematicManager?.setObjective('ROUTE 03 // TRANSIT VECTOR ARMED');
         if (t >= 5.0 && !this.finalCollapseTerminalSequenceComplete) {
           this.finalCollapseTerminalSequenceComplete = true;
-          const remainingSec = this.quantumCountdownClock?.getRemainingSeconds() ?? (this.blackHoleCinematicManager?.finalCountdownSeconds ?? 900);
+          const remainingSec = this.blackHoleCinematicManager?.finalCountdownSeconds ?? this.quantumCountdownClock?.getRemainingSeconds() ?? 900;
           const validated = this.finalCollapseManager?.escapeMissions.validateSafeZoneEntry(remainingSec);
           if (validated) {
             this.finalCollapsePlayerEscaped = true;
@@ -4804,34 +4928,50 @@ export class GameEngine {
 
     const totalCps = this.track.checkpoints.length;
     if (totalCps === 0) return;
+    // Keep strict lap/checkpoint validation scoped to the requested Final Collapse
+    // submode; the protected modes and other race modes retain their existing rules.
+    const isFinalCollapse =
+      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
 
-    // 1. Check all intermediate checkpoints
-    for (let i = 1; i < totalCps; i++) {
-      const gate = this.track.checkpoints[i];
-      if (!this.checkpointsPassedThisLap.has(i)) {
+    if (isFinalCollapse) {
+      // Final Collapse checkpoints must be passed in order and while facing forward.
+      const checkpointSample = this.track.getSampleAt(this.splineT);
+      const checkpointHeading = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShipGroup.quaternion);
+      const checkpointForwardAligned = checkpointHeading.dot(checkpointSample.tangent) > 0.15;
+      for (let i = 1; i < totalCps; i++) {
+        const gate = this.track.checkpoints[i];
+        if (this.checkpointsPassedThisLap.has(i) || i !== this.nextCheckpointIdx) continue;
         const dist = shipPos.distanceTo(gate.position);
-        const physicallyNear = dist < Math.max(gate.width * 1.6, 26.0);
-        const splinePassed = (this.splineT >= gate.t && this.splineT < gate.t + 0.12 && this.prevSplineT < gate.t);
-
+        const physicallyNear = checkpointForwardAligned && dist < Math.max(gate.width * 1.15, 18.0);
+        const splinePassed = this.prevSplineT < gate.t && this.splineT >= gate.t && this.splineT < gate.t + 0.12;
         if (physicallyNear || splinePassed) {
           this.checkpointsPassedThisLap.add(i);
-          this.latestValidCheckpoint = {
-            idx: i,
-            t: gate.t,
-            pos: gate.position.clone(),
-          };
+          this.latestValidCheckpoint = { idx: i, t: gate.t, pos: gate.position.clone() };
           sound.playCheckpoint();
-          this.nextCheckpointIdx = (i + 1) % totalCps;
+          this.nextCheckpointIdx = i + 1 < totalCps ? i + 1 : 0;
           this.callbacks.onCheckpointUpdate(this.nextCheckpointIdx, totalCps);
           this.modeManager.recordRingPassed();
         }
       }
+    } else {
+      // Legacy checkpoint behavior remains unchanged outside Submode 10.
+      for (let i = 1; i < totalCps; i++) {
+        const gate = this.track.checkpoints[i];
+        if (!this.checkpointsPassedThisLap.has(i)) {
+          const dist = shipPos.distanceTo(gate.position);
+          const physicallyNear = dist < Math.max(gate.width * 1.6, 26.0);
+          const splinePassed = (this.splineT >= gate.t && this.splineT < gate.t + 0.12 && this.prevSplineT < gate.t);
+          if (physicallyNear || splinePassed) {
+            this.checkpointsPassedThisLap.add(i);
+            this.latestValidCheckpoint = { idx: i, t: gate.t, pos: gate.position.clone() };
+            sound.playCheckpoint();
+            this.nextCheckpointIdx = (i + 1) % totalCps;
+            this.callbacks.onCheckpointUpdate(this.nextCheckpointIdx, totalCps);
+            this.modeManager.recordRingPassed();
+          }
+        }
+      }
     }
-
-    // Mode 21 / Submode 10: retain genuine three-lap tracking. Haven-04 is a
-    // separate branch near the finish line and becomes visible only on lap 3.
-    const isFinalCollapse =
-      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
     const haven04ApproachWindow = this.splineT >= 0.74 && this.splineT <= 0.965;
     this.junctionManager.setFinalCollapseHaven04Unlocked(
       isFinalCollapse && this.currentLap >= 3 && haven04ApproachWindow && !this.hasFinished
@@ -4841,9 +4981,15 @@ export class GameEngine {
     const gate0 = this.track.checkpoints[0];
     const distToFinish = gate0 ? shipPos.distanceTo(gate0.position) : 999;
     const isPhysicallyAtFinish = distToFinish < Math.max((gate0?.width || 20) * 1.6, 28.0);
-    const isSplineLoopWrapped = (this.prevSplineT > 0.82 && this.splineT < 0.18);
+    const isSplineLoopWrapped = this.prevSplineT > 0.82 && this.splineT < 0.18;
+    // Submode 10 requires a one-shot forward wrap; other modes preserve legacy
+    // finish detection so their lap behavior is not changed by this repair.
+    if (this.splineT > 0.25) this.finishLineCrossingArmed = true;
+    const isValidFinishCrossing = isFinalCollapse
+      ? isSplineLoopWrapped && this.finishLineCrossingArmed
+      : isPhysicallyAtFinish || isSplineLoopWrapped;
 
-    if ((isPhysicallyAtFinish || isSplineLoopWrapped) && this.finishLineCooldownTimer <= 0 && !this.isWrongWay) {
+    if (isValidFinishCrossing && this.finishLineCooldownTimer <= 0 && !this.isWrongWay) {
       const now = Date.now();
       // A finish-line crossing is only a valid lap completion after every
       // intermediate checkpoint on the current lap has been completed.
@@ -4857,7 +5003,8 @@ export class GameEngine {
       // Ensure player has been racing on this lap for at least 2.5 seconds
       if (completedCurrentLap && now - this.lapStartTime > 2500) {
         sound.playCheckpoint();
-        this.finishLineCooldownTimer = 3.5; // 3.5s cooldown debounce
+        if (isFinalCollapse) this.finishLineCrossingArmed = false;
+        this.finishLineCooldownTimer = 3.5; // debounce duplicate frame/collision events
         this.latestValidCheckpoint = {
           idx: 0,
           t: gate0 ? gate0.t : 0,
@@ -4870,7 +5017,10 @@ export class GameEngine {
           if (this.bestLapTime === 0 || lapDuration < this.bestLapTime) {
             this.bestLapTime = lapDuration;
           }
+          this.ghostSystem?.completeLap(lapDuration / 1000);
         }
+        this.ghostSystem?.recordCheckpoint(0);
+        this.ghostSystem?.startLap(this.currentLap + 1);
         this.lapStartTime = now;
         this.checkpointsPassedThisLap.clear();
         this.junctionManager.clearLapJunctions();
@@ -4900,6 +5050,11 @@ export class GameEngine {
             this.junctionManager.setFinalCollapseRoutesUnlocked(true);
             this.junctionManager.feedbackMessage = 'TERMINAL ROUTES UNLOCKED — HAVEN-04 OPENS ON LAP 3 BEFORE FINISH';
             this.junctionManager.feedbackTimer = 5.0;
+          }
+          if (isFinalCollapse && this.currentLap >= 3) {
+            // After two completed laps, lap 3 may continue on the main route
+            // unless the player explicitly selects an escape branch.
+            this.junctionManager.setFinalCollapseMainRouteBypassUnlocked(true);
           }
         }
       }
@@ -5101,12 +5256,11 @@ export class GameEngine {
       if (this.finalCollapseManager?.failureCinematic.isActive) {
         const fc = this.finalCollapseManager.failureCinematic;
 
-        // Move player ship along physical continuous gravitational trajectory
-        const minCamCapturePhase = fc.endingVariant === 'MISSED_ESCAPE_COLLAPSE' ? 2 : 4;
-        if (fc.currentPhase >= minCamCapturePhase) {
-          this.playerShipGroup.position.copy(fc.shipCurrentTrajectory);
-          this.playerShipGroup.rotation.copy(fc.shipRotation);
-        }
+        // Failure cinematic camera authority only. Keep the player's ship
+        // visible at its real failure position; never move it into the horizon.
+        this.playerShipGroup.position.copy(fc.shipInitialPosition);
+        this.playerShipGroup.visible = true;
+        this.playerShipGroup.scale.set(1, 1, 1);
 
         // Mode 21 Submode 10 — Missed Safe Zone Sequence:
         // GRAND PANORAMIC VIEW: cosmic destruction remains visible; player ship is never absorbed.
@@ -5204,6 +5358,89 @@ export class GameEngine {
           this.hasFinished = true;
           const finalTime = Date.now() - this.raceStartTime;
           this.callbacks.onRaceFinish(finalTime);
+        }
+        return;
+      }
+
+      // HAVEN-04 Sanctuary Camera Controls: Free-Roam, Observation Deck, and Whole Black Hole Panorama
+      if (
+        this.haven04FreeRoamActive &&
+        this.finalCollapseTerminalRouteId === 'bh10_haven04_route' &&
+        this.playerShipGroup
+      ) {
+        // 1. Observation Panorama Deck Mode (Frames the observation deck & singularity)
+        if (this.haven04CameraMode === 'OBSERVATION_DECK' && this.haven04SafeZone) {
+          const obsWorld = this.haven04SafeZone.rootGroup.localToWorld(new THREE.Vector3(0, 19, -225));
+          this.camera.position.lerp(obsWorld, 0.1);
+          this.camera.lookAt(bhPos.x, bhPos.y + 120, bhPos.z);
+          this.camera.fov = 72;
+          this.camera.far = 40000;
+          this.camera.updateProjectionMatrix();
+          if (this.scene.fog instanceof THREE.FogExp2) {
+            this.scene.fog.density = 0.000005;
+          }
+          return;
+        }
+
+        // 2. Whole Black Hole Grand Panoramic Vantage (3400m altitude orbital arc)
+        if (this.haven04CameraMode === 'PANORAMA' || (this.finalCollapseDeadlinePanoramaActive && this.haven04CameraMode !== 'FREE_ROAM')) {
+          const panTime = this.blackHoleCinematicManager.finalCountdownSeconds === 0
+            ? (this.blackHoleCinematicManager.postZeroElapsedSeconds || 0)
+            : this.finalCollapseEscapeEndingElapsed;
+          const orbitDist = 3400;
+          const angle = panTime * 0.012;
+          const targetCamPos = new THREE.Vector3(
+            bhPos.x + Math.sin(angle) * orbitDist,
+            bhPos.y + 1150 + Math.sin(panTime * 0.02) * 70,
+            bhPos.z + Math.cos(angle) * orbitDist
+          );
+          this.camera.position.lerp(targetCamPos, 0.1);
+          this.camera.lookAt(bhPos);
+          this.camera.fov = 76;
+          this.camera.far = 40000;
+          this.camera.updateProjectionMatrix();
+          if (this.scene.fog instanceof THREE.FogExp2) {
+            this.scene.fog.density = 0.000005;
+          }
+          return;
+        }
+
+        // 3. Free-Roam Follow Camera (Behind ship with wide framing)
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShipGroup.quaternion);
+        const up = new THREE.Vector3(0, 1, 0);
+        const targetCamPos = this.playerShipGroup.position.clone()
+          .add(forward.clone().multiplyScalar(-24))
+          .add(up.clone().multiplyScalar(10));
+        const lookTarget = this.playerShipGroup.position.clone()
+          .add(forward.clone().multiplyScalar(5))
+          .add(up.clone().multiplyScalar(1.5));
+        this.camera.position.lerp(targetCamPos, 0.12);
+        this.camera.lookAt(lookTarget);
+        this.camera.fov = 68;
+        this.camera.far = Math.max(this.camera.far, 12000);
+        this.camera.updateProjectionMatrix();
+        return;
+      }
+
+      // At 00:00, show the full black-hole system for other routes or default
+      if (this.finalCollapseDeadlinePanoramaActive) {
+        const panTime = this.blackHoleCinematicManager.finalCountdownSeconds === 0
+          ? (this.blackHoleCinematicManager.postZeroElapsedSeconds || 0)
+          : 0;
+        const orbitDist = 3400;
+        const angle = panTime * 0.012;
+        const targetCamPos = new THREE.Vector3(
+          bhPos.x + Math.sin(angle) * orbitDist,
+          bhPos.y + 1150 + Math.sin(panTime * 0.02) * 70,
+          bhPos.z + Math.cos(angle) * orbitDist
+        );
+        this.camera.position.lerp(targetCamPos, 0.12);
+        this.camera.lookAt(bhPos);
+        this.camera.fov = 76;
+        this.camera.far = 40000;
+        this.camera.updateProjectionMatrix();
+        if (this.scene.fog instanceof THREE.FogExp2) {
+          this.scene.fog.density = 0.000005;
         }
         return;
       }
@@ -6192,6 +6429,28 @@ export class GameEngine {
 
   public destroyPlayerShip(reason: string = 'HULL BREACHED') {
     if (this.invulnerableTimer > 0 || this.isDestroyed) return;
+
+    // During Submode 10's live countdown, do not destroy/capture the player ship.
+    // The environment can still hit and slow the ship, but the player remains present
+    // and controllable until the authoritative 00:00 deadline is reached.
+    const isFinalCollapseSubmode10 =
+      this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+    const remainingCountdown = this.blackHoleCinematicManager?.finalCountdownSeconds
+      ?? this.quantumCountdownClock?.getRemainingSeconds()
+      ?? 900;
+    if (isFinalCollapseSubmode10 && remainingCountdown > 0) {
+      this.hullHealth = Math.max(1, this.hullHealth);
+      this.callbacks.onHullUpdate?.(this.hullHealth);
+      this.currentSpeed = Math.max(0, this.currentSpeed * 0.35);
+      this.isBoosting = false;
+      this.isDrifting = false;
+      if (this.cameraShakeEnabled) this.cameraShake = Math.max(this.cameraShake, 0.7);
+      if (this.playerShipGroup) this.triggerCollisionBurst(this.playerShipGroup.position, 0xff5a36, 18);
+      sound.playCollision();
+      this.callbacks.onHazardHit?.(`${reason} // HULL EMERGENCY — FINAL COLLAPSE DEADLINE STILL ACTIVE`);
+      return;
+    }
+
     this.isDestroyed = true;
 
     // In Final Collapse mode (Submode 10 / active evacuation), ship destruction triggers terminal evacuation failure
@@ -6303,7 +6562,21 @@ export class GameEngine {
   }
 
   public toggleWholeBlackHoleCamera(): CameraMode {
-    // Whole-black-hole view is intentionally available only before gameplay.
+    const isSubmode10 = this.activeGameMode === 'BLACK_HOLE' && this.modeManager.blackHoleSubmode === 10;
+    if (this.haven04FreeRoamActive || this.junctionManager?.playerRouteProgress.activeRouteId === 'bh10_haven04_route') {
+      this.toggleHaven04Camera();
+      return this.cameraMode;
+    }
+    if (isSubmode10) {
+      if (this.cameraMode === 'WHOLE_BLACK_HOLE') {
+        this.cameraMode = 'CHASE_NEAR';
+      } else {
+        this.cameraMode = 'WHOLE_BLACK_HOLE';
+      }
+      this.callbacks.onCameraModeChange?.(this.cameraMode);
+      return this.cameraMode;
+    }
+    // Whole-black-hole view is intentionally available only before gameplay for other modes.
     if (this.isRacing) {
       return this.cameraMode;
     }
@@ -7387,7 +7660,9 @@ export class GameEngine {
       const rawDt = this.clock.getDelta();
       const dt = isNaN(rawDt) || !isFinite(rawDt) ? 0.016 : Math.min(Math.max(0, rawDt), 0.1);
 
-      if (!this.isPaused) {
+      if (this.photoModeManager && this.photoModeManager.isActive) {
+        this.photoModeManager.updateCamera();
+      } else if (!this.isPaused) {
         this.updateIntroCinematic(dt);
         this.updatePhysics(dt);
         this.updateAIRacers(dt);
@@ -7408,6 +7683,36 @@ export class GameEngine {
         this.updateHazardSystem(dt);
         this.updateMinimapSystem(dt);
         this.updateJunctions(dt);
+
+        if (this.playerShipGroup) {
+          this.ghostSystem.recordFrame(
+            this.playerShipGroup.position,
+            this.playerShipGroup.rotation,
+            this.currentSpeed,
+            this.isBoosting
+          );
+          this.ghostSystem.update(dt, this.playerShipGroup.position);
+          this.tacticalModules.update(dt, this.playerShipGroup.position, this.playerShipGroup.rotation);
+          cosmicWeatherDirector.update(dt, this.playerShipGroup.position);
+
+          const racersToRecord = [
+            {
+              id: 'player',
+              pos: this.playerShipGroup.position,
+              rot: this.playerShipGroup.rotation,
+              speed: this.currentSpeed,
+              boosting: this.isBoosting,
+            },
+            ...this.localAIRacers.map((ai) => ({
+              id: ai.id,
+              pos: ai.group.position,
+              rot: ai.group.rotation,
+              speed: ai.speed,
+              boosting: ai.isBoosting,
+            })),
+          ];
+          replaySystem.recordFrame(racersToRecord);
+        }
       } else {
         // Paused loop: keep telemetry synced with zero dt
         this.updateMissileSystem(0);
@@ -8058,6 +8363,12 @@ export class GameEngine {
       this.asteroidInstancedMesh.geometry.dispose();
       this.asteroidInstancedMesh = null;
     }
+    if (this.ghostSystem) {
+      this.ghostSystem.dispose();
+    }
+    if (this.tacticalModules) {
+      this.tacticalModules.dispose();
+    }
     if (this.renderer.domElement && this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }
@@ -8072,5 +8383,81 @@ export class GameEngine {
 
   public getCollisionConfig(): PlayerCollisionConfig {
     return this.collisionSystem ? { ...this.collisionSystem.config } : { ...PLAYER_COLLISION_CONFIG };
+  }
+
+  // ==========================================
+  // TACTICAL MODULES PUBLIC API
+  // ==========================================
+  public getTacticalTelemetry(): TacticalModuleTelemetry {
+    return this.tacticalModules.getTelemetry();
+  }
+
+  public activateTacticalModule(): { success: boolean; effect: string } {
+    if (!this.playerShipGroup) return { success: false, effect: 'NO_SHIP' };
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.playerShipGroup.quaternion);
+    return this.tacticalModules.activate(
+      this.playerShipGroup.position,
+      this.playerShipGroup.rotation,
+      fwd,
+      (empRadius) => {
+        // Stun nearby AI racers
+        this.localAIRacers.forEach((ai) => {
+          if (ai.group.position.distanceTo(this.playerShipGroup.position) < empRadius) {
+            ai.speed *= 0.45;
+            ai.targetSpeed *= 0.5;
+          }
+        });
+      }
+    );
+  }
+
+  public cycleTacticalModule() {
+    const list: TacticalModuleType[] = ['EMP_SURGE', 'PHASE_WARP', 'GRAVITON_ANCHOR'];
+    const cur = this.tacticalModules.getEquipped();
+    const next = list[(list.indexOf(cur) + 1) % list.length];
+    this.tacticalModules.setEquipped(next);
+  }
+
+  public setTacticalModule(type: TacticalModuleType) {
+    this.tacticalModules.setEquipped(type);
+  }
+
+  // ==========================================
+  // GHOST LAP PUBLIC API
+  // ==========================================
+  public getGhostTelemetry(): GhostTelemetry {
+    return this.ghostSystem.update(
+      0,
+      this.playerShipGroup ? this.playerShipGroup.position : new THREE.Vector3()
+    );
+  }
+
+  // ==========================================
+  // PHOTO MODE STUDIO PUBLIC API
+  // ==========================================
+  public enterPhotoMode() {
+    if (this.playerShipGroup) {
+      this.photoModeManager.init(this.camera, this.renderer, this.playerShipGroup);
+    }
+    this.photoModeManager.enter();
+  }
+
+  public exitPhotoMode() {
+    this.photoModeManager.exit();
+  }
+
+  public isPhotoModeActive(): boolean {
+    return this.photoModeManager.isActive;
+  }
+
+  // ==========================================
+  // COSMIC WEATHER & RIVAL CHATTER PUBLIC API
+  // ==========================================
+  public getCosmicWeatherTelemetry(): CosmicWeatherTelemetry {
+    return cosmicWeatherDirector.getTelemetry();
+  }
+
+  public getRivalChatter(): RivalRadioChatter | null {
+    return rivalNemesisSystem.activeChatter;
   }
 }

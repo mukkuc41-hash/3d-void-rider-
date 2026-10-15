@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { EvacuationTelemetry } from './FinalCollapseManager';
 import { FinalCollapseAuthoritativeState } from '../types';
 import type { EscapeMissionTelemetry } from './finalCollapse/finalCollapseEscapeMissions';
+import type { Haven04Telemetry } from './finalCollapse/Haven04SafeZone';
 
-export type { FinalCollapseAuthoritativeState, EscapeMissionTelemetry };
+export type { FinalCollapseAuthoritativeState, EscapeMissionTelemetry, Haven04Telemetry };
 
 export type FinalCollapseState =
   | 'NORMAL_RACE'
@@ -175,6 +176,8 @@ export interface BlackHoleCinematicTelemetry {
   stage93Severity?: number;
   /** Submode 10: Authoritative 8-stage escape mission telemetry. */
   escapeMission?: EscapeMissionTelemetry | null;
+  /** Submode 10: Route 04 Haven-04 Sanctuary Telemetry. */
+  haven04?: Haven04Telemetry | null;
 }
 
 export interface BlackHoleCinematicOptions {
@@ -258,6 +261,11 @@ export class BlackHoleCinematicManager {
 
   public authoritativeState: FinalCollapseAuthoritativeState = 'NORMAL_GAMEPLAY';
   public isCountdownPaused: boolean = true;
+  private haven04Telemetry: Haven04Telemetry | null = null;
+
+  public setHaven04Telemetry(telem: Haven04Telemetry | null): void {
+    this.haven04Telemetry = telem;
+  }
 
   public pauseCountdown(paused: boolean): void {
     this.isCountdownPaused = paused;
@@ -722,6 +730,7 @@ export class BlackHoleCinematicManager {
       stage93NextSecondsUntil: this.stage93NextSecondsUntil,
       stage93Severity: this.stage93Severity,
       escapeMission: this.escapeMissionTelemetry ?? undefined,
+      haven04: this.haven04Telemetry ?? undefined,
     };
   }
 

@@ -46,7 +46,13 @@ import {
   QuantumCountdownTelemetry,
   CosmicBiomeDefinition,
   COSMIC_BIOMES,
+  TacticalModuleTelemetry,
+  RadioTelemetry,
+  GhostTelemetry,
+  CosmicWeatherTelemetry,
+  RivalRadioChatter,
 } from '../types';
+import { CockpitOverlay } from './CockpitOverlay';
 import { ActiveJunctionTelemetry, BranchRouteDirection } from '../game/junctionSystem';
 import { COSMIC_40_EVENTS } from '../game/catastrophe/cosmicSystems';
 import { getFinalCollapseEventByNumber } from '../game/finalCollapse/finalCollapse100EventsCatalog';
@@ -134,6 +140,17 @@ interface RaceHUDProps {
   blackHoleCinematicTelemetry?: BlackHoleCinematicTelemetry | null;
   onTriggerCollapse?: () => void;
   onJumpToEvent?: (eventIndex: number) => void;
+  photoModeActive?: boolean;
+  onOpenPhotoMode?: () => void;
+  tacticalTelemetry?: TacticalModuleTelemetry | null;
+  onActivateTacticalModule?: () => void;
+  onCycleTacticalModule?: () => void;
+  radioTelemetry?: RadioTelemetry | null;
+  onNextRadioStation?: () => void;
+  onToggleRadioPlay?: () => void;
+  ghostTelemetry?: GhostTelemetry | null;
+  cosmicWeatherTelemetry?: CosmicWeatherTelemetry | null;
+  rivalChatter?: RivalRadioChatter | null;
 }
 
 const SECTOR_NAMES: Record<string, string> = {
@@ -519,6 +536,17 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   blackHoleCinematicTelemetry,
   onTriggerCollapse,
   onJumpToEvent,
+  photoModeActive,
+  onOpenPhotoMode,
+  tacticalTelemetry,
+  onActivateTacticalModule,
+  onCycleTacticalModule,
+  radioTelemetry,
+  onNextRadioStation,
+  onToggleRadioPlay,
+  ghostTelemetry,
+  cosmicWeatherTelemetry,
+  rivalChatter,
 }) => {
   const [hudMode, setHudMode] = useState<'TACTICAL' | 'COMPACT' | 'MINIMAL'>('COMPACT');
   const [showMinimap, setShowMinimap] = useState(true);
@@ -770,6 +798,69 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
 
   return (
     <div className={`absolute inset-0 pointer-events-none z-20 select-none p-1.5 sm:p-3 safe-pad flex flex-col justify-between overflow-hidden ${gameMode === 'BLACK_HOLE' ? 'bh-race-hud' : ''}`}>
+      {/* 3D First-Person Cockpit Simulation Overlay */}
+      <CockpitOverlay
+        cameraMode={cameraMode}
+        speed={speed}
+        boost={boost}
+        hullHealth={hullHealth}
+        coreTemperature={coreTemperature}
+        steerInput={stickPos.x}
+        throttleInput={1}
+        isBoosting={boost > 10}
+        damageZones={damageZones}
+      />
+
+      {/* Dynamic Cosmic Weather Hazard Banner */}
+      {cosmicWeatherTelemetry && cosmicWeatherTelemetry.currentWeather !== 'CLEAR_COSMIC' && (
+        <div className="absolute top-20 inset-x-0 flex justify-center pointer-events-none z-35 px-4">
+          <div
+            className="flex items-center gap-2.5 px-4 py-1.5 bg-black/85 backdrop-blur-md border rounded-lg shadow-xl"
+            style={{ borderColor: cosmicWeatherTelemetry.color }}
+          >
+            <AlertTriangle className="w-4 h-4 animate-bounce" style={{ color: cosmicWeatherTelemetry.color }} />
+            <div className="flex flex-col">
+              <span className="text-[10px] sm:text-xs font-ui font-black uppercase tracking-wider" style={{ color: cosmicWeatherTelemetry.color }}>
+                {cosmicWeatherTelemetry.title} // {Math.ceil(cosmicWeatherTelemetry.timeRemainingSeconds)}S REMAINING
+              </span>
+              <span className="text-[8px] sm:text-[9.5px] font-mono text-slate-300">
+                {cosmicWeatherTelemetry.description}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Rival Tactical Radio Chatter Toast */}
+      {rivalChatter && (
+        <div className="absolute top-32 left-4 sm:left-8 z-35 pointer-events-none max-w-sm">
+          <div
+            className="flex items-center gap-3 p-2.5 sm:p-3 bg-slate-950/90 backdrop-blur-md border rounded-xl shadow-2xl"
+            style={{ borderColor: rivalChatter.avatarColor }}
+          >
+            <div
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-ui font-black text-xs text-black shrink-0"
+              style={{ backgroundColor: rivalChatter.avatarColor }}
+            >
+              {rivalChatter.pilotName.charAt(0)}
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-[11px] font-ui font-black uppercase text-white">
+                  {rivalChatter.pilotName}
+                </span>
+                <span className="text-[7.5px] sm:text-[8px] font-mono px-1.5 py-0.2 bg-white/10 rounded text-slate-300">
+                  {rivalChatter.callsign}
+                </span>
+              </div>
+              <span className="text-[9px] sm:text-[10px] font-mono text-cyan-300 italic mt-0.5">
+                "{rivalChatter.message}"
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= 1. UNIFIED TOP COCKPIT VISOR ================= */}
       <div className="w-full flex flex-col items-center gap-1 sm:gap-1.5 z-30">
         {/* Row 1: Streamlined Cockpit Bar (Standings, Timer, Controls) */}
@@ -859,6 +950,24 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                 {Math.round(hullHealth)}%
               </span>
             </div>
+
+            {/* Holographic Ghost Split Delta */}
+            {ghostTelemetry && ghostTelemetry.hasGhost && (
+              <div
+                className={`hidden sm:flex items-center gap-1 rounded-lg px-2 py-0.5 border font-mono text-[9px] font-black transition-all ${
+                  ghostTelemetry.isAhead
+                    ? 'bg-emerald-950/70 border-emerald-400/80 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                    : 'bg-rose-950/70 border-rose-500/80 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                }`}
+                title="Holographic Ghost Lap Split Delta"
+              >
+                <span>GHOST:</span>
+                <span>
+                  {ghostTelemetry.deltaSeconds <= 0 ? '▲ -' : '▼ +'}
+                  {Math.abs(ghostTelemetry.deltaSeconds).toFixed(2)}s
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Right Wing: Race Timer & Utility Toolbar */}
@@ -873,8 +982,64 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
               </span>
             </div>
 
+            {/* Cosmic Radio Player */}
+            {radioTelemetry && (
+              <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 bg-black/70 backdrop-blur-md border border-white/10 rounded-lg">
+                <button
+                  onClick={onToggleRadioPlay}
+                  className="p-0.5 hover:text-cyan-400 text-slate-300 transition-colors cursor-pointer"
+                  title={radioTelemetry.isPlaying ? 'Mute Cosmic Radio [O]' : 'Play Cosmic Radio [O]'}
+                >
+                  <Radio className={`w-3.5 h-3.5 ${radioTelemetry.isPlaying ? 'text-cyan-400 animate-pulse' : 'text-slate-500'}`} />
+                </button>
+
+                <div className="flex flex-col min-w-[85px]">
+                  <span className="text-[8px] font-mono font-bold uppercase truncate" style={{ color: radioTelemetry.color }}>
+                    {radioTelemetry.stationName}
+                  </span>
+                  <span className="text-[6.5px] font-mono text-slate-400 uppercase truncate">
+                    {radioTelemetry.genre}
+                  </span>
+                </div>
+
+                {/* Equalizer Frequency Bars */}
+                <div className="flex items-end gap-0.5 h-3 w-8 px-0.5">
+                  {radioTelemetry.waveFrequencies.slice(0, 6).map((val, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 rounded-[1px] transition-all duration-75"
+                      style={{
+                        height: `${radioTelemetry.isPlaying ? Math.max(20, val) : 10}%`,
+                        backgroundColor: radioTelemetry.color,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={onNextRadioStation}
+                  className="px-1.5 py-0.5 text-[7.5px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-white/10 cursor-pointer"
+                  title="Next Station [ ] ]"
+                >
+                  SKIP
+                </button>
+              </div>
+            )}
+
             {/* Utility Toolbar Icons */}
             <div className="flex items-center gap-0.5 sm:gap-1">
+              {/* Photo Mode Studio Button */}
+              {onOpenPhotoMode && (
+                <button
+                  onClick={onOpenPhotoMode}
+                  className="w-6.5 h-6.5 sm:w-8 sm:h-8 rounded-lg bg-black/60 border border-slate-700/80 text-cyan-300 hover:text-white hover:border-cyan-400 flex items-center justify-center transition-all cursor-pointer relative"
+                  title="Photo Mode Studio [P]"
+                >
+                  <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <span className="absolute -bottom-1 -right-1 text-[7px] font-mono font-bold text-cyan-400 bg-black/80 px-0.5 rounded">P</span>
+                </button>
+              )}
+
               {/* Minimap Toggle */}
               <button
                 onClick={() => setShowMinimap(prev => !prev)}
@@ -1019,6 +1184,79 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                           title={`Stage ${stg}`}
                         />
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* HAVEN-04 SANCTUARY TELEMETRY & OBSERVATION PANORAMA POD */}
+                {(blackHoleCinematicTelemetry?.haven04 ||
+                  blackHoleCinematicTelemetry?.escapeMission?.routeId === 'bh10_haven04_route' ||
+                  activeRouteBranchName?.includes('HAVEN')) && (
+                  <div className="w-full max-w-2xl px-3 py-2 rounded-xl bg-[#031512]/95 border-2 border-emerald-400/80 backdrop-blur-md flex flex-col gap-1.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] animate-fadeIn">
+                    <div className="flex items-center justify-between gap-2 text-[9px] sm:text-[10px] font-mono leading-tight border-b border-emerald-500/30 pb-1">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                        <span className="font-black text-emerald-300 uppercase tracking-wider">
+                          HAVEN-04 // OPEN-DOME SANCTUARY
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[8px] font-bold">
+                          {blackHoleCinematicTelemetry?.haven04?.isParkingValidated
+                            ? '✓ SHIP SECURED'
+                            : (blackHoleCinematicTelemetry?.haven04?.settleProgress ?? 0) > 0
+                            ? `LOCKING CLAMPS (${Math.round((blackHoleCinematicTelemetry?.haven04?.settleProgress ?? 0) * 100)}%)`
+                            : 'FREE PASSAGE ACTIVE'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {onToggleWholeBlackHoleCamera && (
+                          <button
+                            type="button"
+                            onClick={onToggleWholeBlackHoleCamera}
+                            className="pointer-events-auto px-2 py-0.5 rounded bg-cyan-950/90 border border-cyan-400 text-cyan-200 hover:bg-cyan-900 active:scale-95 text-[8.5px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-[0_0_10px_rgba(6,182,212,0.4)]"
+                            title="Toggle between Free-Roam Sanctuary Cam, Observation Deck, and Grand Black Hole Panorama"
+                          >
+                            <Eye className="w-3 h-3 text-cyan-400" />
+                            <span>PANORAMA CAM (V)</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[8px] sm:text-[9px] font-mono">
+                      <div className="bg-emerald-950/50 p-1.5 rounded border border-emerald-500/20">
+                        <span className="text-slate-400 block text-[7.5px]">SHIELD VOLUME</span>
+                        <strong className="text-emerald-300 font-bold">
+                          {blackHoleCinematicTelemetry?.haven04?.isInsideShield ? 'INSIDE 100% SHIELD' : 'APPROACHING DOME'}
+                        </strong>
+                      </div>
+                      <div className="bg-emerald-950/50 p-1.5 rounded border border-emerald-500/20">
+                        <span className="text-slate-400 block text-[7.5px]">BAY 01 CLAMPS</span>
+                        <strong className={blackHoleCinematicTelemetry?.haven04?.isParkingValidated ? 'text-emerald-400 font-black' : 'text-amber-300'}>
+                          {blackHoleCinematicTelemetry?.haven04?.isParkingValidated
+                            ? '4/4 LOCKED'
+                            : (blackHoleCinematicTelemetry?.haven04?.settleProgress ?? 0) > 0
+                            ? `ENGAGING ${Math.round((blackHoleCinematicTelemetry?.haven04?.settleProgress ?? 0) * 100)}%`
+                            : 'STANDBY'}
+                        </strong>
+                      </div>
+                      <div className="bg-emerald-950/50 p-1.5 rounded border border-emerald-500/20">
+                        <span className="text-slate-400 block text-[7.5px]">BLAST SHUTTERS</span>
+                        <strong className="text-cyan-300 font-bold">
+                          {blackHoleCinematicTelemetry?.haven04?.blastShuttersRetracted
+                            ? 'RETRACTED (OPEN)'
+                            : (blackHoleCinematicTelemetry?.haven04?.shutterOpenAmount ?? 0) > 0
+                            ? `OPENING ${Math.round((blackHoleCinematicTelemetry?.haven04?.shutterOpenAmount ?? 0) * 100)}%`
+                            : 'PROTECTIVE SEAL'}
+                        </strong>
+                      </div>
+                      <div className="bg-emerald-950/50 p-1.5 rounded border border-emerald-500/20">
+                        <span className="text-slate-400 block text-[7.5px]">NANITE REPAIR</span>
+                        <strong className="text-cyan-400 font-bold">
+                          {blackHoleCinematicTelemetry?.haven04?.naniteRepairActive
+                            ? 'ACTIVE (+25 HP/S)'
+                            : 'READY IN BAY 01'}
+                        </strong>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1532,6 +1770,41 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
                   SHIELD
                 </span>
               </button>
+
+              {/* Tactical Module (EMP / Phase Warp / Grav Anchor) */}
+              {tacticalTelemetry && (
+                <button
+                  onPointerDown={e => {
+                    e.preventDefault();
+                    if (tacticalTelemetry.ready) {
+                      onActivateTacticalModule?.();
+                    }
+                  }}
+                  onContextMenu={e => {
+                    e.preventDefault();
+                    onCycleTacticalModule?.();
+                  }}
+                  disabled={!tacticalTelemetry.ready}
+                  className={`relative w-8.5 h-8.5 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 backdrop-blur-sm ${
+                    tacticalTelemetry.isActive
+                      ? 'bg-amber-400 text-slate-950 border-white shadow-[0_0_20px_#fbbf24] animate-pulse'
+                      : !tacticalTelemetry.ready
+                      ? 'bg-slate-950/70 border-slate-800 text-slate-600'
+                      : 'bg-amber-950/60 border-amber-400/80 text-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.25)]'
+                  }`}
+                  title={`Tactical Module: ${tacticalTelemetry.equippedModule} [E/Q/F] (Tap or press hotkey; cycle with right click)`}
+                >
+                  <Zap className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
+                  <span className="text-[5px] sm:text-[7px] font-ui font-black uppercase tracking-wider">
+                    {tacticalTelemetry.equippedModule === 'EMP_SURGE' ? 'EMP' : tacticalTelemetry.equippedModule === 'PHASE_WARP' ? 'WARP' : 'ANCHOR'}
+                  </span>
+                  {!tacticalTelemetry.ready && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg text-[8px] font-mono font-bold text-amber-400">
+                      {Math.ceil(tacticalTelemetry.cooldownRemaining)}s
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Row 2: Primary Propulsion & Offense (Beam, Brake, Boost) */}

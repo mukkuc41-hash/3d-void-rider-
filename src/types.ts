@@ -173,6 +173,7 @@ export type FinalCollapseAuthoritativeState =
   | 'ROUTE_03_SEQUENCE'
   | 'ROUTE_03_SUCCESS'
   | 'ROUTE_04_SEQUENCE'
+  | 'ROUTE_04_FREE_ROAM'
   | 'ROUTE_04_SUCCESS'
   | 'FINAL_00_WARNING'
   | 'FINAL_MISSED_ESCAPE'
@@ -897,4 +898,289 @@ export interface BlackHoleSubmodeConfig {
   difficulty: AIDifficulty;
   dangerProfile: BlackHoleDangerState[];
   finalEscape: boolean;
+}
+
+// ==========================================
+// FEATURE 1: COSMIC SYNTH RADIO
+// ==========================================
+export type RadioChannelId = 'CYBERWAVE' | 'VOID_AMBIENT' | 'STELLAR_CORE' | 'WARP_DNB' | 'OFF';
+
+export interface RadioStation {
+  id: RadioChannelId;
+  name: string;
+  genre: string;
+  frequency: string;
+  bpm: number;
+  description: string;
+  color: string;
+}
+
+export interface RadioTelemetry {
+  activeChannel: RadioChannelId;
+  stationName: string;
+  genre: string;
+  frequency: string;
+  isPlaying: boolean;
+  volume: number;
+  waveFrequencies: number[];
+  color: string;
+}
+
+// ==========================================
+// FEATURE 2: ACTIVE TACTICAL COMBAT MODULES
+// ==========================================
+export type TacticalModuleType = 'EMP_SURGE' | 'PHASE_WARP' | 'GRAVITON_ANCHOR';
+
+export interface TacticalModuleInfo {
+  type: TacticalModuleType;
+  name: string;
+  hotkey: string;
+  description: string;
+  icon: string;
+  cooldownSeconds: number;
+  activeDurationSeconds: number;
+  color: string;
+}
+
+export interface TacticalModuleTelemetry {
+  equippedModule: TacticalModuleType;
+  cooldownRemaining: number;
+  totalCooldown: number;
+  isActive: boolean;
+  activeRemaining: number;
+  ready: boolean;
+  feedbackText?: string;
+}
+
+// ==========================================
+// FEATURE 3: HOLOGRAPHIC GHOST LAP SYSTEM
+// ==========================================
+export interface GhostFrame {
+  t: number;
+  pos: [number, number, number];
+  rot: [number, number, number, number];
+  speed: number;
+  boosting: boolean;
+}
+
+export interface GhostTelemetry {
+  hasGhost: boolean;
+  ghostLapTime: number | null;
+  currentLapTime: number;
+  deltaSeconds: number; // negative = ahead (green), positive = behind (red)
+  isAhead: boolean;
+  ghostDistance: number;
+}
+
+// ==========================================
+// FEATURE 4: DEEP-SPACE PHOTO MODE STUDIO
+// ==========================================
+export type PhotoFilterType =
+  | 'NORMAL'
+  | 'CYBERPUNK'
+  | 'VOID_NOIR'
+  | 'STELLAR_FLARE'
+  | 'CRT_SCANLINE'
+  | 'EMERALD_MATRIX';
+
+export interface PhotoModeSettings {
+  fov: number;
+  orbitYaw: number;
+  orbitPitch: number;
+  orbitDistance: number;
+  orbitHeight: number;
+  roll: number;
+  filter: PhotoFilterType;
+  dofAmount: number;
+  bloomBoost: number;
+  showTelemetryWatermark: boolean;
+  showLogo: boolean;
+}
+
+// ==========================================
+// FEATURE 5: GALACTIC CHAMPIONSHIP CUPS
+// ==========================================
+export type ChampionshipCupId = 'BRONZE_COMET' | 'SILVER_NEBULA' | 'GOLD_PULSAR' | 'VOID_SINGULARITY';
+
+export interface ChampionshipStage {
+  trackId: TrackId;
+  trackName: string;
+  laps: number;
+  biome: string;
+  hazardLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
+}
+
+export interface ChampionshipCupConfig {
+  id: ChampionshipCupId;
+  name: string;
+  description: string;
+  trophyColor: string;
+  requiredLevel: number;
+  rewardCredits: number;
+  stages: ChampionshipStage[];
+}
+
+export interface ChampionshipStanding {
+  pilotId: string;
+  name: string;
+  shipName: string;
+  shipId: string;
+  points: number;
+  isPlayer: boolean;
+  wins: number;
+  podiums: number;
+}
+
+export interface ChampionshipSaveState {
+  cupId: ChampionshipCupId;
+  currentStageIndex: number;
+  standings: ChampionshipStanding[];
+  isCompleted: boolean;
+  playerRank: number;
+}
+
+// ==========================================
+// FEATURE 6: INTERACTIVE 3D TRACK BUILDER
+// ==========================================
+export interface CustomTrackNode {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  bank: number; // degrees
+  width: number;
+  hasBoostPad?: boolean;
+  hasNeonRing?: boolean;
+  hasObstacle?: boolean;
+}
+
+export interface CustomTrackData {
+  id: string;
+  name: string;
+  author: string;
+  createdAt: number;
+  nodes: CustomTrackNode[];
+  loops: boolean;
+  environmentTheme: 'DEEP_SPACE' | 'NEON_CITY' | 'SOLAR_FLARE' | 'VOID_SINGULARITY';
+}
+
+// ==========================================
+// FEATURE 7: DYNAMIC COSMIC WEATHER
+// ==========================================
+export type CosmicWeatherType =
+  | 'CLEAR_COSMIC'
+  | 'SOLAR_SUPERFLARE'
+  | 'SUPERNOVA_WAVE'
+  | 'CHRONO_DISTORTION'
+  | 'ION_LIGHTNING_STORM';
+
+export interface CosmicWeatherTelemetry {
+  currentWeather: CosmicWeatherType;
+  title: string;
+  description: string;
+  timeRemainingSeconds: number;
+  severity: 'CAUTION' | 'ALERT' | 'HAZARD';
+  speedModifier: number;
+  engineHeatDelta: number;
+  color: string;
+}
+
+// ==========================================
+// FEATURE 8: REPLAY THEATER & TV BROADCAST
+// ==========================================
+export type ReplayCameraMode = 'BROADCAST_TV' | 'NOSE_CAM' | 'DRONE_CHASE' | 'CURB_FLYBY' | 'ORBITAL_SWEEP';
+
+export interface ReplayRacerFrame {
+  id: string;
+  pos: [number, number, number];
+  rot: [number, number, number, number];
+  speed: number;
+  boosting: boolean;
+}
+
+export interface ReplayKeyframe {
+  timestampMs: number;
+  racers: ReplayRacerFrame[];
+}
+
+export interface ReplayData {
+  id: string;
+  trackId: TrackId;
+  totalTimeMs: number;
+  keyframes: ReplayKeyframe[];
+  winnerName: string;
+  recordedAt: number;
+}
+
+// ==========================================
+// FEATURE 9: PILOT SKILL TREE & CYBERNETICS
+// ==========================================
+export type SkillBranchId = 'VECTOR' | 'COMBAT' | 'GRAVITON';
+
+export interface SkillNode {
+  id: string;
+  branch: SkillBranchId;
+  name: string;
+  description: string;
+  icon: string;
+  cost: number;
+  unlocked: boolean;
+  level: number;
+  maxLevel: number;
+  modifier: { [key: string]: number };
+}
+
+export interface PilotSkillsState {
+  availableSkillPoints: number;
+  totalEarnedPoints: number;
+  unlockedSkills: Record<string, number>; // skillId -> level
+}
+
+// ==========================================
+// FEATURE 10: AI RIVAL NEMESIS & RADIO CHATTER
+// ==========================================
+export interface RivalRadioChatter {
+  id: string;
+  pilotId: string;
+  pilotName: string;
+  callsign: string;
+  avatarColor: string;
+  message: string;
+  triggerType: 'OVERTAKE' | 'MISSILE_LOCK' | 'EMP_STUN' | 'SLINGSHOT' | 'DAMAGE';
+  timestamp: number;
+}
+
+export interface NemesisProfile {
+  id: string;
+  name: string;
+  shipName: string;
+  grudgeLevel: number; // 0 to 100
+  encounters: number;
+  lastEncounterResult: 'PLAYER_WON' | 'RIVAL_WON';
+}
+
+// ==========================================
+// FEATURE 11: ENDLESS HYPERSPACE GAUNTLET
+// ==========================================
+export interface HyperspaceGauntletState {
+  currentDistanceMeters: number;
+  bestDistanceMeters: number;
+  speedMultiplier: number;
+  hazardDensityMultiplier: number;
+  currentSectorName: string;
+  dailySeed: string;
+}
+
+// ==========================================
+// FEATURE 12: CUSTOM LIVERY & DECALS
+// ==========================================
+export type LiveryFinishType = 'MATTE_CARBON' | 'PEARLESCENT_CHROME' | 'WEATHERED_TITANIUM' | 'NEON_CIRCUIT';
+
+export interface CustomLiveryConfig {
+  finish: LiveryFinishType;
+  primaryColor: string;
+  secondaryColor: string;
+  callsign: string;
+  sponsorLogo: 'AEROSPACE_DYN' | 'QUANTUM_CORP' | 'SOLARIS_DRIVE' | 'VOID_PROJECT';
+  stripeStyle: 'NONE' | 'DUAL_RACING' | 'CHEVRON_HAZARD' | 'ASYMMETRIC_CYBER';
 }

@@ -7,10 +7,16 @@ export interface Haven04Telemetry {
   isUnlocked: boolean;
   doorState: ChamberDoorState;
   doorOpenAmount: number;
+  shutterState: ChamberDoorState;
+  shutterOpenAmount: number;
+  observationDeckUnlocked: boolean;
+  blastShuttersRetracted: boolean;
   isInsideShield: boolean;
   isInsideBay: boolean;
   settleProgress: number;
   isParkingValidated: boolean;
+  naniteRepairActive: boolean;
+  shieldRechargeProgress: number;
   objectiveText: string;
 }
 
@@ -56,6 +62,11 @@ export class Haven04SafeZone {
   private shieldDomeMat!: THREE.MeshStandardMaterial;
   private shieldEmitters: THREE.Mesh[] = [];
   private shieldDeflectPulse: number = 0.0;
+  // Visible physical feedback for the automatic scanner and Bay 01 docking clamps.
+  private scannerBeams: THREE.Mesh[] = [];
+  private scannerBeamMaterials: THREE.MeshBasicMaterial[] = [];
+  private dockingClamps: THREE.Group[] = [];
+  private countdownWarningPulse = 0.0;
 
   // Platform Dimensions & Bay Coordinates (Local Space)
   // Local +Z points back towards the incoming route; -Z points forward along the platform runway.
@@ -75,20 +86,61 @@ export class Haven04SafeZone {
   private lastInsideShield = false;
   private lastInsideBay = false;
 
+  // Nanite Repair & Recharger Visuals
+  private naniteRings: THREE.Mesh[] = [];
+  private approachVoicePlayed = false;
+  private domeVoicePlayed = false;
+  private bayVoicePlayed = false;
+  private shieldRechargeProgress = 0.0;
+
   // Visual text & signs
   private canvasTextures: THREE.CanvasTexture[] = [];
+
+  // Observation Panorama Deck & Blast Shutters (Stages 89-93)
+  public observationDeckGroup: THREE.Group = new THREE.Group();
+  public shutterState: ChamberDoorState = 'CLOSED';
+  public shutterOpenAmount: number = 0.0;
+  private blastShutters: THREE.Mesh[] = [];
+  private observationVoicePlayed = false;
+  private approachBoostPads: THREE.Mesh[] = [];
 
   constructor() {
     this.rootGroup.name = 'Haven04_SafeZone_Complex';
     this.buildPlatform();
+    this.buildApproachBoostPads();
     this.buildChamberDoors();
     this.buildShieldDome();
     this.buildBayMarkings();
+    this.buildScannerAndDockingHardware();
+    this.buildNaniteRepairBay();
+    this.buildObservationPanoramaDeck();
 
     this.rootGroup.add(this.platformGroup);
     this.rootGroup.add(this.doorGroup);
     this.rootGroup.add(this.shieldGroup);
     this.rootGroup.add(this.bayMarkersGroup);
+    this.rootGroup.add(this.observationDeckGroup);
+  }
+
+  private buildNaniteRepairBay(): void {
+    // 3 hovering harmonic nanite rings above Bay 01
+    const ringRadii = [22, 16, 10];
+    const ringColors = [0x38bdf8, 0x10b981, 0x22d3ee];
+    ringRadii.forEach((rad, idx) => {
+      const geo = new THREE.TorusGeometry(rad, 0.45, 12, 48);
+      const mat = new THREE.MeshBasicMaterial({
+        color: ringColors[idx],
+        transparent: true,
+        opacity: 0.65,
+        blending: THREE.AdditiveBlending,
+      });
+      const ring = new THREE.Mesh(geo, mat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.copy(this.bay01LocalCenter);
+      ring.position.y = 2.5 + idx * 2.2;
+      this.bayMarkersGroup.add(ring);
+      this.naniteRings.push(ring);
+    });
   }
 
   /* =========================================================================
@@ -445,6 +497,169 @@ export class Haven04SafeZone {
     });
   }
 
+
+  /* =========================================================================
+     4B. VISIBLE SCANNER & PHYSICAL DOCKING HARDWARE
+     ========================================================================= */
+  private buildScannerAndDockingHardware(): void {
+    // Three thin scan planes sit inside the doorway. They are visual sensors,
+    // while the existing bidirectional position sensors remain authoritative.
+    const scanMaterial = new THREE.MeshBasicMaterial({
+      color: 0x22d3ee, transparent: true, opacity: 0.22,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    for (let i = 0; i < 3; i++) {
+      const beam = new THREE.Mesh(new THREE.PlaneGeometry(46, 31), scanMaterial.clone());
+      beam.position.set(0, 16, -5 + i * 5);
+      beam.name = `Haven04_AutoScannerPlane_${i + 1}`;
+      this.doorGroup.add(beam);
+      this.scannerBeams.push(beam);
+      this.scannerBeamMaterials.push(beam.material as THREE.MeshBasicMaterial);
+    }
+
+    // Four articulated docking arms around Bay 01. The arms visibly extend
+    // during the settling phase and lock only after authoritative validation.
+    const clampMat = new THREE.MeshStandardMaterial({
+      color: 0x15263d, metalness: 0.9, roughness: 0.22,
+      emissive: 0x075985, emissiveIntensity: 0.65,
+    });
+    const clampGlowMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+    const clampPositions = [
+      [-20, 1.8, this.bay01LocalCenter.z], [20, 1.8, this.bay01LocalCenter.z],
+      [0, 1.8, this.bay01LocalCenter.z - 20], [0, 1.8, this.bay01LocalCenter.z + 20],
+    ];
+    clampPositions.forEach((position, index) => {
+      const arm = new THREE.Group();
+      arm.name = `Haven04_Bay01_DockingClamp_${index + 1}`;
+      const horizontal = new THREE.Mesh(new THREE.BoxGeometry(10, 2.4, 3.2), clampMat);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(2.8, 4.4, 4.2), clampGlowMat);
+      head.position.x = index < 2 ? (index === 0 ? 4 : -4) : 0;
+      arm.add(horizontal, head);
+      arm.position.set(position[0], position[1], position[2]);
+      arm.userData.baseX = position[0];
+      arm.userData.baseZ = position[2];
+      arm.userData.clampIndex = index;
+      this.bayMarkersGroup.add(arm);
+      this.dockingClamps.push(arm);
+    });
+  }
+
+  /* =========================================================================
+     4C. APPROACH BOOST PADS
+     ========================================================================= */
+  private buildApproachBoostPads(): void {
+    const padGeo = new THREE.PlaneGeometry(16, 6);
+    const padMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+    });
+    // 6 glowing boost pads along runway approach
+    const padZPositions = [45, 30, 15, -15, -45, -75];
+    padZPositions.forEach((z, i) => {
+      const pad = new THREE.Mesh(padGeo, padMat);
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(0, 1.05, z);
+      pad.name = `Haven04_ApproachBoostPad_${i + 1}`;
+      this.platformGroup.add(pad);
+      this.approachBoostPads.push(pad);
+    });
+  }
+
+  /* =========================================================================
+     4D. OBSERVATION PANORAMA DECK & RETRACTING BLAST SHUTTERS (STAGES 89-93)
+     ========================================================================= */
+  private buildObservationPanoramaDeck(): void {
+    this.observationDeckGroup.name = 'Haven04_ObservationPanoramaDeck';
+    const deckZ = -this.platformLength + 25; // Far rear wall facing singularity
+
+    // Elevated Mezzanine Viewing Platform
+    const platformGeo = new THREE.BoxGeometry(130, 4, 36);
+    const platformMat = new THREE.MeshStandardMaterial({
+      color: 0x07111e,
+      metalness: 0.9,
+      roughness: 0.25,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.6,
+    });
+    const platformMesh = new THREE.Mesh(platformGeo, platformMat);
+    platformMesh.position.set(0, 14, deckZ);
+    this.observationDeckGroup.add(platformMesh);
+
+    // Reinforced Observation Viewport Diamond Glass Floor & Balcony
+    const glassGeo = new THREE.BoxGeometry(120, 0.8, 12);
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      metalness: 0.1,
+      roughness: 0.05,
+      transparent: true,
+      opacity: 0.45,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.8,
+    });
+    const glassBalcony = new THREE.Mesh(glassGeo, glassMat);
+    glassBalcony.position.set(0, 16.2, deckZ - 14);
+    this.observationDeckGroup.add(glassBalcony);
+
+    // Glowing Neon Safety Handrail
+    const railMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
+    const railGeo = new THREE.BoxGeometry(120, 1.4, 0.8);
+    const rail = new THREE.Mesh(railGeo, railMat);
+    rail.position.set(0, 18.0, deckZ - 19.5);
+    this.observationDeckGroup.add(rail);
+
+    // Support pillars
+    const pillarGeo = new THREE.CylinderGeometry(2, 3, 14, 12);
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9 });
+    for (const px of [-50, -25, 0, 25, 50]) {
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(px, 7, deckZ);
+      this.observationDeckGroup.add(pillar);
+    }
+
+    // 4 Motorized Blast Shutter Panels (Slide outward and upward to reveal the panoramic view)
+    const shutterMat = new THREE.MeshStandardMaterial({
+      color: 0x0b1329,
+      metalness: 0.96,
+      roughness: 0.15,
+      emissive: 0x064e3b,
+      emissiveIntensity: 0.7,
+    });
+    const shutterWidth = 30;
+    const shutterHeight = 32;
+    const shutterGeo = new THREE.BoxGeometry(shutterWidth, shutterHeight, 3.5);
+    for (let i = 0; i < 4; i++) {
+      const shutter = new THREE.Mesh(shutterGeo, shutterMat);
+      const initialX = -45 + i * 30;
+      shutter.position.set(initialX, 24, deckZ - 21);
+      shutter.userData.baseX = initialX;
+      shutter.userData.index = i;
+      this.observationDeckGroup.add(shutter);
+      this.blastShutters.push(shutter);
+    }
+
+    // 2 Observation Telescope Holographic Stations
+    const consoleGeo = new THREE.BoxGeometry(4, 3, 2);
+    const consoleMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+    const c1 = new THREE.Mesh(consoleGeo, consoleMat);
+    c1.position.set(-20, 17.5, deckZ - 15);
+    const c2 = new THREE.Mesh(consoleGeo, consoleMat);
+    c2.position.set(20, 17.5, deckZ - 15);
+    this.observationDeckGroup.add(c1, c2);
+
+    // High-power Searchlights aiming out into the singularity
+    const lightGeo = new THREE.CylinderGeometry(1.5, 3.5, 12, 16);
+    const lightMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+    const sl1 = new THREE.Mesh(lightGeo, lightMat);
+    sl1.rotation.x = Math.PI / 2;
+    sl1.position.set(-35, 19, deckZ - 18);
+    const sl2 = new THREE.Mesh(lightGeo, lightMat);
+    sl2.rotation.x = Math.PI / 2;
+    sl2.position.set(35, 19, deckZ - 18);
+    this.observationDeckGroup.add(sl1, sl2);
+  }
+
   /* =========================================================================
      5. FRAME-BY-FRAME SENSORS & AUTOMATIC DOOR MOTION
      ========================================================================= */
@@ -559,9 +774,30 @@ export class Haven04SafeZone {
       this.doorStatusLightMat.color.setHex(0xf59e0b); // Amber Warning
     }
 
-    // C. Functional Shield Protection Check
+    // Scanner planes sweep and brighten while the ship is within sensor range.
+    const scanActive = shipNeedsPassage || this.doorState === 'OPENING' || this.doorState === 'OPEN';
+    this.scannerBeams.forEach((beam, index) => {
+      const material = this.scannerBeamMaterials[index];
+      material.opacity = scanActive
+        ? 0.24 + (0.5 + 0.5 * Math.sin(Date.now() * 0.006 + index * 1.8)) * 0.42
+        : 0.10 + 0.04 * Math.sin(Date.now() * 0.002 + index);
+      material.color.setHex(scanActive ? 0x22d3ee : 0x0e7490);
+      beam.position.z = -5 + index * 5 + Math.sin(Date.now() * 0.0015 + index) * (scanActive ? 1.2 : 0.2);
+    });
+
+    // D. Functional Shield Protection Check
     const insideShield = this.isInsideProtectionVolume(shipWorldPos);
     this.lastInsideShield = insideShield;
+
+    // ATC Voice cues during approach & entry
+    if (isApproachingFromOutside && !this.approachVoicePlayed) {
+      this.approachVoicePlayed = true;
+      sound.playHavenATCVoice('APPROACH');
+    }
+    if (insideShield && !this.domeVoicePlayed) {
+      this.domeVoicePlayed = true;
+      sound.playHavenATCVoice('DOME_ENTERED');
+    }
 
     // D. Real Parking Validation in Bay 01
     const distToBay = Math.hypot(
@@ -576,6 +812,11 @@ export class Haven04SafeZone {
     this.lastInsideBay = isInsideBay;
     const isSpeedSettled = shipSpeedMps <= 18.0;
 
+    if (isInsideBay && isSpeedSettled && !this.bayVoicePlayed && !this.isParkingValidated) {
+      this.bayVoicePlayed = true;
+      sound.playHavenATCVoice('BAY_ALIGNMENT');
+    }
+
     if (this.isUnlocked && isInsideBay && isSpeedSettled) {
       this.settleTimer += dt;
       if (this.settleTimer >= this.requiredSettleDuration && !this.isParkingValidated) {
@@ -584,6 +825,8 @@ export class Haven04SafeZone {
           this.isParkingValidated = true;
           sound.playParkingConfirmed();
           sound.playStationSecureChime();
+          sound.playHavenATCVoice('SECURED');
+          sound.playNaniteRepairSound();
           onParkingValidatedCallback?.();
         }
       }
@@ -593,6 +836,89 @@ export class Haven04SafeZone {
         this.settleTimer = 0.0;
       }
     }
+
+    // Nanite Ring Visual Animation
+    const nanitesActive = this.isParkingValidated || (isInsideBay && isSpeedSettled);
+    this.naniteRings.forEach((ring, idx) => {
+      ring.visible = nanitesActive;
+      if (nanitesActive) {
+        ring.rotation.z += (idx % 2 === 0 ? 1 : -1) * dt * 2.2;
+        ring.position.y = 2.5 + idx * 2.2 + Math.sin(Date.now() * 0.005 + idx * 1.5) * 0.8;
+        (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(Date.now() * 0.008 + idx) * 0.35;
+      }
+    });
+
+    if (this.isParkingValidated) {
+      this.shieldRechargeProgress = Math.min(1.0, this.shieldRechargeProgress + dt * 0.5);
+    } else {
+      this.shieldRechargeProgress = isInsideBay && isSpeedSettled ? Math.min(0.5, (this.settleTimer / this.requiredSettleDuration) * 0.5) : 0;
+    }
+
+    // Docking clamps extend progressively while the ship is settling in Bay 01.
+    // They retract immediately if the ship leaves before validation; once validated
+    // they remain engaged as a visible confirmation of the secured state.
+    const clampProgress = this.isParkingValidated ? 1 : (isInsideBay && isSpeedSettled
+      ? Math.min(1, this.settleTimer / this.requiredSettleDuration) : 0);
+    this.dockingClamps.forEach((clamp, index) => {
+      const baseX = Number(clamp.userData.baseX) || 0;
+      const baseZ = Number(clamp.userData.baseZ) || 0;
+      const sign = baseX < 0 ? 1 : -1;
+      if (Math.abs(baseX) > 0) {
+        clamp.position.x = baseX + sign * clampProgress * 5;
+      } else {
+        const zSign = baseZ < this.bay01LocalCenter.z ? 1 : -1;
+        clamp.position.z = baseZ + zSign * clampProgress * 5;
+      }
+      clamp.children.forEach((child) => {
+        const mesh = child as THREE.Mesh;
+        const material = mesh.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
+        if ('color' in material) material.color.setHex(this.isParkingValidated ? 0x34d399 : (clampProgress > 0 ? 0xfbbf24 : 0x22d3ee));
+        if ('emissiveIntensity' in material) material.emissiveIntensity = this.isParkingValidated ? 1.4 : 0.65 + clampProgress * 0.4;
+      });
+    });
+
+    // Countdown warning is local presentation only; the game engine's single
+    // authoritative clock still decides success/failure at 00:00.
+    this.countdownWarningPulse = countdownRemainingSeconds <= 30 && countdownRemainingSeconds > 0
+      ? 0.5 + 0.5 * Math.sin(Date.now() * 0.012) : 0;
+    this.shieldDomeMat.emissiveIntensity = Math.min(1.8, 0.7 + this.countdownWarningPulse * 0.7 + this.shieldDeflectPulse);
+
+    // Update Observation Blast Shutters (Stages 89-93: Retract at 00:40 or when ship is secured)
+    const shouldRetractShutters = countdownRemainingSeconds <= 40 || this.isParkingValidated;
+    if (shouldRetractShutters) {
+      if (this.shutterState === 'CLOSED' || this.shutterState === 'CLOSING') {
+        this.shutterState = 'OPENING';
+        sound.playBlastDoorOpen();
+      }
+      this.shutterOpenAmount = Math.min(1.0, this.shutterOpenAmount + dt * 0.45);
+      if (this.shutterOpenAmount >= 1.0) {
+        this.shutterState = 'OPEN';
+        if (!this.observationVoicePlayed) {
+          this.observationVoicePlayed = true;
+          sound.playHavenATCVoice('SECURED');
+        }
+      }
+    } else {
+      if (this.shutterState === 'OPEN' || this.shutterState === 'OPENING') {
+        this.shutterState = 'CLOSING';
+      }
+      this.shutterOpenAmount = Math.max(0.0, this.shutterOpenAmount - dt * 0.35);
+      if (this.shutterOpenAmount <= 0.0) {
+        this.shutterState = 'CLOSED';
+      }
+    }
+
+    // Apply Shutter Retraction Positions (outer slide lateral, center slide upward)
+    this.blastShutters.forEach((shutter, idx) => {
+      const baseX = Number(shutter.userData.baseX) || 0;
+      if (idx === 0) {
+        shutter.position.x = baseX - this.shutterOpenAmount * 28;
+      } else if (idx === 3) {
+        shutter.position.x = baseX + this.shutterOpenAmount * 28;
+      } else {
+        shutter.position.y = 24 + this.shutterOpenAmount * 26;
+      }
+    });
 
     return this.getTelemetry();
   }
@@ -658,10 +984,16 @@ export class Haven04SafeZone {
       isUnlocked: this.isUnlocked,
       doorState: this.doorState,
       doorOpenAmount: this.doorOpenAmount,
+      shutterState: this.shutterState,
+      shutterOpenAmount: this.shutterOpenAmount,
+      observationDeckUnlocked: this.isUnlocked && (this.isParkingValidated || this.shutterOpenAmount > 0.1),
+      blastShuttersRetracted: this.shutterOpenAmount >= 0.95,
       isInsideShield: this.lastInsideShield,
       isInsideBay: this.lastInsideBay,
       settleProgress: Math.min(1.0, this.settleTimer / this.requiredSettleDuration),
       isParkingValidated: this.isParkingValidated,
+      naniteRepairActive: this.isParkingValidated || (this.lastInsideBay && this.settleTimer > 0),
+      shieldRechargeProgress: this.shieldRechargeProgress,
       objectiveText,
     };
   }
@@ -670,9 +1002,27 @@ export class Haven04SafeZone {
     this.doorState = 'CLOSED';
     this.doorOpenAmount = 0.0;
     this.doorCloseDelayTimer = 0.0;
+    this.shutterState = 'CLOSED';
+    this.shutterOpenAmount = 0.0;
+    this.observationVoicePlayed = false;
     this.isParkingValidated = false;
     this.settleTimer = 0.0;
     this.shieldDeflectPulse = 0.0;
+    this.countdownWarningPulse = 0.0;
+    this.approachVoicePlayed = false;
+    this.domeVoicePlayed = false;
+    this.bayVoicePlayed = false;
+    this.shieldRechargeProgress = 0.0;
+    this.naniteRings.forEach(ring => { ring.visible = false; });
+    this.scannerBeamMaterials.forEach(material => { material.opacity = 0.22; material.color.setHex(0x22d3ee); });
+    this.dockingClamps.forEach(clamp => {
+      clamp.position.x = Number(clamp.userData.baseX) || 0;
+      clamp.position.z = Number(clamp.userData.baseZ) || 0;
+    });
+    this.blastShutters.forEach(shutter => {
+      shutter.position.x = Number(shutter.userData.baseX) || 0;
+      shutter.position.y = 24;
+    });
     this.lastInsideShield = false;
     this.lastInsideBay = false;
     if (this.leftDoorPanel) this.leftDoorPanel.position.x = -12.5;
