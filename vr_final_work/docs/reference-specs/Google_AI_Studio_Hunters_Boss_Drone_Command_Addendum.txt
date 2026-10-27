@@ -1,0 +1,36 @@
+GOOGLE AI STUDIO ADDENDUM — PLAYABLE HUNTERS BOSS COMMANDS ITS SIX DRONES
+
+PROJECT
+VOID-RIDER 3D — CONVOY GUARDIAN / HUNTERS MODE
+
+CLARIFICATION
+The Hunters boss is directly playable by the user AND has command authority over its six defensive drones. The drones are not directly selectable as player ships, but the boss can command them through gameplay abilities and AI orders.
+
+REQUIRED BEHAVIOR
+1. Keep the boss as a selectable, directly controllable ship with 1000 HP, its own movement, camera follow, HUD, weapons, and boss abilities.
+2. Keep all six drones as separate AI-controlled entities. Do not add them to the direct player ship-selection list.
+3. When the boss is active/selected, let it command its six drones using an explicit command system. Implement using the project's actual entity and update patterns; do not invent incompatible properties.
+4. Provide a boss-only Drone Command interface with these orders:
+   - ORBIT / GUARD: drones maintain a defensive orbit around the boss and intercept nearby threats.
+   - FOCUS TARGET: drones prioritize the boss's current valid target.
+   - DEFENSIVE SCREEN: drones spread into a protective formation between the boss and incoming threats.
+   - HUNT / PURSUE: drones pursue a valid hostile target within configured limits, then return to guard.
+   - RECALL: drones return to the boss's defensive orbit.
+5. Add a command cooldown or energy cost only if consistent with existing game balance and ability systems. Show command status/cooldowns in the HUD.
+6. Keep drones under autonomous AI control when no explicit order is active. They must continue to avoid collisions, follow their assigned formation, attack valid targets, and return to guard when an order expires or becomes invalid.
+7. Boss commands must not cause drones to become player-controlled. Only the selected boss receives direct movement input.
+8. If the boss is destroyed or the player switches to another ship, return drones to their normal autonomous guard behavior unless the existing design defines a different safe fallback.
+9. Prevent invalid targets, null references, stale entity references, and circular boss-drone ownership. Do not let the boss target itself or command destroyed drones.
+10. Preserve the 10 Hunters formation ships, the 1000 HP boss, all six drones, SAVIOUR mode and its nine playable ships, route hazards, 15,000 km mission-scale route, abilities, cargo docking, emergency escape, mobile controls, and all unrelated features.
+11. Fix errors using the actual source code and existing types. In particular, if `isOrbitingGuard` is undefined, trace its intended meaning and correct its scope/definition without disabling drone orbiting.
+
+VALIDATION
+- Verify boss selection and direct movement.
+- Verify each of the six drones remains AI-controlled and is not a selectable player ship.
+- Verify all five commands work and drone formation/targeting changes appropriately.
+- Verify drones return to guard when recalled, the order expires, or a target is invalid.
+- Verify SAVIOUR and existing Hunters gameplay still function.
+- Run available typecheck/build/tests and report exact results. Do not claim runtime verification if it was not performed.
+
+DELIVERABLE
+Apply this addendum to the actual project code and provide the updated full project ZIP, changed-file list, and validation results. Do not return only a plan or pseudocode.

@@ -3887,29 +3887,148 @@ class SoundSystem {
     } catch (_) {}
   }
 
-  /** Haven-04 Tactical Radio ATC Voice Dispatcher */
+  /** Guardian Space Terminal Airlock Cycle Sound */
+  public playTerminalAirlockCycle() {
+    if (!this.sfxEnabled || this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      // White noise blast filtered for depressurization / airlock equalize
+      const bufferSize = this.ctx.sampleRate * 1.2;
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      const whiteNoise = this.ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(320, now);
+      filter.frequency.exponentialRampToValueAtTime(1400, now + 0.6);
+      filter.frequency.exponentialRampToValueAtTime(220, now + 1.2);
+      filter.Q.setValueAtTime(3.0, now);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.28 * this.sfxVolume, now + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+      whiteNoise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      whiteNoise.start(now);
+      whiteNoise.stop(now + 1.2);
+    } catch (_) {}
+  }
+
+  /** Guardian Space Terminal Magnetic Clamp Lock Sound */
+  public playTerminalClampLock() {
+    if (!this.sfxEnabled || this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Sub thud
+      const sub = this.ctx.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(110, now);
+      sub.frequency.exponentialRampToValueAtTime(32, now + 0.45);
+      const subGain = this.ctx.createGain();
+      subGain.gain.setValueAtTime(0.55 * this.sfxVolume, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      sub.connect(subGain);
+      subGain.connect(this.ctx.destination);
+      sub.start(now);
+      sub.stop(now + 0.45);
+
+      // Metallic clamp latch high ping
+      const ping = this.ctx.createOscillator();
+      ping.type = 'triangle';
+      ping.frequency.setValueAtTime(880, now + 0.05);
+      ping.frequency.exponentialRampToValueAtTime(440, now + 0.35);
+      const pingGain = this.ctx.createGain();
+      pingGain.gain.setValueAtTime(0.001, now);
+      pingGain.gain.linearRampToValueAtTime(0.3 * this.sfxVolume, now + 0.05);
+      pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      ping.connect(pingGain);
+      pingGain.connect(this.ctx.destination);
+      ping.start(now + 0.05);
+      ping.stop(now + 0.35);
+    } catch (_) {}
+  }
+
+  /** Guardian Space Terminal Emergency Evacuation Pulsing Siren */
+  public playTerminalEvacSiren() {
+    if (!this.sfxEnabled || this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const siren = this.ctx.createOscillator();
+      siren.type = 'sawtooth';
+      siren.frequency.setValueAtTime(650, now);
+      siren.frequency.linearRampToValueAtTime(920, now + 0.35);
+      siren.frequency.linearRampToValueAtTime(650, now + 0.7);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1200, now);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.22 * this.sfxVolume, now + 0.08);
+      gain.gain.setValueAtTime(0.22 * this.sfxVolume, now + 0.6);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+      siren.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      siren.start(now);
+      siren.stop(now + 0.7);
+    } catch (_) {}
+  }
+
+  /** Haven-04 & Guardian Terminal Tactical Radio ATC Voice Dispatcher */
   private lastSpeechText = '';
   private lastSpeechTime = 0;
-  public playHavenATCVoice(stage: 'APPROACH' | 'DOME_ENTERED' | 'BAY_ALIGNMENT' | 'SECURED') {
+  public playHavenATCVoice(stage: 'APPROACH' | 'DOME_ENTERED' | 'BAY_ALIGNMENT' | 'SECURED' | 'GATE_OPEN' | 'GATE_CLOSED' | 'AIRLOCK_CYCLE' | 'EVACUATION_ALARM' | 'BASEMENT_DESCENT') {
     this.playTacticalRadioChirp();
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const now = Date.now();
     let text = '';
     switch (stage) {
       case 'APPROACH':
-        text = 'Haven 04 Control. Approach vector detected. Automatic blast gates disengaging.';
+        text = 'Guardian Control. Vector identified. Automatic chamber blast gates disengaging.';
         break;
       case 'DOME_ENTERED':
-        text = 'Sanctuary Dome entered. Maintain speed below 18 km per hour for Bay 01 alignment.';
+        text = 'Octagonal Terminal dome entered. Speed limit 25 kph for Bay 01 docking.';
         break;
       case 'BAY_ALIGNMENT':
-        text = 'Bay 01 contact. Hold position for hydraulic clamp lock.';
+        text = 'Bay 01 contact zone. Hold position for hydraulic clamps.';
         break;
       case 'SECURED':
-        text = 'Hydraulic clamps locked. Evacuation verified. Pilot status: SECURED.';
+        text = 'Docking clamps engaged. Guardian Terminal secured. Evacuation verified.';
+        break;
+      case 'GATE_OPEN':
+        text = 'Chamber gate green. Clearance verified. Proceed.';
+        break;
+      case 'GATE_CLOSED':
+        text = 'Chamber interlock active. Hold speed.';
+        break;
+      case 'AIRLOCK_CYCLE':
+        text = 'Airlock cycling pressure. Terminal safe seals active.';
+        break;
+      case 'EVACUATION_ALARM':
+        text = 'Emergency drill initiated! Rerouting to Gate 05 basement tunnel!';
+        break;
+      case 'BASEMENT_DESCENT':
+        text = 'Descending to lower maintenance hangar. Follow chevron guidance.';
         break;
     }
-    if (text === this.lastSpeechText && now - this.lastSpeechTime < 5000) return;
+    if (text === this.lastSpeechText && now - this.lastSpeechTime < 4000) return;
     this.lastSpeechText = text;
     this.lastSpeechTime = now;
     try {

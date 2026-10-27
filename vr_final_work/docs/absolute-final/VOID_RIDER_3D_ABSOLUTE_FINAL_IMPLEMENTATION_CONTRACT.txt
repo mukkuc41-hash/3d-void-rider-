@@ -1,0 +1,257 @@
+VOID-RIDER 3D — CONVOY GUARDIAN
+ABSOLUTE FINAL IMPLEMENTATION CONTRACT
+Version: 1.0 | Status: Master specification | Target: Existing project source + final ZIP
+
+PURPOSE AND NON-NEGOTIABLE RULE
+Implement the complete Convoy Guardian scope in the user's latest actual project ZIP, preserving the existing application and all unrelated systems. This document is the single source of truth for this task. Do not treat the document itself as proof that features have been implemented. Edit the real source, test it, and report accurately. Never fabricate a completed ZIP or claim unrun tests passed.
+
+REFERENCE IMAGES — USE BOTH
+REFERENCE A: The supplied standalone spherical “PARKING DOME” station image. This is the authoritative architectural reference for the final destination.
+REFERENCE B: The supplied “VOID-RIDER 3D — CONVOY GUARDIAN / 15,000 KM MISSION ROUTE” infographic. This is the reference for the mission route presentation, route branches, checkpoint language, hazards, mission variants, signature ability concepts, and destination.
+Use both as visual/design references, not as flat backgrounds that substitute for gameplay geometry.
+
+DELIVERY CONTRACT
+The final delivery must include:
+1. A complete updated ZIP of the user's real project, not a fresh demo or instructions-only archive.
+2. A changed-file manifest with a short reason for every changed/added file.
+3. Exact validation commands run and actual results.
+4. A checklist showing each requirement as PASS, FAIL, or NOT VERIFIED.
+5. A list of any remaining blockers. Never mark untested behavior as PASS.
+6. Confirm that unrelated pages, modes, assets, systems, and Mode 21/Final Collapse are preserved.
+
+If the current project ZIP is not present, stop and request the actual latest ZIP. Do not recreate the project from memory or infer unseen source code.
+
+A. SOURCE INSPECTION AND CHANGE CONTROL
+- Inspect the complete ZIP and source tree before editing. Read package.json and identify actual build, typecheck, lint, and test scripts.
+- Trace the real architecture for App.tsx, game engine, scene/environment, player/ship controllers, input handling, AI, convoy director, route manager, route branches, checkpoints, hazards, HUD, camera, mission state machine, settings, sound, and results.
+- Reuse current APIs, conventions, entity IDs, persistence, lifecycle, and rendering stack.
+- No broad rewrite, unrelated refactor, deleted pages, renamed modes, duplicated game loop, parallel route manager, speculative import, or blanket error suppression.
+- Keep existing Three.js/WebGL architecture and preserve all unrelated modes, especially Mode 21/Final Collapse.
+- Before finalizing, inspect the diff and confirm no unrelated files/features were removed.
+- Do not introduce remote asset URLs or dependencies unless essential and justified.
+
+B. DEVICE-ADAPTIVE RESPONSIVE CONTROLS
+Detect actual input capabilities rather than relying only on user-agent strings.
+
+Desktop:
+- Keyboard and mouse using existing controller APIs.
+- Gamepad where supported by the current application.
+- Clear control legend and contextual action prompts.
+
+Phone:
+- Touch steering/virtual joystick or drag steering consistent with current control architecture.
+- Thumb-friendly throttle, brake/reverse, boost, fire, target, shield/EMP/ability, interact, and pause buttons only for actions that actually exist for the selected ship/mode.
+- Separate movement from action controls; preserve view of the route and mission prompts.
+
+Tablet:
+- Adaptive larger controls and spacing, with a usable split layout where appropriate.
+
+Tilt:
+- Optional, not mandatory. Feature-detect device orientation; request permission only after an explicit user gesture where required; calibrate neutral orientation; provide sensitivity, dead zone, smoothing, optional invert, status, and a clear fallback to touch/keyboard.
+- Never assume tilt is available or silently deny other control methods.
+
+Responsive layout:
+- Support portrait, landscape, resizing, and safe-area insets without forcing rotation.
+- Do not overlap health, shields, minimap, route telemetry, checkpoint prompts, bay alignment UI, mission objective, pause, or dialogs.
+- Settings should allow control scale, sensitivity, dead zone, left/right-handed layout, opacity, and repositioning/reset when compatible with existing settings architecture.
+- Persist using the existing persistence mechanism.
+- Avoid accidental gameplay input while interacting with menus/text inputs.
+- Clear all held input on keyup, pointer/touch release or cancellation, window blur, gamepad disconnect, mode switch, ship switch, restart, and component unmount. Prevent stuck steering, throttle, boost, or fire.
+- Connect all input through the existing player/controller APIs. UI handlers must not directly teleport or set ship transforms and must not create another game loop.
+
+C. SHIP SELECTION AND CONTROL AUTHORITY
+
+SAVIOUR — intended nine-ship roster:
+1 front lead guard
+2 forward-mid guards
+3 protected cargo ships
+2 rear-mid guards
+1 rear guard
+
+- All nine actual roster ships are selectable and directly player-controllable, one ship at a time, if present in the current mission.
+- Only the active selected ship receives direct player movement input. Every other ship remains AI-controlled.
+- Cargo ships keep their cargo role, cargo safety, health/shield behavior, docking rules, and escort objectives. Do not assign fighter-only weapons or combat stats to cargo ships.
+- Camera, HUD, health, shields, ability prompts, and target info must reflect the active ship.
+- If active ship is destroyed, docked, removed, or unavailable, choose a valid fallback safely and clearly notify the player.
+
+HUNTERS — intended 11 selectable combat ships:
+- 3 forward main hunters
+- 2 forward-mid hunters
+- 2 rear-mid hunters
+- 3 rear main hunters
+- 1 boss
+- All ten hunters and the boss are directly selectable and player-controllable, one at a time.
+- Boss has 1000 HP if that is the project’s agreed baseline; inspect and reconcile the actual data model without accidentally resetting existing damage/state.
+- Six defensive drones remain AI-controlled and are never directly player-selectable.
+- Preserve HUNTERS formations, combat objective, enemy behavior, boss weapons, health/damage logic, win/fail conditions, and independence from SAVIOUR.
+
+Boss drone command authority:
+1 ORBIT/GUARD — drones orbit and protect the boss.
+2 FOCUS TARGET — attack the boss's valid selected target.
+3 DEFENSIVE SCREEN — spread/intercept threats using the existing combat model.
+4 HUNT/PURSUE — pursue a valid target and return according to existing combat rules.
+5 RECALL — return to defensive orbit.
+- Drones stay autonomous AI units. Commands set intent/order; they do not turn drones into player-controlled ships.
+- Handle missing/destroyed targets, destroyed drones, boss destruction, target changes, and mode changes safely.
+- Avoid stale references, self-targeting, cyclic ownership, and duplicate command processing.
+
+Known error:
+- If `ReferenceError: isOrbitingGuard is not defined` remains in `ConvoyDirector.updateEnemies()`, trace the actual entity/AI model and fix the missing property or variable at its true source. Do not hardcode false, remove orbit behavior, or suppress the error.
+
+D. VISIBLE 15,000 KM ROUTE — REQUIRED IN-GAME, NOT JUST INFOGRAPHIC
+- Keep the route displayed as 15,000 km, using the current distance-mapping model if the playable spline is compact. Keep route progress and distance calculations internally consistent.
+- Create or repair a continuous, clearly visible cyan/blue route guide from departure to the actual Parking Dome entrance.
+- Route rendering must follow the real spline and bends/elevation; it must not be a straight line through space or a 2D UI line disconnected from world geometry.
+- Use a bright but restrained luminous core, soft glow where performant, route direction chevrons/arrows, and readable upcoming turn guidance.
+- Show departure, checkpoints, current route progress, distance travelled, remaining distance, and destination marker.
+- Include 12 checkpoints if that is the existing agreed configuration; reconcile with actual source rather than duplicating checkpoints.
+- Include three route branches if configured by the existing mission design. Branches must be real navigable route alternatives, with consistent branch selection and rejoining logic, not merely decorative dotted lines.
+- Route line/markers must remain visible across desktop/mobile camera distances and display sizes. Avoid z-fighting, flicker, broken segments, clipping, excessive bloom, and frame-rate spikes.
+- Add route progress such as “X km / 15,000 km” and remaining distance to the existing responsive HUD. Do not claim real-world scale if the game maps distance onto a compact spline.
+- AI convoy ships must follow the same route/spline and respect turns, elevation, speed, collision spacing, steering, and physics. They must not cut corners or teleport.
+- Connect the final route segment to the actual dome approach corridor and final checkpoint.
+- Preserve existing route state, checkpoint manager, route branch manager, save/progression, and results data.
+
+E. HAZARDS AND SIGNATURE ABILITIES
+Preserve and implement in the actual game world the nine hazard concepts from the supplied reference where compatible with the existing source:
+1 rotating blades — rotating physical/animated hazard with warning and collision response
+2 gravity mines — detectable mine with pull/detonation behavior as designed by current gameplay
+3 plasma lattices — timed energy barriers with clear safe/active timing
+4 debris walls — collision-capable fragments/walls with readable route gap
+5 pulse turrets — targeting/fire cadence and fair warning
+6 gravity wells — route/physics distortion or pull using current physics APIs
+7 orbital shards — moving/rotating collision hazards
+8 phase gates — actual timed/route transition mechanic, not a decorative portal
+9 singularity surges — escalating final-sector threat integrated with current world/mission logic
+- Each hazard must be a real gameplay object with correct hitboxes/collision/damage/physics, warning feedback, lifecycle, and appropriate counterplay. Do not create only HUD icons or decorative images.
+- Preserve existing hazards and balance. Do not duplicate already-existing hazards.
+- Preserve boost, shield, EMP, route scan, weapons, cooldowns, cargo docking, and other current abilities.
+- The infographic's SAVIOUR “Nanite Burst” and HUNTERS “Hunter Overdrive” are visual/design references. Inspect the real source before adopting numerical values; do not overwrite existing balance without a traceable reason.
+- Avoid damage or audio firing every frame; use stable cooldowns and event transitions.
+
+F. AUTHORITATIVE DESTINATION — EXACT SPHERICAL PARKING DOME CONCEPT
+The standalone dome reference is mandatory for the destination architecture. Do not replace it with a rectangular hangar, generic underground garage, or different station.
+
+Build real navigable 3D geometry using the existing rendering engine:
+- Huge transparent spherical/hemispherical canopy enclosing a wide circular parking deck.
+- Curved metallic ribs and struts following the shell, plus concentric structural/illuminated rings near the crown and rim.
+- Heavy circular outer base with layered metallic panels, windows, docking hardware, cyan/blue-white strips, and restrained amber service lights.
+- Central cylindrical tower/column labelled “PARKING DOME”.
+- Large interior deck with circular/concentric pads and multiple distinct ship parking bays.
+- Visible bay identifiers BAY 01, BAY 02, BAY 03, BAY 04 and more as needed, with floor markings, edge lights, approach indicators, and docking-lock mechanisms.
+- Parked craft for atmosphere, reusing existing ship assets where possible.
+- Main convoy approach entrance and a physically connected emergency exit/airlock.
+- Starfield and planetary horizon integrated with the current environment; do not create a competing second skybox.
+- Metallic blue-gray materials, cyan/blue-white navigation lighting, amber accents, coherent transparency/reflections, and a strong silhouette matching the supplied image.
+- Maintain consistent geometry and spatial relationships across all camera views. Do not make the station a flat image, skybox, or static UI panel.
+- Optimize repeated ribs/lights/clamps with instancing or LOD where appropriate. Handle materials, geometry, listeners, and animation cleanup.
+
+G. ROUTE ARRIVAL AND DOCKING
+- The 15,000 km route physically leads to the dome entrance and final checkpoint.
+- Reveal the same dome as the convoy approaches using existing camera/cinematic systems without abruptly taking away steering.
+- Convoy enters through the main entrance and follows a continuous path to the internal parking deck. No teleportation or scene replacement.
+- Route ships to individual parking bays using the current controller, spline, physics, and collision avoidance.
+- Avoid clipping through canopy, ribs, central tower, base ring, parked ships, and other convoy craft.
+- Do not spawn duplicate ships or snap ships directly into their bay.
+- Display final destination, bay assignment, alignment, docking status, route progress, and distance in the current HUD without obscuring touch controls.
+
+H. EMERGENCY ESCAPE SEQUENCE 1 — INSIDE THE SAME DOME
+The sequence occurs within the same spherical orbital station. A lower/basement-style parking level may be part of the same dome, connected by ramps/lifts, but must not become an unrelated separate garage.
+
+Phase 1 — Intake:
+- Surviving actual convoy ships enter and are assigned unique parking bays.
+- Preserve SAVIOUR roster/roles when present.
+- Stagger arrivals and prevent overlaps.
+- Active selected ship stays player-controlled; all others stay AI-controlled.
+
+Phase 2 — Alignment:
+- Each ship uses a continuous approach to its assigned bay.
+- Validate actual world-transform distance, speed, heading/orientation, height/landing alignment if relevant, and collision state.
+- Misaligned/fast ships keep locks open and receive a correction prompt; retries must work.
+- AI ships follow the same validation and retry safely.
+
+Phase 3 — Physical locks:
+- Every bay has visible clamp arms/brackets that physically animate around appropriate docking points.
+- Clamps engage only after valid alignment and low speed.
+- Use existing physics constraints if available; otherwise use a stable docked state that prevents jitter.
+- Locks prevent steering, boost, AI movement, and unintended drift.
+- HUD text “PARKING LOCKS ENGAGED — RELEASE REQUIRED” reflects the actual lock state.
+- Movement must never resume while the physical locks are still engaged.
+
+Phase 4 — Lockdown:
+- Once required ships are secured, animate relevant blast doors/shutters, warning lights, alarms, and emergency lighting.
+- Show “CONVOY SECURED”, “LOCKDOWN ACTIVE”, and a clear next objective.
+- Keep interaction available; avoid an excessively long unskippable cinematic.
+- Ensure deterministic transitions and safe restart behavior.
+
+Phase 5 — Release:
+- Player activates the emergency release through the shared input/action system.
+- Visible clamps retract before movement returns. Any hold-field visual powers down after lock disengagement.
+- Bay indicators change to released/ready.
+- If safety prerequisites are unmet, block release and explain why.
+- Same action works across supported keyboard, touch, and gamepad controls.
+
+Phase 6 — Emergency exit:
+- Open a visible emergency door/airlock connected to the same dome's deck.
+- Create a continuous escape route from bays to the exit checkpoint.
+- Lead guard takes point where supported; cargo remains protected; rear guards cover the rear where supported.
+- Selected ship remains player-controlled and others remain AI-controlled.
+- Preserve collision avoidance, physics, route following, checkpoints, and damage.
+- No teleporting, skipped route, or physics bypass.
+- Add safe retry/recovery for stalled or misaligned ships.
+
+Phase 7 — Completion:
+- Complete only after the required surviving ships pass the actual emergency-exit checkpoint and all mission conditions are satisfied.
+- Preserve cargo survival, convoy survival, damage, time, checkpoints, and results.
+- Use existing mission state machine/results UI.
+- SAVIOUR completion follows escort/cargo objectives.
+- HUNTERS remains its own combat mission. Do not force it into this escape sequence unless the existing mission flow explicitly requires it.
+
+I. UI, CAMERA, AUDIO, PERFORMANCE, AND CLEANUP
+- Use existing camera/HUD/audio/effects/settings architecture.
+- Keep UI responsive on desktop, phone, and tablet. No overlap among route, minimap, health/shield, control buttons, bay prompts, objective text, and pause/dialogs.
+- Camera and HUD always follow the selected ship and correct mission.
+- Audio events occur on state transitions, not every frame. Add appropriate cues for route arrival, bay alignment, clamps, lockdown, release, and escape.
+- Dispose of geometries/materials/listeners/animation loops/audio and cancel timers on unmount, restart, and mode switch.
+- Restart must reset route state, branch state, bay assignments, clamps, lock state, doors, alarms, mission state, and held inputs.
+- Prevent stale entity references, duplicate event handlers, duplicate animation loops, and mode-state leakage.
+
+J. IMPLEMENTATION AND TEST PROCESS
+1. Inspect the actual current project ZIP and its source before editing.
+2. Make a requirements-to-files mapping before implementation.
+3. Implement using current architecture; do not make a parallel demo.
+4. After changes, inspect the diff and check for unrelated removals.
+5. Run the exact build/typecheck/lint/test scripts defined in package.json. Do not invent command names.
+6. Fix errors caused by changes and rerun the relevant checks.
+7. Test runtime behavior where the environment supports it. If runtime testing is unavailable, clearly state that.
+8. Verify route, docking, controls, ship selection, drone commands, mode separation, restart, and responsive UI. Static compilation alone does not prove gameplay works.
+9. Check ZIP integrity and ensure the ZIP contains the complete project with the intended source changes.
+
+K. FINAL ACCEPTANCE CHECKLIST
+Each item must be marked PASS / FAIL / NOT VERIFIED with evidence:
+[ ] Existing pages/modes/assets and Mode 21/Final Collapse preserved.
+[ ] Adaptive desktop, phone, tablet, optional tilt, and gamepad controls operate through existing controller APIs.
+[ ] No stuck inputs after release, blur, cancellation, ship switch, restart, or unmount.
+[ ] All nine intended SAVIOUR ships selectable when present; only active ship is player-driven.
+[ ] All ten HUNTERS plus boss selectable; six drones are AI-only.
+[ ] Boss drone command set works; boss HP/weapon behavior and mission objectives remain correct.
+[ ] `isOrbitingGuard` error fixed at its source if present, without disabling orbit behavior.
+[ ] Continuous visible world-space route from departure to dome; arrows, progress, distance, checkpoints, and branches work.
+[ ] 15,000 km progress mapping remains consistent.
+[ ] Nine hazard types function as gameplay objects and preserve existing hazard systems.
+[ ] Spherical Parking Dome matches reference and is actual 3D geometry.
+[ ] Route enters dome continuously without teleporting.
+[ ] Convoy parks in distinct bays with valid alignment and no clipping.
+[ ] Visible physical clamps engage and prevent movement.
+[ ] Lockdown, release, and emergency exit follow the correct state order.
+[ ] Required ships cross the exit checkpoint before completion.
+[ ] SAVIOUR and HUNTERS remain independent.
+[ ] Restart/mode switch clears stale locks, animations, audio, listeners, and held input.
+[ ] Actual package scripts run; commands and results recorded.
+[ ] ZIP integrity verified and complete source included.
+
+FINAL RESPONSE FORMAT
+Provide a download link only after the complete updated ZIP exists at the exact path in the active runtime. Include the changed-file manifest, validation status, and limitations. Never say “everything is implemented” if any acceptance item is FAIL or NOT VERIFIED. If any requested feature cannot be completed or verified, disclose it clearly rather than hiding the gap.
+
+FINAL INSTRUCTION TO THE IMPLEMENTING AGENT
+Treat this specification as exhaustive for the stated Convoy Guardian scope. First inspect the latest real project ZIP, then implement and validate every applicable requirement. Do not stop after changing only the route or dome. Do not return only a prompt or this document. Return the real updated project ZIP and evidence. If the source ZIP is absent, ask for it before proceeding.

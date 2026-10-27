@@ -1,0 +1,143 @@
+GOOGLE AI STUDIO — FINAL INTEGRATED IMPLEMENTATION SPEC
+VOID-RIDER 3D | CONVOY GUARDIAN | RESPONSIVE DEVICE-ADAPTIVE CONTROLS
+
+MISSION
+Implement a complete, responsive, device-adaptive control system across the actual existing VOID-RIDER 3D project. Integrate it with SAVIOUR and HUNTERS, all playable ship roles, boss drone commands, route physics, hazards, abilities, cargo docking, emergency escape, and existing game systems. Apply changes to the real source and return a corrected full project ZIP.
+
+NON-NEGOTIABLE PRESERVATION
+- Inspect the actual uploaded project and package.json before editing.
+- Do not rewrite the whole app or remove/rename existing pages, modes, assets, components, UI, telemetry, missions, settings, or game systems.
+- Preserve unrelated features. Make focused changes and review the final diff.
+- Preserve SAVIOUR and HUNTERS as separate selectable modes with independent objectives, formations, and settings.
+- Fix existing errors only after tracing their actual cause. In particular, fix `ReferenceError: isOrbitingGuard is not defined` by inspecting the real scope and data model; do not disable drone behavior to hide it.
+- Do not claim tests passed unless they were actually run.
+
+GAMEPLAY AND PLAYABLE SHIP REQUIREMENTS
+
+1) SAVIOUR — 9 PLAYABLE SHIP CHOICES
+- 1 front lead guard.
+- 2 forward-mid guards.
+- 3 cargo ships: left, center, right.
+- 2 rear-mid guards.
+- 1 rear guard.
+All nine must be selectable and directly controllable one at a time. The player controls one selected ship; all other ships remain AI-controlled. When a cargo ship is selected, preserve cargo identity, health, shield, route progress, cargo-survival objective, and docking behavior. Do not give cargo ships fighter-only weapons/stats.
+
+2) HUNTERS — 11 PLAYABLE SHIP CHOICES
+- 3 main hunters forward.
+- 2 forward-mid hunters.
+- 2 rear-mid hunters.
+- 3 main hunters at the rear.
+- 1 boss with 1000 HP.
+All 11 are selectable and directly controllable one at a time. The six defensive drones are not directly selectable or player-piloted.
+
+3) BOSS-DRONE COMMAND SYSTEM
+When the boss is selected, it can command its six AI-controlled drones:
+- ORBIT/GUARD: orbit the boss and defend it.
+- FOCUS TARGET: attack the boss's valid selected target.
+- DEFENSIVE SCREEN: intercept incoming threats.
+- HUNT/PURSUE: pursue a valid target and then return.
+- RECALL: return to the boss's guard orbit.
+Drones remain autonomous and are never added to the player ship-selection list. Handle destroyed/missing targets and drones safely. If the boss is destroyed or control switches away, use a safe existing AI fallback. Prevent boss targeting itself and avoid circular references.
+
+4) DEVICE-ADAPTIVE INPUT
+Detect capabilities, not just user-agent strings. Provide an adaptive control manager that chooses a sensible available input profile and lets users override it in Settings:
+- Desktop: keyboard + mouse, optional gamepad where supported.
+- Touch phone: touch joystick or drag steering, clear throttle/brake/boost and ability buttons.
+- Tablet: configurable touch controls with larger spacing and optional split layout.
+- Phone tilt: explicit enable button, request permission only from a user gesture where required, calibrate neutral position, smooth sensor input, dead zone, sensitivity setting, invert options, and visible status. Fall back cleanly if unsupported or permission denied.
+- Gamepad: detect connection/disconnection, support sticks/triggers/buttons where the browser and project allow it, and provide a keyboard/touch fallback.
+- Hybrid devices: allow multiple input methods where appropriate, but prevent simultaneous duplicate movement commands from conflicting sources.
+Do not pretend device APIs are available if they are not. Use feature detection and graceful fallbacks.
+
+5) CENTRAL CONTROL MAPPING
+Create one documented, centralized input mapping layer that feeds the existing game-engine/controller APIs. Do not add separate competing movement loops.
+Common actions:
+- Steer/yaw left and right.
+- Pitch up/down where supported.
+- Roll where supported.
+- Throttle/accelerate.
+- Brake/reverse if supported.
+- Boost.
+- Fire primary/secondary weapons where supported.
+- Target lock/cycle target.
+- Shield/defensive ability.
+- EMP.
+- Route scan.
+- Ship-specific ability.
+- Pause/resume.
+- Interact/confirm.
+- Switch/select ship only where mission rules permit.
+- Hunters boss drone commands: Orbit/Guard, Focus Target, Defensive Screen, Hunt/Pursue, Recall.
+Do not bind a control to an action that does not exist in the actual code. Show contextual actions only for the selected ship and current mode.
+
+6) RESPONSIVE CONTROL UI
+- Use responsive breakpoints and safe-area insets for mobile notches and system bars.
+- Desktop: compact HUD and keyboard/mouse help.
+- Mobile: thumb-friendly controls, comfortable touch targets, separated movement and action clusters, avoid blocking route visibility.
+- Tablet: adaptive two-hand layout.
+- Support portrait and landscape; suggest landscape for combat if appropriate, but do not lock orientation or block gameplay.
+- Avoid overlap with health bars, route telemetry, minimap, pause button, mission prompts, dialogs, and docking prompts.
+- Keep text readable and contrast sufficient.
+- Support repositioning controls, adjustable scale/opacity, left/right-handed layouts, and reset-to-default if compatible with the existing settings architecture.
+- Persist preferences using the project's existing settings persistence mechanism; do not add a second competing persistence system.
+- If controls are draggable, handle pointer cancellation, touch scrolling, resize/orientation changes, and release outside the control safely.
+- Never let UI controls trigger gameplay when the user is interacting with menus or text fields.
+
+7) CONTROL FEEL AND ACCESSIBILITY
+- Adjustable sensitivity and dead zones.
+- Acceleration/smoothing options for analog and tilt steering.
+- Optional inverted Y-axis and tilt calibration.
+- Touch joystick recentering and clear neutral state.
+- Visual feedback for pressed/active controls, cooldowns, boost/energy, disabled actions, and permission state.
+- Keyboard focus and accessible labels for controls.
+- Prevent stuck inputs when pointerup, touchend, keyup, device disconnect, window blur, component unmount, or mode switch occurs.
+- Do not unexpectedly pause gameplay on every focus change; follow existing app behavior.
+
+8) PHYSICS, ROUTE, HAZARDS, AND ABILITIES
+- Preserve the existing 15,000 km mission-scale route. Be clear in UI/documentation if that distance is mapped onto compact 3D geometry rather than a literal 15,000 km world.
+- Keep route-following ships sampling the route curve instead of cutting across bends.
+- Preserve checkpoints, route guidance, elevation changes, branching paths, hazards, collision damage, shield mitigation, EMP, boost, weapons, abilities, and cooldowns as implemented.
+- Ensure adaptive inputs call existing physics/controller methods and respect speed, acceleration, rotation, collisions, and game-loop delta time.
+- Do not directly set ship positions in UI handlers or bypass physics unless the existing architecture explicitly requires it.
+
+9) ERROR FIXES AND ENGINE STABILITY
+- Inspect all imports/exports, TypeScript types, game-loop interfaces, controller methods, and current settings APIs before editing.
+- Fix `isOrbitingGuard` only by using/defining the correct in-scope value derived from the actual existing drone/enemy model.
+- Avoid broad try/catch suppression, speculative properties, duplicate update loops, stale event listeners, unbounded timers, and unsafe references to destroyed entities.
+- Ensure the selected ship receives player input and is excluded from AI movement while selected; all non-selected ships remain under AI control.
+- When the selected ship is destroyed, docked, unavailable, or removed, safely select a valid fallback and update camera/HUD without crashing.
+
+REQUIRED IMPLEMENTATION WORKFLOW
+A. Inspect the complete project structure and package.json.
+B. Map the existing player controller, game engine input API, ship entities, camera follow, HUD, mode selection, settings persistence, and mobile controls.
+C. Implement adaptive controls by integrating with the existing architecture rather than creating a competing input loop.
+D. Keep changes minimal and scoped; do not remove unrelated code.
+E. Run actual available scripts from package.json, such as build, typecheck, lint, and tests. Do not guess script names.
+F. Review the diff for removed features and verify both modes still exist independently.
+G. If dependencies cannot be installed or full runtime testing is unavailable, state that limitation clearly and perform all possible static checks.
+
+VALIDATION CHECKLIST
+- Desktop keyboard/mouse control works without stuck inputs.
+- Touch controls work on narrow phone layouts and do not overlap key HUD elements.
+- Tablet layout adapts to available width and orientation.
+- Tilt permission, calibration, smoothing, and fallback behave correctly.
+- Gamepad input works if supported; disconnect safely falls back.
+- Only one selected ship receives direct movement input at a time.
+- All nine SAVIOUR ships, including all three cargo ships, are selectable and controllable.
+- All 10 Hunters plus the boss are selectable and controllable.
+- Drones cannot be directly selected and remain AI-controlled.
+- Boss drone commands work and drones return to guard when appropriate.
+- Camera, HUD, health, shields, abilities, collision physics, route progress, docking, emergency escape, victory/failure, and mission progression remain functional.
+- No duplicate input sources cause double movement.
+- No TypeScript/build/runtime errors introduced by the changes.
+
+DELIVERABLE
+Apply changes to the actual project and return:
+1. A corrected full project ZIP, not just isolated snippets.
+2. A concise changed-file list and the specific purpose of each change.
+3. The exact validation commands run and their results.
+4. Any remaining limitations that could not be verified.
+5. Explicit confirmation that unrelated pages, modes, assets, and features were preserved.
+
+IMPORTANT
+Do not merely explain what should be built. Implement the feature in the uploaded source, validate it as far as the environment allows, and provide the resulting ZIP. If the source ZIP is not available in the current workspace, ask for it rather than inventing a modified archive.

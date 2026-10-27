@@ -1,0 +1,130 @@
+GOOGLE AI STUDIO — FINAL LOCKED SPECIFICATION
+VOID-RIDER 3D: CONVOY GUARDIAN
+EXACT SPHERICAL PARKING DOME + EMERGENCY ESCAPE SEQUENCE 1
+
+REFERENCE IMAGES — AUTHORITATIVE
+Use the two images uploaded with this request:
+1. The standalone spherical “PARKING DOME” orbital station image is the exact visual reference for the destination architecture.
+2. The VOID-RIDER 3D: CONVOY GUARDIAN route infographic is the reference for the 15,000 km route, the mission variants, hazards, route presentation, and the final destination labelled “Cargo Docking Dome”.
+Do not substitute generic hangar art or a rectangular underground garage. Recreate the dome's key silhouette and architecture in the actual 3D game environment.
+
+PRIMARY GOAL
+Modify the actual existing project so the spherical Parking Dome is the final physical destination of the 15,000 km Convoy Guardian route. Emergency Escape Sequence 1 must happen INSIDE the same spherical dome structure: the convoy arrives, descends/enters the internal parking area, parks in assigned bays, engages visible physical parking locks, experiences emergency lockdown, releases the locks, and exits through a dedicated emergency exit corridor connected to the same station. The dome is one persistent location; do not replace it with a different building during the sequence.
+
+PRESERVE THE EXISTING PROJECT
+- Inspect the actual source, route manager, checkpoint manager, convoy director, ship controllers, game engine, mission state machine, camera, HUD, settings, assets, and package.json before editing.
+- Make focused changes. Do not rewrite the whole app or remove/rename existing pages, modes, assets, systems, hazards, telemetry, abilities, controls, mission progression, or results UI.
+- Keep SAVIOUR and HUNTERS separate.
+- Preserve the 15,000 km route and its existing checkpoints, branches, hazards, and route progress. The route must physically lead to the dome; no teleporting to the destination.
+- Do not claim the project is updated until changes are made to the real source. Do not claim tests passed unless they were actually run.
+
+EXACT DOME ARCHITECTURE TO MATCH THE IMAGE
+Build an explorable, rendered 3D orbital station with these visual features:
+1. A huge near-spherical/hemispherical transparent canopy enclosing a wide circular parking deck. The canopy and the thick circular base must read as one unified spherical dome station from the exterior.
+2. Curved metallic ribs and structural struts following the dome shell, with concentric illuminated support rings near the top and around the rim.
+3. A heavy circular metallic outer base with layered armor panels, service windows, blue/cyan light strips, restrained amber service lights, and docking hardware.
+4. A central cylindrical tower/column inside the dome, with the “PARKING DOME” sign/emblem on its front. Use the project's text rendering approach; if legible 3D text is unsupported, create a clean sign mesh/material instead.
+5. A spacious interior deck with concentric/circular parking platforms and multiple distinct spacecraft parking pads.
+6. Clearly marked parking bays, including BAY 01, BAY 02, BAY 03, BAY 04 and additional slots as needed. Each slot has approach markings, edge lights, a bay identifier, and physical docking-lock hardware.
+7. Several parked craft for visual life, using existing ship assets where possible. Avoid missing imports or external URLs.
+8. A visible primary approach entrance and a distinct emergency exit corridor/airlock. Both connect physically to the same interior deck.
+9. Space backdrop with stars and a planet horizon, integrated into the existing environment system rather than a second competing skybox.
+10. Blue-white/cyan navigation lighting, metallic blue-gray materials, small warm amber highlights, realistic reflections/transparency, strong readable silhouettes, and a premium cinematic sci-fi finish.
+
+The spherical exterior, central tower, circular deck, parking bays, and base ring must remain spatially consistent across all camera angles. Do not implement the station as only a 2D background or skybox. Use actual meshes/geometry and collision/trigger volumes appropriate to the existing engine.
+
+ROUTE AND ARRIVAL
+- Connect the existing final route segment and final checkpoint to the dome's approach corridor.
+- Use route guidance consistent with the supplied infographic. Keep the route distance/progress logic consistent with 15,000 km.
+- Reveal the dome as the convoy approaches, with a stable exterior camera view if the existing cinematic system supports it. Do not take away steering abruptly.
+- Guide the convoy through the entrance into the parking deck. Keep ships following the existing route spline and respecting speed, collision, and steering physics.
+- Avoid collisions with the canopy, central tower, ribs, base ring, parked craft, and each other.
+- Do not teleport ships to bay positions. Route each ship to its assigned bay with a continuous approach.
+- Add clear final-destination, checkpoint, bay assignment, and docking alignment feedback to existing HUD components without overlapping mobile controls or telemetry.
+
+EMERGENCY ESCAPE SEQUENCE 1 — INSIDE THE SAME DOME
+
+PHASE 1: ARRIVAL / INTAKE
+- Convoy passes through the dome's main entrance and enters the circular interior parking deck.
+- Assign unique parking slots to the actual surviving convoy ships. Do not spawn duplicate ships.
+- In SAVIOUR, preserve the nine-ship formation/roster when present: one front lead guard, two forward-mid guards, three cargo ships, two rear-mid guards, and one rear guard.
+- Stagger arrivals and apply collision-aware spacing so ships do not stack, overlap, or clip through deck geometry.
+- Keep the currently selected ship under player control; all non-selected ships remain AI-controlled.
+
+PHASE 2: BAY ALIGNMENT
+- Every ship approaches its assigned slot using normal controller/physics APIs.
+- Validate bay-center distance, approach speed, heading/orientation, height/landing alignment if applicable, and collision state using actual world transforms.
+- If misaligned or too fast, keep locks open and show a clear retry/correction prompt.
+- AI ships must perform the same validation and retry safely.
+- Cargo ships retain cargo identity and cargo-safe behavior; do not give them fighter-only weapons.
+
+PHASE 3: PHYSICAL PARKING LOCKS
+- Each parking bay has visible physical clamp arms/locking brackets that move into place around suitable landing struts or docking points.
+- Use animation/constraints compatible with the current engine. If rigid-body constraints are not available, use a stable docked state that anchors the ship to its bay without jitter.
+- Clamps engage only after valid alignment and low speed. Animate the actual visible mechanisms; do not simulate this with only a HUD icon.
+- Once engaged, lock state prevents steering, boost, AI movement, and unintended collision drift.
+- Show “PARKING LOCKS ENGAGED — RELEASE REQUIRED” if movement is attempted while locked.
+- Use bay and HUD indicators as feedback for the true lock state, not as a substitute for it.
+
+PHASE 4: EMERGENCY LOCKDOWN
+- After the required ships are secured, close appropriate access blast doors, activate red/amber warning beacons, alarms, and emergency lighting, and animate shutters/barriers where feasible.
+- Show clear status prompts: “CONVOY SECURED”, “LOCKDOWN ACTIVE”, and the actual next objective.
+- Keep the player informed and able to interact. Avoid a long unskippable cinematic.
+- Ensure state transitions are deterministic and cannot leave the mission permanently stuck.
+
+PHASE 5: RELEASE PROCEDURE
+- A valid player interaction or existing mission action initiates the emergency release.
+- Physical clamp arms must visibly retract before ships can move.
+- Hold-field visuals, if any, power down after physical locks release.
+- Bay lights switch to released/ready status.
+- Restore controls and movement only after lock state is disengaged. Never allow a ship to move while clamps remain engaged.
+- Block release if an actual safety condition remains unresolved and explain the required action.
+
+PHASE 6: EMERGENCY EXIT
+- Open a visible emergency blast door/airlock connected to the same dome's circular deck.
+- Guide ships from parking bays to the exit corridor with a continuous route and waypoints.
+- Use the lead guard to take point where current AI supports it; keep cargo ships protected through the corridor and rear guards covering the rear when supported.
+- Preserve player control of the selected ship. All others remain AI-controlled.
+- Apply normal collision avoidance and route-following; do not teleport ships or bypass physics.
+- Provide safe retry/recovery if a ship stalls or misaligns.
+- The dome must remain the same spherical station throughout; the exit is part of its architecture, not a scene replacement.
+
+PHASE 7: COMPLETION
+- Complete the escape sequence only when required surviving ships pass the emergency exit checkpoint and actual mission conditions are satisfied.
+- Preserve cargo/convoy survival, ship damage, time, checkpoints, and existing result statistics.
+- Use the current results screen and mission state architecture.
+- SAVIOUR success must respect the escort/cargo objectives.
+- HUNTERS must keep its independent enemy formations, boss, drones, and combat objectives. Do not silently turn HUNTERS into SAVIOUR. Only use this emergency sequence in HUNTERS if the existing mission flow explicitly routes it there.
+
+DEVICE-ADAPTIVE CONTROLS
+- Desktop keyboard/mouse and gamepad if supported.
+- Mobile/tablet touch steering and contextual actions; controls must not cover docking prompts, bay labels, route guidance, telemetry, or pause.
+- Use tilt only if implemented with feature detection, user-gesture permission, calibration, sensitivity, smoothing, and fallback.
+- Keep control mapping centralized through the existing controller APIs. Do not create a competing game loop.
+- Clear held inputs on pointer cancellation, keyup, blur, device disconnect, ship switch, restart, and unmount.
+- The same interact/release action should work with supported keyboard, touch, and gamepad inputs.
+
+TECHNICAL SAFETY
+- Use existing engine/rendering APIs and current asset conventions.
+- Keep geometry efficient: instance repeated ribs, lights, bay markings, and clamps where appropriate; use LOD where needed.
+- Correctly dispose of geometries, materials, listeners, animation loops, and audio.
+- Avoid duplicate skyboxes, duplicate route managers, unsafe stale entity references, speculative imports, and broad error suppression.
+- Preserve existing hazard systems, signature abilities, physics, mission route, HUD, camera, settings, and other features.
+- Fix errors only after tracing their real cause in the source.
+
+VALIDATION REQUIRED
+1. Dome matches the supplied spherical reference from exterior and interior views.
+2. Dome is real 3D geometry, not only an image.
+3. The existing route ends at the dome entrance without discontinuity or teleport.
+4. The convoy can enter and park in distinct bays without clipping.
+5. Locks physically/visibly engage and prevent movement.
+6. Lock release visibly completes before movement resumes.
+7. Emergency lockdown and exit sequence operate in the correct order.
+8. Required ships reach the exit before mission completion.
+9. SAVIOUR and HUNTERS remain separate and preserve their existing objectives.
+10. Desktop/mobile controls and HUD remain responsive.
+11. Restart and mode-switch leave no stale clamps, locks, animations, lights, audio, or held inputs.
+12. Run the actual available build/typecheck/test scripts from package.json. Report exact commands and actual results; state any checks that could not run.
+
+DELIVERABLE
+Apply all changes to the actual project source and return a complete updated ZIP, changed-file list, validation results, and remaining limitations. Do not return only pseudocode, a mockup, or a rewritten instruction file. If the current project ZIP is not available, request it rather than inventing a modified archive.

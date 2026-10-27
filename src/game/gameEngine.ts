@@ -113,6 +113,13 @@ import { replaySystem } from './replaySystem';
 import { pilotSkillManager } from './pilotSkillTree';
 import { rivalNemesisSystem } from './rivalNemesisSystem';
 import { hyperspaceGauntlet } from './hyperspaceGauntlet';
+import { bossDreadnought } from './bossDreadnought';
+import { spatialAudio } from './spatialAudio';
+import { juggernautMode } from './juggernautMode';
+import { juggernautCombatManager } from './juggernaut/juggernautCombatManager';
+import { JuggernautMatchConfig, JuggernautCombatTelemetry } from './juggernaut/juggernautTypes';
+import { convoyDirector } from './convoy/convoyDirector';
+import { ConvoyTelemetry } from './convoy/convoyTypes';
 import {
   TacticalModuleType,
   TacticalModuleTelemetry,
@@ -120,6 +127,8 @@ import {
   PhotoModeSettings,
   CosmicWeatherTelemetry,
   RivalRadioChatter,
+  BossDreadnoughtTelemetry,
+  JuggernautModeTelemetry,
 } from '../types';
 
 export interface LocalAIRacer {
@@ -620,6 +629,9 @@ export class GameEngine {
     // Initialize Branching Path & Junction Switching System
     this.junctionManager = new JunctionManager(this.trackId, this.track);
     this.scene.add(this.junctionManager.junctionMeshGroup);
+    // Titan Boss mode removed: do not initialize Titan-only arena or boss assets.
+    juggernautCombatManager.init(this.scene, this.camera);
+    convoyDirector.init(this.scene, this.camera);
 
     // Initialize Asteroid Destruction Beam System
     this.beamSystem = new BeamSystem(
@@ -5172,6 +5184,9 @@ export class GameEngine {
   }
 
   private updateCamera(dt: number) {
+    if (juggernautCombatManager.isActive) {
+      return; // Juggernaut combat camera has sole authority
+    }
     if (this.isSpectator) {
       if (this.playerShipGroup) {
         this.playerShipGroup.visible = false;
@@ -7662,6 +7677,16 @@ export class GameEngine {
 
       if (this.photoModeManager && this.photoModeManager.isActive) {
         this.photoModeManager.updateCamera();
+      } else if (juggernautCombatManager.isActive) {
+        if (!this.isPaused) {
+          juggernautCombatManager.update(dt);
+          spatialAudio.updateListener(this.camera);
+        }
+      } else if (convoyDirector.isActive) {
+        if (!this.isPaused) {
+          convoyDirector.update(dt);
+          spatialAudio.updateListener(this.camera);
+        }
       } else if (!this.isPaused) {
         this.updateIntroCinematic(dt);
         this.updatePhysics(dt);
@@ -7694,6 +7719,9 @@ export class GameEngine {
           this.ghostSystem.update(dt, this.playerShipGroup.position);
           this.tacticalModules.update(dt, this.playerShipGroup.position, this.playerShipGroup.rotation);
           cosmicWeatherDirector.update(dt, this.playerShipGroup.position);
+          bossDreadnought.update(dt, this.playerShipGroup.position);
+          spatialAudio.updateListener(this.camera);
+          juggernautMode.update(dt, this.currentSpeed);
 
           const racersToRecord = [
             {
@@ -8459,5 +8487,314 @@ export class GameEngine {
 
   public getRivalChatter(): RivalRadioChatter | null {
     return rivalNemesisSystem.activeChatter;
+  }
+
+  // ==========================================
+  // MEGASTRUCTURE BOSS & JUGGERNAUT PUBLIC API
+  // ==========================================
+  public getBossTelemetry(): BossDreadnoughtTelemetry {
+    return bossDreadnought.getTelemetry();
+  }
+
+  public getJuggernautTelemetry(): JuggernautModeTelemetry {
+    return juggernautMode.getTelemetry();
+  }
+
+  public triggerBossBattle() {
+    if (!this.playerShipGroup) return;
+    bossDreadnought.activateBossEncounter(this.playerShipGroup.position);
+  }
+
+  public endBossBattle() {
+    bossDreadnought.deactivateBossEncounter();
+  }
+
+  public startJuggernautMode(asJuggernaut: boolean = true) {
+    juggernautMode.startJuggernautMatch(asJuggernaut);
+  }
+
+  // ==========================================
+  // JUGGERNAUT SPACE COMBAT 8-SHIP FULL API
+  // ==========================================
+  private juggernautSavedFog: THREE.Fog | THREE.FogExp2 | null = null;
+
+  public startJuggernautCombat(config: JuggernautMatchConfig) {
+    this.isRacing = false;
+    this.isPaused = false;
+
+    // Hide racing geometry so that no track ribbons, floating checkpoints, energy barrier boxes, or power-up cubes invade the 3D space arena
+    if (this.playerShipGroup) this.playerShipGroup.visible = false;
+    if (this.trackMeshGroup) this.trackMeshGroup.visible = false;
+    if (this.junctionManager?.junctionMeshGroup) this.junctionManager.junctionMeshGroup.visible = false;
+    if (this.shortcutPortalGroup) this.shortcutPortalGroup.visible = false;
+    if (this.asteroidInstancedMesh) this.asteroidInstancedMesh.visible = false;
+    if (this.creditsInstancedMesh) this.creditsInstancedMesh.visible = false;
+    if (this.speedParticles) this.speedParticles.visible = false;
+    if (this.quantumCountdownClock?.gantryMeshGroup) this.quantumCountdownClock.gantryMeshGroup.visible = false;
+    this.checkpointMeshes.forEach(m => { m.visible = false; });
+    this.boostPadMeshes.forEach(m => { m.visible = false; });
+    this.energyBarrierMeshes.forEach(m => { m.visible = false; });
+    this.powerUpPodGroups.forEach(m => { m.visible = false; });
+    this.localAIRacers.forEach(ai => { if (ai.group) ai.group.visible = false; });
+
+    // Set camera clipping planes for immense circular space arena depth (0.5 to 14,000)
+    this.camera.near = 0.5;
+    this.camera.far = 14000;
+    this.camera.updateProjectionMatrix();
+
+    // Adjust fog to clear cosmic void depth instead of dense track blackout fog
+    this.juggernautSavedFog = this.scene.fog;
+    this.scene.fog = new THREE.FogExp2(0x040814, 0.00015);
+
+    juggernautCombatManager.startMatch(config);
+  }
+
+  public getJuggernautCombatTelemetry(): JuggernautCombatTelemetry {
+    return juggernautCombatManager.getTelemetry();
+  }
+
+  public triggerJuggernautAbility(abilityId: string) {
+    juggernautCombatManager.triggerPlayerAbility(abilityId);
+  }
+
+  public handleJuggernautKeyDown(code: string) {
+    if (juggernautCombatManager.isActive) {
+      juggernautCombatManager.handleKeyDown(code);
+    }
+  }
+
+  public handleJuggernautKeyUp(code: string) {
+    if (juggernautCombatManager.isActive) {
+      juggernautCombatManager.handleKeyUp(code);
+    }
+  }
+
+  public handleJuggernautDirectionalInput(input: { forward?: boolean; backward?: boolean; left?: boolean; right?: boolean; up?: boolean; down?: boolean }) {
+    if (juggernautCombatManager.isActive) {
+      juggernautCombatManager.setDirectionalInput(input);
+    }
+  }
+
+  public handleJuggernautJoystick(input: { steerX: number; pitchY: number }) {
+    if (juggernautCombatManager.isActive) {
+      juggernautCombatManager.setJoystickSteering(input.steerX, input.pitchY);
+    }
+  }
+
+  public handleJuggernautFire(isFiring: boolean) {
+    if (juggernautCombatManager.isActive) {
+      juggernautCombatManager.setFiringState(isFiring);
+    }
+  }
+
+  public handleJuggernautBoost(isBoosting: boolean) {
+    if (juggernautCombatManager.isActive) {
+      juggernautCombatManager.setBoostingState(isBoosting);
+    }
+  }
+
+  public stopJuggernautCombat() {
+    juggernautCombatManager.cleanUp();
+
+    // Restore racing geometry visibility
+    if (this.playerShipGroup) this.playerShipGroup.visible = true;
+    if (this.trackMeshGroup) this.trackMeshGroup.visible = true;
+    if (this.junctionManager?.junctionMeshGroup) this.junctionManager.junctionMeshGroup.visible = true;
+    if (this.shortcutPortalGroup) this.shortcutPortalGroup.visible = true;
+    if (this.asteroidInstancedMesh) this.asteroidInstancedMesh.visible = true;
+    if (this.creditsInstancedMesh) this.creditsInstancedMesh.visible = true;
+    if (this.speedParticles) this.speedParticles.visible = true;
+    if (this.quantumCountdownClock?.gantryMeshGroup) this.quantumCountdownClock.gantryMeshGroup.visible = true;
+    this.checkpointMeshes.forEach(m => { m.visible = true; });
+    this.boostPadMeshes.forEach(m => { m.visible = true; });
+    this.energyBarrierMeshes.forEach(m => { m.visible = true; });
+    this.powerUpPodGroups.forEach(m => { m.visible = true; });
+
+    // Restore fog and camera
+    if (this.juggernautSavedFog !== null) {
+      this.scene.fog = this.juggernautSavedFog;
+    }
+    this.camera.far = 4000;
+    this.camera.updateProjectionMatrix();
+  }
+
+  // ==========================================
+  // CONVOY GUARDIAN ESCORT MISSION FULL API
+  // ==========================================
+  private convoySavedFog: THREE.Fog | THREE.FogExp2 | null = null;
+
+  public startConvoyGuardian(
+    shipDefId: string = 'VR-0001',
+    variant: 'SAVIOUR' | 'HUNTERS' = 'SAVIOUR',
+    startRegionIndex: number = 0
+  ) {
+    this.isRacing = false;
+    this.isPaused = false;
+
+    // Hide racing geometry so that track ribbons do not collide with convoy space corridor
+    if (this.playerShipGroup) this.playerShipGroup.visible = false;
+    if (this.trackMeshGroup) this.trackMeshGroup.visible = false;
+    if (this.junctionManager?.junctionMeshGroup) this.junctionManager.junctionMeshGroup.visible = false;
+    if (this.shortcutPortalGroup) this.shortcutPortalGroup.visible = false;
+    if (this.asteroidInstancedMesh) this.asteroidInstancedMesh.visible = false;
+    if (this.creditsInstancedMesh) this.creditsInstancedMesh.visible = false;
+    if (this.speedParticles) this.speedParticles.visible = false;
+    if (this.quantumCountdownClock?.gantryMeshGroup) this.quantumCountdownClock.gantryMeshGroup.visible = false;
+    this.checkpointMeshes.forEach(m => { m.visible = false; });
+    this.boostPadMeshes.forEach(m => { m.visible = false; });
+    this.energyBarrierMeshes.forEach(m => { m.visible = false; });
+    this.powerUpPodGroups.forEach(m => { m.visible = false; });
+    this.localAIRacers.forEach(ai => { if (ai.group) ai.group.visible = false; });
+
+    // Set camera clipping planes for 6,000m corridor depth
+    this.camera.near = 0.5;
+    this.camera.far = 14000;
+    this.camera.updateProjectionMatrix();
+
+    this.convoySavedFog = this.scene.fog;
+    this.scene.fog = new THREE.FogExp2(0x04161a, 0.00012);
+
+    convoyDirector.startMission(shipDefId, variant, startRegionIndex);
+  }
+
+  public getConvoyTelemetry(): ConvoyTelemetry {
+    return convoyDirector.getTelemetry();
+  }
+
+  public handleConvoyKeyDown(code: string) {
+    if (convoyDirector.isActive) {
+      convoyDirector.handleKeyDown(code);
+    }
+  }
+
+  public handleConvoyKeyUp(code: string) {
+    if (convoyDirector.isActive) {
+      convoyDirector.handleKeyUp(code);
+    }
+  }
+
+  public handleConvoyJoystick(input: { steerX: number; pitchY: number }) {
+    if (convoyDirector.isActive) {
+      convoyDirector.setJoystickInput(input.steerX, input.pitchY);
+    }
+  }
+
+  public handleConvoyFire(isFiring: boolean) {
+    if (convoyDirector.isActive) {
+      convoyDirector.setFireState(isFiring);
+    }
+  }
+
+  public handleConvoyBoost(isBoosting: boolean) {
+    if (convoyDirector.isActive) {
+      convoyDirector.setBoostState(isBoosting);
+    }
+  }
+
+  public handleConvoyShield(isShielding: boolean) {
+    if (convoyDirector.isActive) convoyDirector.setShieldState(isShielding);
+  }
+
+  public handleConvoyEMP() {
+    if (convoyDirector.isActive) convoyDirector.activateEMP();
+  }
+
+  public handleConvoyVariantAbility() {
+    if (convoyDirector.isActive) convoyDirector.triggerAbility(0);
+  }
+
+  public handleConvoyDirectionalThrust(input: any) {
+    if (convoyDirector.isActive) convoyDirector.setDirectionalThrust(input);
+  }
+
+  public handleConvoyToggleEngine() {
+    if (convoyDirector.isActive) return convoyDirector.toggleEngine();
+    return false;
+  }
+
+  public handleConvoyTriggerAbility(slotIndex: number) {
+    if (convoyDirector.isActive) convoyDirector.triggerAbility(slotIndex);
+  }
+
+  public handleConvoySelectRadarContact(contactId: string) {
+    if (convoyDirector.isActive) convoyDirector.selectTacticalTarget(contactId);
+  }
+
+  public handleConvoySetRadarZoom(zoom: number) {
+    if (convoyDirector.isActive) convoyDirector.setRadarZoom(zoom);
+  }
+
+  public handleConvoyToggleRadarExpanded() {
+    if (convoyDirector.isActive) convoyDirector.toggleRadarExpanded();
+  }
+
+  public handleConvoyCycleCameraPerspective() {
+    if (convoyDirector.isActive) convoyDirector.cycleCameraPerspective();
+  }
+
+  public handleConvoyCameraZoomIn() {
+    if (convoyDirector.isActive) convoyDirector.zoomCameraIn();
+  }
+
+  public handleConvoyCameraZoomOut() {
+    if (convoyDirector.isActive) convoyDirector.zoomCameraOut();
+  }
+
+  public handleConvoyEngageParkingLock(): boolean {
+    if (convoyDirector.isActive) return convoyDirector.engagePlayerParkingLock();
+    return false;
+  }
+
+  public handleConvoyToggleAssistedParking(): boolean {
+    if (convoyDirector.isActive) return convoyDirector.toggleAssistedParking();
+    return false;
+  }
+
+  public handleConvoyRepositionToBay(): void {
+    if (convoyDirector.isActive) convoyDirector.repositionPlayerParking();
+  }
+
+  public handleConvoySetFormation(formation: any): void {
+    if (convoyDirector.isActive) convoyDirector.setConvoyFormation(formation);
+  }
+
+  public handleConvoyIssueCommand(command: any): void {
+    if (convoyDirector.isActive) convoyDirector.issueConvoyCommand(command);
+  }
+
+  public handleConvoyCallBackup(division: import('./convoy/convoyDivisions').ConvoyDivisionId): void {
+    if (convoyDirector.isActive) convoyDirector.callBackup(division);
+  }
+
+  public handleConvoySelectBackupDivision(division: import('./convoy/convoyDivisions').ConvoyDivisionId): void {
+    if (convoyDirector.isActive) convoyDirector.selectBackupDivision(division);
+  }
+
+  public handleConvoyTriggerEmergencyEscape(): void {
+    if (convoyDirector.isActive) convoyDirector.triggerEmergencyEscapeDrill();
+  }
+
+  public stopConvoyGuardian() {
+    convoyDirector.cleanUp();
+
+    // Restore racing geometry visibility
+    if (this.playerShipGroup) this.playerShipGroup.visible = true;
+    if (this.trackMeshGroup) this.trackMeshGroup.visible = true;
+    if (this.junctionManager?.junctionMeshGroup) this.junctionManager.junctionMeshGroup.visible = true;
+    if (this.shortcutPortalGroup) this.shortcutPortalGroup.visible = true;
+    if (this.asteroidInstancedMesh) this.asteroidInstancedMesh.visible = true;
+    if (this.creditsInstancedMesh) this.creditsInstancedMesh.visible = true;
+    if (this.speedParticles) this.speedParticles.visible = true;
+    if (this.quantumCountdownClock?.gantryMeshGroup) this.quantumCountdownClock.gantryMeshGroup.visible = true;
+    this.checkpointMeshes.forEach(m => { m.visible = true; });
+    this.boostPadMeshes.forEach(m => { m.visible = true; });
+    this.energyBarrierMeshes.forEach(m => { m.visible = true; });
+    this.powerUpPodGroups.forEach(m => { m.visible = true; });
+
+    if (this.convoySavedFog !== null) {
+      this.scene.fog = this.convoySavedFog;
+    }
+    this.camera.far = 4000;
+    this.camera.updateProjectionMatrix();
   }
 }

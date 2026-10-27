@@ -1,0 +1,52 @@
+VOID-RIDER 3D — CONVOY GUARDIAN SPACESHIP REDESIGN
+IMPLEMENTATION PROMPT (PLAIN TEXT)
+
+Implement the geometric spaceship redesign directly in the existing VOID-RIDER 3D project. Do not create a separate demo.
+
+PROJECT SAFETY
+1. Inspect the actual project files, rendering engine, language, imports, coordinate conventions, model scale, and formation configuration before editing.
+2. Do not assume a particular ship-factory filename. Use the real files found in the project.
+3. If TypeScript is unsupported by the user's editor/workflow, use the project's supported language and file format. Do not force TypeScript.
+4. Preserve gameplay, physics, collisions, AI, routes, weapons, shields, missions, UI, backup commands, and existing systems.
+5. Preserve every formation slot, offset, ordering, and ship role. Do not move ships to accommodate new models.
+6. Make a backup or use version control; change only files required for the redesign.
+7. Run available checks and report results honestly. Do not claim live gameplay success unless tested.
+
+DESIGN GOAL
+Create geometric ships using the project's existing 3D engine: boxes, tapered boxes, cylinders, cones, faceted/custom polygon meshes, and angular armor plates. Avoid new dependencies and external model assets unless already used by the project.
+
+SAVIOUR — KEEP THE ORIGINAL NINE-SHIP FORMATION
+- Lead ship: heavy command flagship, pointed nose, broad armored shoulders, raised geometric command bridge, layered graphite armor, cyan lights/engines, restrained magenta markings, defensive hardpoints and sensors.
+- Forward Guard 1: left-side escort; same design family but a distinct silhouette.
+- Forward Guard 2: right-side escort; mirrored or variant geometry, preserving its current slot and role.
+- Cargo 1, Cargo 2, Cargo 3: left, center, right. Make these substantially larger than the escorts and clearly recognizable as heavy cargo vessels, with large geometric cargo bays, reinforced panels/rails, and protected engines. Keep their existing formation slots.
+- Rear Guard 1: left defensive escort, related style with distinct details.
+- Rear Guard 2: right defensive escort, mirrored or variant design.
+- Backend ship: robust rear support/command ship with communications equipment and visible engine section. Preserve its current role and slot.
+
+HUNTERS — PRESERVE ALL EXISTING UNITS AND POSITIONS
+Use the same geometric design language with a distinct faction identity: dark graphite/black armor and red illuminated accents.
+- Main Hunter 1–3 and 4–6: aggressive, narrow interceptors, angular nose, swept wings, weapon hardpoints and high-performance engines.
+- Mid Hunter 1–2: middle-forward support fighters with balanced armor and targeting details.
+- Mid Hunter 3–4: middle-backward defensive support fighters.
+- Boss: distinctive large central hostile ship. Preserve existing 1000 HP and boss behavior.
+- Six protective drones: small red-accented geometric models. Preserve their existing behavior and positions.
+
+IMPLEMENTATION DETAILS
+- Reuse existing materials, lights, engine effects and asset utilities where possible.
+- Keep model origins/pivots and forward directions compatible with movement and steering.
+- Dispose of geometry/materials using existing lifecycle patterns.
+- Avoid excessive draw calls and expensive real-time shadows; reuse geometry/materials or instance repeated components when appropriate.
+- Ensure ships remain readable from the existing chase camera and do not block forward visibility.
+- Do not change the original SAVIOUR 9-ship formation or HUNTERS 17-unit formation.
+- Do not alter the existing 20 game modes or unrelated systems.
+
+WORKFLOW
+A. Inspect the actual source and identify how ships are currently created.
+B. Briefly list the real files that need changes.
+C. Implement in the project's supported language and existing structure.
+D. Change only necessary model/material code; preserve gameplay logic.
+E. Run available build/lint/checks.
+F. Report changed files, checks run, and any remaining manual in-game tests.
+
+If the project structure differs from these assumptions, adapt to the actual source instead of forcing a guessed filename or file type.

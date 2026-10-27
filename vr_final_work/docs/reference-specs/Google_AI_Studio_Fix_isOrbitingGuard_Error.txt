@@ -1,0 +1,27 @@
+GOOGLE AI STUDIO — TARGETED FIX FOR VOID-RIDER 3D
+
+ERROR
+ReferenceError: isOrbitingGuard is not defined
+File: src/game/convoy/convoyDirector.ts
+Method: ConvoyDirector.updateEnemies()
+Reported near line 598.
+
+TASK
+Inspect the actual current source and fix this specific runtime error with the smallest safe code change.
+
+REQUIRED STEPS
+1. Find every occurrence of `isOrbitingGuard` in the project, especially inside `ConvoyDirector.updateEnemies()`.
+2. Inspect the surrounding code and trace the existing enemy/drone data model, boss-protection logic, and orbiting movement implementation.
+3. Determine what the identifier was intended to represent. Reuse the correct existing variable/property if one exists. Otherwise, define a correctly scoped boolean from the real, existing enemy data and behavior. Do not guess a property name.
+4. Ensure all branches using `isOrbitingGuard` have access to a valid value before use.
+5. Preserve the six defensive drones orbiting and protecting the 1000-HP Hunters boss. Do not disable orbiting by setting the variable to `false`, remove the guard behavior, or merely suppress the exception.
+6. Keep SAVIOUR and HUNTERS independent. Preserve the 9-ship SAVIOUR formation, Hunters formation, 15,000 km mission-scale route, route-following physics, hazards, abilities, cargo docking, emergency escape, phone-tilt controls, and all unrelated project features.
+7. Make only the changes necessary to resolve this error. Do not rewrite the entire file, remove existing code, or redesign the UI.
+8. Search again after editing to ensure no other out-of-scope reference to `isOrbitingGuard` remains.
+9. Run the available typecheck/build/test commands after inspecting package.json. If the environment cannot run a command, state that limitation rather than claiming success.
+10. Review the diff to confirm no unrelated files, pages, modes, or features were removed.
+
+DELIVERABLE
+Return the complete corrected `src/game/convoy/convoyDirector.ts` file or apply the fix in the project workspace, plus a concise explanation of the root cause and exact change. If project files are available, return a corrected full project ZIP.
+
+Do not provide only general advice. Inspect the real source first and make the targeted fix. Do not claim validation that was not actually performed.

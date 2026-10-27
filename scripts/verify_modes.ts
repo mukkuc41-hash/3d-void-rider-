@@ -21,6 +21,15 @@ import {
   EVENT_DURATION_SECONDS,
   TOTAL_EVENTS_COUNT,
 } from '../src/game/finalCollapse100Events';
+import { areHostileFactions } from '../src/game/convoy/convoyTypes';
+import { convoyEnvironment } from '../src/game/convoy/convoyEnvironment';
+import { convoyEscapeSequence } from '../src/game/convoy/convoyEscapeSequence';
+import { convoyAdaptiveRoute } from '../src/game/convoy/convoyAdaptiveRoute';
+import { convoyChamberGates } from '../src/game/convoy/convoyChamberGates';
+import { convoyBossDirector } from '../src/game/convoy/convoyBossDirector';
+import { CAMPAIGN_REGIONS, getRegionByKm, getRegionByProgress } from '../src/game/convoy/convoyCampaignRegions';
+import { SAVIOUR_SHIPS, HUNTER_SHIPS, AI_DEFENSIVE_DRONES } from '../src/game/convoy/convoyShipDatabase';
+import { ConvoyDirector } from '../src/game/convoy/convoyDirector';
 
 console.log('====================================================');
 console.log('VOID-RIDER 3D: QUANTUM LAUNCH PRO VERIFICATION SUITE');
@@ -380,6 +389,144 @@ fcManagerSurvived.start();
 fcManagerSurvived.markSurvived();
 fcManagerSurvived.triggerFailure('EVACUATION_DEADLINE_EXPIRED', false);
 assert(fcManagerSurvived.evacuation.evacuationFailed === false, 'Safe zone success takes precedence and prevents failure trigger');
+
+// =========================================================================
+// 9. Testing Convoy Guardian (50 Locations, 75,000 km, Dual Domes, Bosses & Return Journey)
+// =========================================================================
+console.log('\n--- 9. Testing Convoy Guardian (50 Locations, 75,000 km, Dual Domes, Bosses & Return Journey) ---');
+
+// Faction & Friendly Fire Filtering
+assert(areHostileFactions('SAVIOUR', 'SAVIOUR') === false, 'Saviour vessels do not friendly-fire each other');
+assert(areHostileFactions('SAVIOUR', 'SAVIOURS') === false, 'SAVIOUR vs SAVIOURS alias matches friendly');
+assert(areHostileFactions('HUNTER', 'HUNTERS') === false, 'HUNTER vs HUNTERS alias matches friendly (no hunter team damage)');
+assert(areHostileFactions('SAVIOUR', 'HUNTER') === true, 'SAVIOUR is hostile to HUNTER');
+assert(areHostileFactions('SAVIOUR', 'HUNTERS') === true, 'SAVIOUR is hostile to HUNTERS');
+
+// Ship Rosters & Abilities
+assert(SAVIOUR_SHIPS.length === 9, `Saviour roster includes exactly 9 escort vessels (found ${SAVIOUR_SHIPS.length})`);
+const hunterFighters = HUNTER_SHIPS.filter((h) => h.id !== 'hunter_dreadnought_x');
+assert(hunterFighters.length === 10, `Hunter roster includes exactly 10 fighters (found ${hunterFighters.length})`);
+assert(SAVIOUR_SHIPS.every((s) => s.abilities.length === 5), 'All Saviour ships have exactly 5 abilities');
+assert(HUNTER_SHIPS.every((s) => s.abilities.length === 5), 'All Hunter ships have exactly 5 abilities');
+assert(AI_DEFENSIVE_DRONES.length === 6, 'Exactly 6 AI-only defense drone types exist');
+
+// 100 Locations Campaign: Exactly 200,000 km
+assert(CAMPAIGN_REGIONS.length === 100, `Campaign contains exactly 100 locations (found ${CAMPAIGN_REGIONS.length})`);
+assert(CAMPAIGN_REGIONS.every((r) => r.endKm - r.startKm === 2000), 'Every campaign location is exactly 2,000 km in length');
+assert(CAMPAIGN_REGIONS[99].endKm === 200000, 'Final location reaches exactly 200,000 km');
+assert(CAMPAIGN_REGIONS[0].name === 'Guardian Departure Dome', 'Location 001 is "Guardian Departure Dome"');
+assert(CAMPAIGN_REGIONS[99].name === 'Celestial Crown Parking Terminal', 'Location 100 is "Celestial Crown Parking Terminal"');
+assert(getRegionByKm(0).name === 'Guardian Departure Dome', 'getRegionByKm(0) maps to Location 001');
+assert(getRegionByKm(199000).name === 'Celestial Crown Parking Terminal', 'getRegionByKm(199000) maps to Location 100');
+assert(getRegionByKm(100000).id === 51, '100,000 km maps to campaign midpoint location');
+
+// Boss Mechanics
+const combatGroup = new THREE.Group();
+convoyBossDirector.init(combatGroup);
+const hunterBoss = convoyBossDirector.spawnMajorBoss('hunter_mode_boss', new THREE.Vector3(0, 0, 0));
+assert(hunterBoss !== null && hunterBoss.health === 1000, 'Hunter Mode Boss initializes with exactly 1,000 HP');
+assert(hunterBoss?.maxHealth === 1000, 'Hunter Mode Boss max health is 1,000 HP');
+assert(hunterBoss?.totalPhases === 5, 'Hunter Mode Boss has exactly 5 phases');
+convoyBossDirector.cleanUp();
+
+// Adaptive Route System: 200,000 km
+assert(convoyAdaptiveRoute.routeLengthKm === 200000, 'Adaptive route system manages 200,000 km total campaign distance');
+assert(convoyAdaptiveRoute.totalRouteLengthMeters > 30000, `Spline length maps to 200,000 km continuous campaign corridor (found ${Math.round(convoyAdaptiveRoute.totalRouteLengthMeters)} units)`);
+const baselineWaypointsCount = convoyAdaptiveRoute.waypoints.length;
+assert(baselineWaypointsCount > 20, 'Adaptive route has sufficient waypoint resolution across all 100 locations');
+
+// Continuous Flight Envelope Boundary Containment Test
+const centerlinePos = convoyAdaptiveRoute.getPointAt(0.15);
+const insideContainment = convoyAdaptiveRoute.checkBoundaryContainment(centerlinePos);
+assert(insideContainment.isViolated === false, 'Centerline position does not violate flight boundary envelope');
+assert(insideContainment.pushbackVector.length() === 0, 'No pushback applied when within safe corridor');
+const tangent = convoyAdaptiveRoute.getTangentAt(0.15);
+const lateral = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+const outsideContainment = convoyAdaptiveRoute.checkBoundaryContainment(centerlinePos.clone().addScaledVector(lateral, 450));
+assert(outsideContainment.isViolated === true, 'Position beyond boundary is flagged as boundary violation');
+assert(outsideContainment.pushbackVector.length() > 0, 'Inward pushback vector applied when breaching envelope');
+
+// Structure-Aware Route Updates (Gate Closure Stand-Off)
+convoyAdaptiveRoute.notifyStructureStateChanged('celestial_crown_terminal', ['CROWN_OUTER_GATE']);
+const lastWaypoints = convoyAdaptiveRoute.waypoints;
+const terminalApproachPt = lastWaypoints[lastWaypoints.length - 1];
+assert(terminalApproachPt.z > -38350, 'Route adapts to hold position before closed Gate 1 without crossing solid leaves');
+
+// Emergency Route Adaptation
+convoyAdaptiveRoute.updateEmergencyRoute(true);
+const emergencyExitPt = convoyAdaptiveRoute.waypoints[convoyAdaptiveRoute.waypoints.length - 1];
+assert(emergencyExitPt.z <= -38800, 'Emergency escape route routes through basement to secondary exit at Z <= -38800');
+convoyAdaptiveRoute.updateEmergencyRoute(false);
+
+// Dual-Dome Sensor-Controlled Chamber Gates Subsystem
+assert(convoyChamberGates.gates.size >= 7, `Chamber gates registered for dual domes (found ${convoyChamberGates.gates.size})`);
+const gate1 = convoyChamberGates.gates.get('GATE_1_OUTER_ENTRANCE');
+const gate2 = convoyChamberGates.gates.get('GATE_2_AIRLOCK_INNER');
+assert(gate1 !== undefined && gate2 !== undefined, 'Gate 1 (Outer) and Gate 2 (Airlock Inner) exist');
+assert(gate1?.def.interlockPartnerId === 'GATE_2_AIRLOCK_INNER', 'Gate 1 has Gate 2 as interlock partner');
+
+// Origin and Crown Specific Gates
+const originGate = convoyChamberGates.gates.get('ORIGIN_OUTER_GATE');
+const crownGate = convoyChamberGates.gates.get('CROWN_OUTER_GATE');
+assert(originGate !== undefined, 'Origin Outer Gate exists');
+assert(crownGate !== undefined, 'Crown Outer Gate exists');
+
+// Test Interlock Security
+gate1!.openProgress = 1.0;
+gate1!.state = 'OPEN';
+convoyChamberGates.update(0.1, new THREE.Vector3(0, 25, -8950), new THREE.Vector3(0, 0, -5), []);
+assert(gate2!.isInterlocked === true, 'Gate 2 is securely interlocked while Gate 1 is open');
+gate1!.openProgress = 0.0;
+gate1!.state = 'CLOSED';
+
+// Anti-Pinch / Anti-Crush Safety Test
+gate1!.state = 'CLOSING';
+gate1!.openProgress = 0.5;
+convoyChamberGates.update(0.1, gate1!.def.position.clone(), new THREE.Vector3(0, 0, 0), []);
+assert(gate1!.state === 'BLOCKED', 'Anti-pinch safety reverses closing door to BLOCKED when ship is in threshold');
+convoyChamberGates.reset();
+
+// Dual Parking Domes 3D Architecture
+const convoyTestScene = new THREE.Scene();
+convoyEnvironment.build(convoyTestScene);
+assert(convoyEnvironment.hasGuardianTerminal(), 'Celestial Crown Terminal complex built successfully');
+assert(convoyEnvironment.hasOriginDome(), 'Origin Departure Dome complex built successfully');
+const playerTargetPos = convoyEnvironment.getPlayerParkingTarget();
+const originTargetPos = convoyEnvironment.getOriginParkingTarget();
+assert(playerTargetPos instanceof THREE.Vector3, 'Designated Bay 01 parking target position is valid Vector3');
+assert(originTargetPos instanceof THREE.Vector3, 'Origin Bay 01 parking target position is valid Vector3');
+assert(playerTargetPos.z < -13000, 'Destination Bay 01 is located inside the Celestial Crown central parking atrium');
+
+// Final Manual Parking Sequence State Machine & Return Undock
+convoyEscapeSequence.reset();
+assert(convoyEscapeSequence.currentStep === 'APPROACH_DOME', 'Finale begins with APPROACH_DOME');
+convoyEscapeSequence.currentStep = 'PROCEED_TO_BAY';
+assert(convoyEscapeSequence.locksEngaged === false, 'Parking locks start disengaged');
+
+// Alignment Check Tolerance (< 32m, < 25 m/s)
+const alignedPos = playerTargetPos.clone().add(new THREE.Vector3(4, 2, -3));
+const unalignedPos = playerTargetPos.clone().add(new THREE.Vector3(120, 60, 250));
+const safeVel = new THREE.Vector3(6, 0, 2);
+const fastVel = new THREE.Vector3(60, 0, 0);
+
+assert(convoyEscapeSequence.canEngagePlayerLock(alignedPos, safeVel) === true, 'Player can engage locks when aligned within bay at safe speed');
+assert(convoyEscapeSequence.canEngagePlayerLock(unalignedPos, safeVel) === false, 'Player cannot engage locks when outside bay threshold');
+assert(convoyEscapeSequence.canEngagePlayerLock(alignedPos, fastVel) === false, 'Player cannot engage locks when approaching too fast');
+
+// Interactive Lock Engagement
+const lockSuccess = convoyEscapeSequence.engagePlayerLock();
+assert(lockSuccess === true, 'Locks engage successfully when triggered');
+assert(convoyEscapeSequence.locksEngaged === true, 'locksEngaged flag is marked true');
+assert(convoyEscapeSequence.currentStep === 'ENGAGE_LOCKS', 'Transitions to ENGAGE_LOCKS');
+
+// Undock and Return Journey Support
+const undockSuccess = convoyEscapeSequence.undockFleet();
+assert(undockSuccess === true, 'Fleet undocks successfully from parking clamps');
+assert(convoyEscapeSequence.locksEngaged === false, 'Parking locks disengaged upon undocking');
+assert(convoyEscapeSequence.currentStep === 'CROWN_UNDOCK', 'Current step transitions to CROWN_UNDOCK');
+
+// Clean up
+convoyEnvironment.cleanUp();
 
 console.log('\n====================================================');
 console.log(`VERIFICATION SUMMARY: ${passedTests}/${totalTests} TESTS PASSED`);

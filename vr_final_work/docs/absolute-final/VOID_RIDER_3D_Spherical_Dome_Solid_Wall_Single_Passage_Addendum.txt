@@ -1,0 +1,71 @@
+GOOGLE AI STUDIO ADDENDUM — SEALED PHYSICAL SPHERICAL PARKING DOME
+Project: VOID-RIDER 3D — CONVOY GUARDIAN
+Apply this addendum to the ABSOLUTE FINAL IMPLEMENTATION CONTRACT. These requirements override any earlier wording that implies the dome is an open canopy or can be entered through arbitrary gaps.
+
+CORE REQUIREMENT
+The Parking Dome must be a real, continuous, solid physical outer shell like a transparent armored wall. It must be optically transparent enough that the player can clearly see the entire interior from outside, but it must be physically solid and collidable. The player and all ships must not be able to pass through the shell at any point. The ONLY valid way into or out of the dome is through the designated route passage/airlock connected to the visible convoy route.
+
+1. SOLID TRANSPARENT OUTER WALL
+- Build the spherical/hemispherical dome as continuous closed physical geometry, not disconnected decorative ribs or a visual-only canopy.
+- Use a transparent/translucent material with enough opacity, reflections, Fresnel edge highlights, and surface shading to make it read as a solid armored glass/force-glass shell while keeping interior details visible.
+- Use an appropriate Three.js material configuration consistent with the project's renderer, including depth writing/render order and double-sided behavior only where needed. Avoid a material setup that makes the wall invisible from inside or outside.
+- Keep the outer shell's collision surface aligned to the visible shell at all times. Prefer a stable sphere/hemisphere collision proxy or segmented collision mesh appropriate to the engine; ensure collision normals and inside/outside behavior work for both approach and interior.
+- The shell must block player ships, AI convoy ships, enemies, projectiles if appropriate to current collision rules, and physics-driven debris according to the game's existing collision policy.
+- No holes, uncollidable seams, invisible gaps, or accidental openings around ribs, rim, base, tower, or attached decorative parts.
+- The shell must remain visible from both exterior and interior camera views. Do not use a one-sided material that disappears from one side.
+- Keep the dome's physical wall separate from visual ribs if needed, but the collision barrier must cover the entire intended closed surface.
+
+2. ONE AUTHORIZED ROUTE PASSAGE ONLY
+- Create exactly one designated entrance/exit passage aligned with the existing final route spline.
+- The passage should look like a controlled docking airlock/route tunnel with clear cyan guidance lights, boundary markers, and a recognizable entrance frame.
+- The shell should be physically closed everywhere except this passage. The passage is not a hole the player can bypass around; use a short enclosed tunnel/airlock that joins the shell to the interior deck.
+- Model the entry opening as a controlled gate/door. It may open only when the convoy is authorized to enter or exit by the mission state. When closed, the gate must physically block movement. When open, the ship may pass through the tunnel only.
+- Do not create additional side entrances, open edges, uncollidable cuts, or shortcut routes. The emergency escape route must connect to the same single passage, not create a second hole in the outer shell. If an internal escape path is needed, route it back to the same authorized passage.
+- Use actual route/mission state and collision/door state, not a decorative HUD toggle, to authorize passage.
+- The route passage must join smoothly with the existing route and final checkpoint. No teleportation, snapping, or bypassing physics.
+
+3. COLLISION AND ACCESS VALIDATION
+- Add or reuse collision checks that ensure:
+  a. Ships cannot cross the outer shell anywhere except through the passage when its gate is open.
+  b. Closed gate blocks the passage.
+  c. Open gate allows ships through the passage without clipping.
+  d. AI ships use the same authorized route and do not attempt to cross the wall.
+  e. Convoy ships cannot squeeze around the gate edges or through shell seams.
+  f. Projectiles/debris interact with the wall according to existing collision policy.
+  g. Restart, mode switch, and mission reset restore correct shell/gate collision state.
+- Use collision geometry that is stable and efficient; avoid creating thousands of expensive triangle colliders if a simpler proxy or segmented barrier works. Ensure any simplified collider still follows the dome accurately enough to prevent escape through gaps.
+- Include safe handling for large ship hitboxes and different ship sizes. The passage must be wide/tall enough for the largest valid convoy ship with reasonable clearance, without making the rest of the shell passable.
+- Do not solve collision by teleporting ships back inside after they pass through the wall. Prevent the crossing through correct physics/collision/route constraints.
+
+4. TRANSPARENCY AND PERFORMANCE
+- Exterior view must reveal central tower, circular parking deck, parked ships, bay labels, clamps, lighting, and internal structures through the shell.
+- Interior view must still show the shell wall and its structural ribs.
+- Tune transparency, opacity, roughness, metalness, Fresnel-like edge effect, and render order to avoid the wall becoming invisible, opaque, flickering, or sorting incorrectly.
+- Avoid visual transparency at the cost of collision. Visual material transparency and physical collision must be independent.
+- Keep repeated ribs/lights instanced where possible and avoid expensive per-frame material changes.
+
+5. EMERGENCY ESCAPE SEQUENCE INTEGRATION
+- Keep parking clamps, lockdown, release, and emergency exit from the absolute final contract.
+- When the convoy is parked and lockdown is active, the route passage gate follows the mission's actual locked/closed state.
+- During emergency release, unlock the bay clamps first according to the sequence, then open the route passage gate only when exit authorization is satisfied.
+- The convoy must navigate back through the single passage to escape. It must not pass through the shell, use a side exit, or teleport outside.
+- Do not confuse bay parking locks with the main route passage gate; they are separate physical mechanisms with separate state.
+
+6. REQUIRED ACCEPTANCE TESTS
+Mark each PASS/FAIL/NOT VERIFIED and provide evidence:
+- Continuous visible shell is present.
+- Shell is physically solid from both sides.
+- Interior remains visible from outside.
+- Ships cannot cross the shell anywhere except the route passage.
+- Exactly one entrance/exit passage exists.
+- Closed passage gate blocks ships.
+- Authorized open passage gate permits safe entry/exit.
+- Largest valid convoy ship clears the tunnel.
+- AI convoy follows the route through the same passage.
+- No seams, side gaps, or shortcuts permit crossing.
+- Emergency escape uses the same passage.
+- Restart and mode switch restore shell/gate/lock states.
+- Build/typecheck and runtime collision tests actually run where possible; report any unverified checks honestly.
+
+FINAL INSTRUCTION
+Implement these requirements in the real project source by modifying the existing dome/environment, collision, route, gate, and mission-state systems. Do not only add this text to the project. Do not replace the spherical dome with an open canopy. Do not return only a mockup. Preserve unrelated features and return the complete updated project ZIP plus a changed-file manifest and actual validation results. If the latest project ZIP is not available, ask the user to upload it.

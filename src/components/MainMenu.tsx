@@ -18,6 +18,12 @@ import {
   Sparkles,
   X,
   Crown,
+  Palette,
+  Film,
+  Compass,
+  Music,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { sound } from '../game/audio';
 import { getShipConfig } from '../game/ships';
@@ -46,6 +52,10 @@ interface MainMenuProps {
   onOpenReplay?: () => void;
   onOpenLivery?: () => void;
   onStartHyperspaceGauntlet?: () => void;
+  onOpenSynthStudio?: () => void;
+  onStartJuggernaut?: () => void;
+  onOpenJuggernautCombat?: () => void;
+  onOpenConvoyGuardian?: () => void;
   credits: number;
   playerLevel: number;
   ping: number;
@@ -78,6 +88,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onOpenReplay,
   onOpenLivery,
   onStartHyperspaceGauntlet,
+  onOpenSynthStudio,
+  onStartJuggernaut,
+  onOpenJuggernautCombat,
+  onOpenConvoyGuardian,
   credits,
   playerLevel,
   ping,
@@ -338,6 +352,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <span>SPACE HUB</span>
           </button>
 
+          {/* CONVOY GUARDIAN — 7-Event Escort Mission */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenConvoyGuardian?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#041d1a]/95 via-[#062923]/95 to-[#041d1a]/95 border border-teal-500/50 hover:border-emerald-400 text-teal-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_18px_rgba(20,184,166,0.35)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-teal-400 animate-pulse" />
+            <span>CONVOY GUARDIAN</span>
+          </button>
+
           {/* STORY CAMPAIGN */}
           <button
             onClick={() => {
@@ -384,6 +410,85 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           >
             <Wrench className="w-3.5 h-3.5 text-cyan-400" />
             <span>TRACK BUILDER</span>
+          </button>
+
+          {/* PILOT CYBERNETIC SKILLS */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenSkillTree?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#081826]/90 border border-teal-500/50 hover:border-teal-400 text-teal-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(20,184,166,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Zap className="w-3.5 h-3.5 text-teal-400" />
+            <span>PILOT SKILLS</span>
+          </button>
+
+          {/* REPLAY THEATER */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenReplay?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#1a0c24]/90 border border-purple-500/50 hover:border-purple-400 text-purple-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Film className="w-3.5 h-3.5 text-purple-400" />
+            <span>REPLAY THEATER</span>
+          </button>
+
+          {/* LIVERY & DECALS */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenLivery?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#20081d]/90 border border-fuchsia-500/50 hover:border-fuchsia-400 text-fuchsia-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(217,70,239,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Palette className="w-3.5 h-3.5 text-fuchsia-400" />
+            <span>LIVERY STUDIO</span>
+          </button>
+
+          {/* ENDLESS HYPERSPACE GAUNTLET */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onStartHyperspaceGauntlet?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#190c00] to-[#241100] border border-amber-500/60 hover:border-amber-400 text-amber-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_18px_rgba(245,158,11,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Compass className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+            <span>HYPERSPACE GAUNTLET</span>
+          </button>
+
+          {/* SYNTHWAVE SEQUENCER STUDIO */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              onOpenSynthStudio?.();
+            }}
+            className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#091a26]/90 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <Music className="w-3.5 h-3.5 text-cyan-400" />
+            <span>SYNTH STUDIO</span>
+          </button>
+
+          {/* JUGGERNAUT SPACE COMBAT (8-SHIP COMBAT MODES) */}
+          <button
+            onClick={() => {
+              sound.playMenuClick();
+              if (onOpenJuggernautCombat) {
+                onOpenJuggernautCombat();
+              } else {
+                onStartJuggernaut?.();
+              }
+            }}
+            className="col-span-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#221200]/95 via-[#2b080c]/95 to-[#1c0006]/95 border border-red-500/70 hover:border-amber-400 text-amber-300 hover:text-white font-ui font-black text-xs uppercase tracking-wider transition-all hover:shadow-[0_0_22px_rgba(239,68,68,0.5)] active:scale-[0.98] backdrop-blur-md"
+          >
+            <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" />
+            <span>JUGGERNAUT SPACE COMBAT</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/30 text-red-300 font-mono border border-red-500/40">
+              8-SHIPS
+            </span>
           </button>
         </div>
 

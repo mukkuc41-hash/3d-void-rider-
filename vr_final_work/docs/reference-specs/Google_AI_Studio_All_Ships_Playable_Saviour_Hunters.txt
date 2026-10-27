@@ -1,0 +1,69 @@
+GOOGLE AI STUDIO IMPLEMENTATION SPEC — PLAYABLE SHIPS FOR VOID-RIDER 3D
+
+GOAL
+Make every player-ship type in both Convoy Guardian modes selectable and playable by the human player, including cargo ships and the Hunters boss. Defensive drones are the ONLY units that must not be directly player-controlled; they remain AI-controlled and attached to/protecting the boss.
+
+IMPORTANT DISTINCTION
+“Playable” means the user can select a ship/role before or during mission setup and directly control its movement and available abilities/weapons through the existing control system. It does not mean all ships are controlled simultaneously. The player controls one selected ship at a time; the rest remain AI-controlled unless the project already supports explicit squad commands.
+
+ROLES TO SUPPORT
+
+A) SAVIOUR MODE
+- Front lead guard: playable.
+- Both forward-mid guard ships: playable.
+- All three cargo ships: playable.
+- Both rear-mid guard ships: playable.
+- Rear guard: playable.
+- Total: 9 selectable player-controlled ship choices, including all three cargo ships.
+- When a cargo ship is selected, give it valid steering/movement and appropriate cargo-safe abilities. Do not accidentally apply fighter-only weapons or fighter stats to cargo ships.
+- Preserve convoy escort behavior for unselected ships, cargo survival/docking logic, formation roles, route following, and mission objectives.
+
+B) HUNTERS MODE
+- All 10 formation hunters are playable: 3 forward main hunters, 2 forward-mid hunters, 2 rear-mid hunters, and 3 rear main hunters.
+- The boss is also playable as a separate choice. Keep its 1000 HP boss health model and appropriate boss weapons, movement, and abilities.
+- The 6 defensive drones are NOT directly playable. They remain AI-controlled, orbit the boss, defend it, and use existing autonomous combat logic.
+- Total selectable choices in Hunters: 11 (10 formation hunters + boss); drones excluded.
+- If the boss is selected, its six drones must still follow/protect it. Avoid circular ownership/reference bugs.
+
+IMPLEMENTATION REQUIREMENTS
+1. Inspect the actual source tree and existing ship/entity types, control bindings, game loop, spawn logic, AI director, Convoy HUD, menus, and mode selection before editing.
+2. Build this as a selection system, not by duplicating nine or eleven entire ship implementations. Use existing entity IDs/roles and a single active player-controlled entity reference where possible.
+3. Add a clear ship/role selection UI before mission start. Show mode-appropriate choices:
+   - SAVIOUR: Lead Guard, Forward Guard L/R, Cargo L/C/R, Rear-Mid Guard L/R, Rear Guard.
+   - HUNTERS: Main Hunter F1/F2/F3, Forward-Mid FM1/FM2, Rear-Mid RM1/RM2, Main Hunter R1/R2/R3, Boss.
+   - Never show defensive drones as selectable options.
+4. On selection, safely transfer player control to the selected entity:
+   - update the active player entity reference;
+   - remove/disable player input on the previous entity;
+   - enable player input on the selected entity;
+   - avoid two ships responding to the same controls;
+   - keep camera follow, HUD telemetry, health/shield displays, targeting, weapons, and abilities bound to the selected entity.
+5. Keep all non-selected ships under their existing AI and preserve convoy/hunter formation logic. The selected ship must not be simultaneously driven by AI.
+6. Cargo-ship handling:
+   - cargo ships must be directly steerable when selected;
+   - preserve cargo identity, health, shielding, cargo-survival conditions, and docking requirements;
+   - switching into a cargo ship must not remove it from the convoy or break route progress.
+7. Boss handling:
+   - boss must be directly steerable when selected;
+   - preserve its 1000 HP starting value unless the project’s current configuration intentionally changes it;
+   - keep boss-specific weapons/abilities and boss health UI;
+   - keep six defensive drones AI-controlled and orbiting/protecting the boss;
+   - the boss must not be treated as one of its own drones or targets.
+8. Add a safe way to return control to a default ship or choose another ship if the selected ship is destroyed, disabled, docked, or unavailable. Show an understandable UI message rather than crashing.
+9. Preserve SAVIOUR and HUNTERS as independent modes. Do not alter unrelated modes, pages, levels, files, assets, or UI unnecessarily.
+10. Preserve the 15,000 km mission-scale route, route hazards, collision physics, shields, EMP, boost, abilities, emergency escape, docking, phone tilt, and responsive mobile controls.
+11. Avoid broad try/catch suppression, hardcoded missing properties, duplicate update loops, stale event listeners, and unbounded timers.
+12. Fix any encountered errors such as `ReferenceError: isOrbitingGuard is not defined` only by tracing the real data model and defining/reusing the correct in-scope variable. Do not break drone AI to hide the error.
+
+VALIDATION
+- Run the project’s actual package scripts found in package.json.
+- Verify that each SAVIOUR ship choice selects the corresponding entity and responds to controls.
+- Verify all 10 Hunters and the boss are selectable and controllable.
+- Verify drones cannot be selected and continue orbiting/defending the boss.
+- Verify only one ship receives direct player input at a time.
+- Verify AI, route-following, camera, HUD, health, abilities, victory/failure, cargo docking, and mission objectives remain functional.
+- Test desktop keyboard/mouse and mobile/touch/phone-tilt paths when available.
+- If full runtime testing is unavailable, report exactly what was and was not tested. Never claim successful tests that were not run.
+
+DELIVERABLE
+Apply changes to the actual uploaded project, then provide a corrected full project ZIP, a concise changed-file list, validation results, and any remaining limitations. Do not respond with only a plan or pseudocode.

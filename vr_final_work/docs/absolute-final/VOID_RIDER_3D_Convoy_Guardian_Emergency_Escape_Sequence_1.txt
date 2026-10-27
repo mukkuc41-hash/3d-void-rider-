@@ -1,0 +1,123 @@
+GOOGLE AI STUDIO — CONVOY GUARDIAN MODIFICATION
+VOID-RIDER 3D | EMERGENCY ESCAPE SEQUENCE 1
+BASEMENT PARKING, PHYSICAL DOCKING LOCKS, CONVOY LOCKDOWN & ESCAPE
+
+OBJECTIVE
+Adapt Emergency Escape Sequence 1 specifically for VOID-RIDER 3D: CONVOY GUARDIAN. This is not a solo-ship parking scene. The convoy must enter an underground emergency shelter/parking hangar, secure its assigned ships using visible physical parking locks, endure a lockdown procedure, then release the locks and escape together through an emergency exit route.
+
+IMPLEMENT IN THE ACTUAL PROJECT SOURCE
+Inspect the existing project first. Reuse its current game engine, route/convoy managers, ship entities, physics/collision system, HUD, mission state machine, camera, audio, effects, and responsive controls. Do not create a disconnected demo scene or a flat background. Do not remove existing pages, modes, assets, hazards, route systems, or unrelated features. Keep SAVIOUR and HUNTERS independent.
+
+SEQUENCE IDENTITY
+Name: EMERGENCY ESCAPE SEQUENCE 1 — CONVOY BASEMENT LOCKDOWN
+Location: Underground emergency parking hangar beneath/inside a fortified orbital or planetary facility, connected to the Convoy Guardian route.
+Mission purpose: secure surviving convoy ships during an emergency, complete the lockdown/release procedure, and guide the convoy through a physical emergency exit.
+Tone: cinematic, urgent, readable gameplay; blue/cyan guidance lighting, amber warnings, red lockdown alarms, industrial concrete/metal structure, overhead rails, service gantries, blast doors, illuminated bay markings, and emergency route indicators.
+
+SEQUENCE PHASES
+
+PHASE 1 — BASEMENT APPROACH
+- Connect the existing route to a visible descending/covered approach ramp or enclosed access tunnel leading into the basement parking facility.
+- Keep the route physically continuous: no teleporting or instant scene replacement.
+- Show approach lights, clearance markers, overhead beams, support columns, hazard stripes, and a large “EMERGENCY PARKING / CONVOY INTAKE” sign where the current text-rendering system supports it.
+- Use the existing route curve and physics so the player and AI convoy ships follow the same approach without cutting corners.
+- Adapt speed limits to the confined area using existing physics/controller APIs. Do not hard-set ship positions in UI code.
+
+PHASE 2 — CONVOY BAY ASSIGNMENT
+- Assign safe parking bays to surviving convoy ships. In SAVIOUR, preserve all nine convoy ships: one front lead guard, two forward-mid guards, three cargo ships, two rear-mid guards, and one rear guard. If the game supports a different active subset in the current mission, use the actual mission roster rather than spawning duplicates.
+- Provide clear bay numbers, ground/rail guidance, approach arrows, and a target-bay marker in the HUD.
+- Use staggered arrival timing and collision-aware spacing to prevent ships from stacking or clipping.
+- Keep the currently player-controlled ship under direct control; all non-selected ships remain AI-controlled. Support the existing ship-selection system if present.
+- Cargo ships must preserve cargo identity and cargo-safe behavior. Do not give cargo ships fighter-only weapon logic.
+- In HUNTERS, do not silently replace the combat objective with SAVIOUR escort logic. Only use this sequence in HUNTERS if its current mission flow explicitly reaches the shelter; otherwise preserve the existing HUNTERS ending.
+
+PHASE 3 — PARKING ALIGNMENT
+- Each ship must physically navigate to its assigned bay and satisfy alignment checks before locks engage.
+- Validate distance to bay center, speed threshold, heading/orientation tolerance, vertical/landing alignment where relevant, and collision state using actual world transforms/physics.
+- If the ship is misaligned or too fast, keep the lock open and show a concise correction hint; let the player retry.
+- AI-controlled ships must perform the same checks and retry safely.
+- Avoid impossible precision. Tune thresholds to the existing ship scale and physics.
+
+PHASE 4 — VISIBLE PHYSICAL PARKING LOCKS
+Build visible, animated lock mechanisms attached to the parking bay, not merely a HUD icon:
+- Two or more mechanical clamps or locking arms rise/slide into place around the ship's landing struts or designated docking points.
+- Optional magnetic/energy hold fields can supplement the physical locks but cannot replace them.
+- Lock animation must only finish after the ship has met the alignment/speed requirements.
+- Once engaged, the ship enters a clear docked/secured state, with engines idling or shutting down as supported by existing effects.
+- Physical constraints must be implemented safely within the current engine architecture. If full rigid-body constraints are not available, use a well-defined docked state that suppresses player/AI movement and keeps the ship attached to the bay without visual jitter.
+- Prevent control inputs, AI steering, boost, and collisions from accidentally moving a locked ship.
+- Show lock indicators on the bay and HUD, but use them only as feedback for the actual lock state.
+- If the player attempts to move while locked, show “PARKING LOCKS ENGAGED — RELEASE REQUIRED” and do not silently break the lock.
+
+PHASE 5 — EMERGENCY LOCKDOWN
+- After the required convoy ships are parked, start the lockdown state using the existing mission/state architecture.
+- Heavy blast doors close at facility entrances; warning beacons rotate or pulse; red/amber emergency lighting and alarms activate; vents, shutters, and barriers animate where feasible.
+- Keep all animations and sounds bounded and cleanly disposed on restart.
+- Show a readable status sequence such as “CONVOY SECURED”, “LOCKDOWN ACTIVE”, “EMERGENCY ROUTE SEALED”, and then the actual objective needed to proceed.
+- Do not trap the player in a non-interactive cinematic. Preserve skip/continue controls if supported.
+- Lockdown timing and success/failure conditions must be deterministic and recoverable.
+
+PHASE 6 — EMERGENCY RELEASE PROCEDURE
+- The emergency release must physically disengage the locks before any secured ship can depart.
+- Show mechanical clamps retracting/opening, hold-field power-down if present, bay indicators switching from red to cyan/green, and audible release feedback.
+- Use a clear player action or the existing interaction input to initiate release. If the sequence requires a timed switch/panel, implement a simple, accessible interaction that works on keyboard, touch, and gamepad where supported.
+- Prevent release while a safety door, obstruction, or other required condition is unresolved. Give a clear instruction on what remains to be done.
+- Once released, restore ship controls and normal movement gradually, not by teleporting the ship.
+- Do not allow a ship to move while its physical lock state is still engaged.
+
+PHASE 7 — CONVOY EMERGENCY EXIT
+- Open a large blast door or lift/vehicle exit and illuminate the escape corridor.
+- Create a continuous route from parking bays to the exit, including turns and height changes that match the existing route manager and physics.
+- Guide the convoy in a safe, ordered sequence: lead guard scouts or takes point; cargo ships are protected through the central safe corridor; rear guards cover the rear if the current AI supports these roles.
+- Maintain collision avoidance, spacing, route following, and ship-specific control behavior.
+- Include optional environmental hazards only if they integrate with existing damage/collision systems and do not make the route unfair or block progression.
+- The player can remain in the selected ship; non-selected ships follow AI. Do not force the player into another ship.
+- Use clear waypoints, progress, route arrows, warning lights, and concise prompts.
+- If the player or an AI ship gets stuck, provide a safe retry/recovery path using existing recovery patterns; do not silently teleport the convoy.
+
+PHASE 8 — COMPLETION
+- Complete the sequence only when required surviving convoy ships have passed the exit checkpoint and mission objectives are satisfied.
+- Show an arrival/escape cinematic if supported, followed by the existing results/mission completion UI.
+- Preserve convoy survival stats, cargo status, time, damage, checkpoints, and other existing results data.
+- If required ships are destroyed or a mission condition fails, use the existing failure state rather than reporting success incorrectly.
+
+RESPONSIVE DEVICE CONTROLS
+- Desktop: keyboard/mouse, existing gamepad support where available.
+- Mobile/tablet: thumb-friendly touch steering, throttle/boost, interact/release action, brake, pause, and contextual ability controls.
+- Phone tilt only if already supported or properly implemented with feature detection, user-triggered permission, calibration, sensitivity, smoothing, and a clean fallback.
+- Controls must not overlap parking prompts, docking alignment UI, bay labels, route telemetry, or mission dialogs.
+- Ensure the same interact/release action works across supported input methods.
+- Clear all held inputs on pointer cancellation, key release, window blur, device disconnect, ship switching, restart, and component unmount.
+
+AUDIO AND CINEMATICS
+- Reuse the existing sound system. Add distinct, restrained audio cues for bay approach, lock engagement, lockdown, release, blast-door movement, and successful escape.
+- Keep the player able to steer during approach and escape. Cinematics must be skippable where the existing project supports it.
+- Do not introduce repeated sounds every frame or leak audio nodes.
+
+TECHNICAL REQUIREMENTS
+- Inspect actual source files and current APIs before coding.
+- Reuse existing route, checkpoint, convoy, ship controller, camera, HUD, sound, mission state, and settings architecture.
+- Add only the components/state needed for bay assignment, alignment, lock engagement/release, lockdown, and escape progress.
+- Ensure the state machine cannot enter contradictory states such as “locked and moving” or “released but clamps still engaged.”
+- Make state transitions idempotent and safe across restarts and mode switches.
+- Dispose geometries/materials, animation loops, event listeners, timers, and audio resources correctly.
+- Fix existing errors by tracing the actual cause; do not suppress errors or invent missing fields.
+- Do not create a parallel game loop or second conflicting route manager.
+
+VALIDATION CHECKLIST
+1. Approach route reaches the basement without teleporting or a spline discontinuity.
+2. Ships reach distinct assigned bays with collision-aware spacing.
+3. Misaligned/fast ships cannot lock; they receive useful correction feedback.
+4. Visible clamps physically/visually engage and prevent movement.
+5. Player cannot boost or steer away while locks are engaged.
+6. Release visibly retracts locks before controls/movement return.
+7. Blast doors and emergency route open in the right state order.
+8. Convoy exits in a safe sequence with route guidance and collision avoidance.
+9. SAVIOUR cargo/convoy objectives remain correct.
+10. HUNTERS remains independent and retains its combat/boss logic unless its existing mission flow explicitly enters this sequence.
+11. Desktop, touch, and supported gamepad controls all support interaction.
+12. Restart and mission switching do not leave stale locks, lights, audio, listeners, or stuck inputs.
+13. Run the actual available build/typecheck/test commands from package.json and report real results.
+
+DELIVERABLE
+Modify the actual uploaded project source and return the complete updated ZIP, changed-file list, validation commands/results, and any remaining limitations. Do not return only pseudocode or a concept description. If the latest source ZIP is not available in the current workspace, request it instead of fabricating a modified archive.

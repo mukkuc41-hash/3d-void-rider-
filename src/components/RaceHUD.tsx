@@ -51,6 +51,8 @@ import {
   GhostTelemetry,
   CosmicWeatherTelemetry,
   RivalRadioChatter,
+  BossDreadnoughtTelemetry,
+  JuggernautModeTelemetry,
 } from '../types';
 import { CockpitOverlay } from './CockpitOverlay';
 import { ActiveJunctionTelemetry, BranchRouteDirection } from '../game/junctionSystem';
@@ -151,6 +153,8 @@ interface RaceHUDProps {
   ghostTelemetry?: GhostTelemetry | null;
   cosmicWeatherTelemetry?: CosmicWeatherTelemetry | null;
   rivalChatter?: RivalRadioChatter | null;
+  bossTelemetry?: BossDreadnoughtTelemetry | null;
+  juggernautTelemetry?: JuggernautModeTelemetry | null;
 }
 
 const SECTOR_NAMES: Record<string, string> = {
@@ -547,6 +551,8 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
   ghostTelemetry,
   cosmicWeatherTelemetry,
   rivalChatter,
+  bossTelemetry,
+  juggernautTelemetry,
 }) => {
   const [hudMode, setHudMode] = useState<'TACTICAL' | 'COMPACT' | 'MINIMAL'>('COMPACT');
   const [showMinimap, setShowMinimap] = useState(true);
@@ -856,6 +862,75 @@ export const RaceHUD: React.FC<RaceHUDProps> = ({
               <span className="text-[9px] sm:text-[10px] font-mono text-cyan-300 italic mt-0.5">
                 "{rivalChatter.message}"
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Megastructure Boss Dreadnought Encounter HUD */}
+      {bossTelemetry && bossTelemetry.isActive && (
+        <div className="absolute top-20 inset-x-0 flex justify-center pointer-events-none z-40 px-4">
+          <div className={`w-full max-w-xl p-2.5 sm:p-3 bg-slate-950/92 backdrop-blur-md border rounded-xl shadow-2xl flex flex-col gap-1.5 ${
+            bossTelemetry.incomingBarrageWarning
+              ? 'border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.5)] animate-pulse'
+              : 'border-red-500/50'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-ui font-black text-[11px] sm:text-xs uppercase tracking-widest text-red-400 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                {bossTelemetry.bossName} // PHASE {bossTelemetry.phase}
+              </span>
+              <span className="font-mono text-[10px] text-slate-300">
+                SHIELD: <span className="text-cyan-400 font-bold">{bossTelemetry.shieldPercent}%</span> | HP: <span className="text-red-400 font-bold">{bossTelemetry.totalHealth} / {bossTelemetry.maxTotalHealth}</span>
+              </span>
+            </div>
+
+            {/* Boss Segmented Health Bar */}
+            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/10 flex">
+              <div
+                className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-150"
+                style={{ width: `${Math.max(0, Math.min(100, (bossTelemetry.totalHealth / bossTelemetry.maxTotalHealth) * 100))}%` }}
+              />
+            </div>
+
+            {/* 4 Weak Point Status Targets */}
+            <div className="grid grid-cols-4 gap-1.5 pt-1">
+              {bossTelemetry.weakPoints.map((wp) => (
+                <div
+                  key={wp.id}
+                  className={`px-1.5 py-0.5 rounded text-[8px] font-mono border text-center transition-all ${
+                    wp.destroyed
+                      ? 'bg-slate-900/40 border-slate-800 text-slate-600 line-through'
+                      : 'bg-black/60 border-cyan-500/40 text-cyan-300 shadow-[0_0_8px_rgba(0,240,255,0.2)]'
+                  }`}
+                >
+                  <span className="truncate block">{wp.name.split(' ')[0]}</span>
+                  <span>{wp.destroyed ? 'DESTROYED' : `${wp.health} HP`}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Asymmetrical Juggernaut Mode HUD Banner */}
+      {juggernautTelemetry && juggernautTelemetry.isActive && (
+        <div className="absolute top-20 inset-x-0 flex justify-center pointer-events-none z-40 px-4">
+          <div className="w-full max-w-lg p-2.5 bg-slate-950/92 backdrop-blur-md border border-amber-500/50 rounded-xl shadow-2xl flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-ui font-black text-[11px] sm:text-xs uppercase tracking-widest text-amber-400">
+                {juggernautTelemetry.juggernautName} // EXTRACTION GATE
+              </span>
+              <span className="font-mono text-[10px] text-slate-300">
+                GATE: <span className="text-amber-400 font-bold">{juggernautTelemetry.distanceToEscapeGateMeters}M</span> | INTERCEPTORS: <span className="text-cyan-400 font-bold">{juggernautTelemetry.interceptorsRemaining} / {juggernautTelemetry.totalInterceptors}</span>
+              </span>
+            </div>
+            {/* Gate Escape Progress */}
+            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/10">
+              <div
+                className="h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-150"
+                style={{ width: `${juggernautTelemetry.escapeProgressPercent}%` }}
+              />
             </div>
           </div>
         </div>

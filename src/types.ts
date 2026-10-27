@@ -1184,3 +1184,74 @@ export interface CustomLiveryConfig {
   sponsorLogo: 'AEROSPACE_DYN' | 'QUANTUM_CORP' | 'SOLARIS_DRIVE' | 'VOID_PROJECT';
   stripeStyle: 'NONE' | 'DUAL_RACING' | 'CHEVRON_HAZARD' | 'ASYMMETRIC_CYBER';
 }
+
+// ==========================================
+// FEATURE 13: MEGASTRUCTURE DREADNOUGHT BOSS
+// ==========================================
+export interface BossWeakPoint {
+  id: string;
+  name: string;
+  health: number;
+  maxHealth: number;
+  destroyed: boolean;
+  type: 'PORT_SHIELD' | 'STARBOARD_SHIELD' | 'CORE_REACTOR' | 'EMP_TURRET';
+}
+
+export interface BossDreadnoughtTelemetry {
+  bossName: string;
+  totalHealth: number;
+  maxTotalHealth: number;
+  shieldPercent: number;
+  phase: 1 | 2 | 3;
+  isEnraged: boolean;
+  isActive: boolean;
+  weakPoints: BossWeakPoint[];
+  incomingBarrageWarning: boolean;
+}
+
+// ==========================================
+// FEATURE 14: CUSTOM SYNTHWAVE SEQUENCER
+// ==========================================
+export type SynthScaleType = 'CYBER_DORIAN' | 'NEON_MINOR' | 'SYNTH_MAJOR' | 'VOID_PHRYGIAN';
+
+export interface SynthTrackStep {
+  note: string;
+  active: boolean;
+}
+
+export interface SynthStudioState {
+  bpm: number;
+  scale: SynthScaleType;
+  bassSteps: boolean[]; // 16 steps
+  leadSteps: boolean[];
+  percSteps: boolean[];
+  chordSteps: boolean[];
+  isPlaying: boolean;
+  isCustomBgmActive: boolean;
+}
+
+// ==========================================
+// FEATURE 15: 3D BINAURAL SPATIAL AUDIO
+// ==========================================
+export interface SpatialAudioConfig {
+  enabled: boolean;
+  hrtfQuality: 'HIGH' | 'MEDIUM' | 'OFF';
+  dopplerIntensity: number; // 0 to 2.0
+  reverbDecay: number; // 0.1 to 5.0
+}
+
+// ==========================================
+// FEATURE 16: ASYMMETRICAL JUGGERNAUT MODE
+// ==========================================
+export interface JuggernautModeTelemetry {
+  isActive: boolean;
+  isPlayerJuggernaut: boolean;
+  juggernautName: string;
+  juggernautHealth: number;
+  juggernautMaxHealth: number;
+  juggernautShield: number;
+  interceptorsRemaining: number;
+  totalInterceptors: number;
+  distanceToEscapeGateMeters: number;
+  escapeProgressPercent: number;
+}

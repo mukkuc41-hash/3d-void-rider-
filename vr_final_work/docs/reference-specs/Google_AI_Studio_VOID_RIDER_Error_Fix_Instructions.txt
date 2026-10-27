@@ -1,0 +1,54 @@
+GOOGLE AI STUDIO — VOID-RIDER 3D ERROR-FIXING INSTRUCTIONS
+
+PROJECT
+VOID-RIDER 3D — CONVOY GUARDIAN FINAL ZIP
+
+GOAL
+Inspect the complete project, identify and fix build errors, runtime errors, broken imports, type errors, and integration issues. Return a corrected, runnable project ZIP.
+
+STRICT PRESERVATION RULES
+1. Do not redesign or rewrite the whole application.
+2. Do not delete, rename, replace, or remove existing pages, modes, components, features, assets, or gameplay systems.
+3. Preserve both Convoy Guardian variants as separate modes:
+   - SAVIOUR: exactly 9 convoy ships — 1 front lead guard, 2 forward-mid guards, 3 protected cargo ships, 2 rear-mid guards, and 1 rear guard.
+   - HUNTERS: 3 main hunters forward, 2 forward-mid hunters, a boss with 1000 HP protected by 6 defensive drones, 2 rear-mid hunters, and 3 main hunters at the rear. The player ship is separate.
+4. Preserve the 15,000 km mission-scale route, route guidance, checkpoints, hazards, cargo docking, emergency escape sequence, and phone-tilt controls where present.
+5. Preserve all unrelated existing features and files. Make the smallest targeted changes necessary to fix errors.
+6. Do not invent missing APIs or imports. Inspect the actual source and use the exports, types, and patterns that exist in this project.
+7. Avoid duplicate implementations, conflicting event listeners, stale timers, memory leaks, and state updates after components unmount.
+8. Keep desktop and mobile layouts responsive. Do not introduce overlapping HUD elements or controls.
+9. Do not claim a feature is implemented or tested unless you verify it in the code or run the relevant test.
+
+REQUIRED WORKFLOW
+A. Inspect the complete project structure and package.json first.
+B. Install/use the project's declared dependencies when available.
+C. Run the project's existing validation commands, such as npm run build, npm run typecheck, npm test, or lint. Do not guess command names; inspect package.json.
+D. Fix errors in priority order:
+   1. Missing or unresolved imports and exports.
+   2. TypeScript/JSX syntax and type errors.
+   3. Incorrect component props and incompatible interfaces.
+   4. Broken game-engine integration, undefined values, and invalid state transitions.
+   5. Runtime errors, control conflicts, and responsive UI regressions.
+E. After each related fix, rerun the relevant validation command.
+F. Review the diff and ensure no unrelated pages, modes, files, or features were removed.
+G. If dependencies cannot be installed or a command cannot run, state that limitation clearly and still perform all available static checks.
+
+GAMEPLAY INTEGRATION CHECKS
+- Confirm the SAVIOUR and HUNTERS modes are independently selectable and do not overwrite each other's settings or systems.
+- Confirm formation counts, roles, and boss/drone relationships match the specification above.
+- Confirm the route uses the existing physical 3D route geometry and that route-following entities sample the route rather than cutting straight across bends.
+- Treat 15,000 km as mission-scale route distance mapped to the game route unless the code explicitly implements physical world scaling. Do not falsely claim the world itself is physically 15,000 km long.
+- Confirm hazard collisions, damage, shields, cooldowns, and ability effects use the project's existing game-loop/update conventions.
+- Confirm victory and failure conditions are consistent with the relevant mode.
+- Confirm cargo docking and emergency escape still work.
+- Confirm keyboard, touch, and phone-tilt input do not conflict, and provide the existing fallback when device-motion permission is unavailable.
+
+DELIVERABLES
+1. A corrected full project ZIP, not just isolated snippets.
+2. A concise list of the files changed and the specific error fixed in each.
+3. The exact validation commands run and their results.
+4. A list of any remaining issues that could not be verified.
+5. Confirm explicitly that unrelated pages and features were preserved.
+
+IMPORTANT
+Do not merely explain what should be fixed. Apply the fixes to the uploaded project files, validate the result as far as the environment permits, and provide the corrected ZIP. If a genuine error cannot be reproduced, explain the evidence and do not make speculative changes.

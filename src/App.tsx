@@ -80,8 +80,14 @@ import { FinalCollapseStats } from './game/FinalCollapseManager';
 import { PhotoModeOverlay } from './components/PhotoModeOverlay';
 import { ChampionshipModal } from './components/ChampionshipModal';
 import { TrackBuilderModal } from './components/TrackBuilderModal';
+import { ReplayTheaterModal } from './components/ReplayTheaterModal';
+import { PilotSkillTreeModal } from './components/PilotSkillTreeModal';
+import { LiveryPainterModal } from './components/LiveryPainterModal';
+import { SynthStudioModal } from './components/SynthStudioModal';
 import { cosmicRadio } from './game/cosmicRadio';
+import { getShipConfig } from './game/ships';
 import { championshipCups } from './game/championshipCups';
+import { hyperspaceGauntlet } from './game/hyperspaceGauntlet';
 import { DEFAULT_PHOTO_SETTINGS } from './game/photoModeManager';
 import {
   PhotoModeSettings,
@@ -89,7 +95,20 @@ import {
   TacticalModuleTelemetry,
   GhostTelemetry,
   CustomTrackNode,
+  CosmicWeatherTelemetry,
+  RivalRadioChatter,
+  CustomLiveryConfig,
+  BossDreadnoughtTelemetry,
+  JuggernautModeTelemetry,
 } from './types';
+import { JuggernautModal } from './components/juggernaut/JuggernautModal';
+import { JuggernautHUD } from './components/juggernaut/JuggernautHUD';
+import { JuggernautVictoryModal } from './components/juggernaut/JuggernautVictoryModal';
+import { JuggernautCombatTelemetry, JuggernautMatchConfig } from './game/juggernaut/juggernautTypes';
+import { ConvoyModal } from './components/convoy/ConvoyModal';
+import { ConvoyHUD } from './components/convoy/ConvoyHUD';
+import { ConvoyVictoryModal } from './components/convoy/ConvoyVictoryModal';
+import { ConvoyTelemetry, ConvoyVariant } from './game/convoy/convoyTypes';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,9 +186,27 @@ export default function App() {
   const [isTrackBuilderOpen, setIsTrackBuilderOpen] = useState<boolean>(false);
   const [isPhotoModeOpen, setIsPhotoModeOpen] = useState<boolean>(false);
   const [photoModeSettings, setPhotoModeSettings] = useState<PhotoModeSettings>({ ...DEFAULT_PHOTO_SETTINGS });
+  const [isReplayOpen, setIsReplayOpen] = useState<boolean>(false);
+  const [isSkillTreeOpen, setIsSkillTreeOpen] = useState<boolean>(false);
+  const [isLiveryOpen, setIsLiveryOpen] = useState<boolean>(false);
+  const [isSynthStudioOpen, setIsSynthStudioOpen] = useState<boolean>(false);
   const [tacticalTelemetry, setTacticalTelemetry] = useState<TacticalModuleTelemetry | null>(null);
   const [radioTelemetry, setRadioTelemetry] = useState<RadioTelemetry | null>(null);
   const [ghostTelemetry, setGhostTelemetry] = useState<GhostTelemetry | null>(null);
+  const [cosmicWeatherTelemetry, setCosmicWeatherTelemetry] = useState<CosmicWeatherTelemetry | null>(null);
+  const [rivalChatter, setRivalChatter] = useState<RivalRadioChatter | null>(null);
+  const [bossTelemetry, setBossTelemetry] = useState<BossDreadnoughtTelemetry | null>(null);
+  const [juggernautTelemetry, setJuggernautTelemetry] = useState<JuggernautModeTelemetry | null>(null);
+  const [isJuggernautModalOpen, setIsJuggernautModalOpen] = useState<boolean>(false);
+  const [juggernautCombatTelemetry, setJuggernautCombatTelemetry] = useState<JuggernautCombatTelemetry | null>(null);
+  const [isJuggernautCombatActive, setIsJuggernautCombatActive] = useState<boolean>(false);
+  const [isJuggernautVictoryOpen, setIsJuggernautVictoryOpen] = useState<boolean>(false);
+  const [isConvoyModalOpen, setIsConvoyModalOpen] = useState<boolean>(false);
+  const [convoyTelemetry, setConvoyTelemetry] = useState<ConvoyTelemetry | null>(null);
+  const [isConvoyActive, setIsConvoyActive] = useState<boolean>(false);
+  const [convoyVariant, setConvoyVariant] = useState<ConvoyVariant>('SAVIOUR');
+  const [selectedConvoyShipId, setSelectedConvoyShipId] = useState<string>('saviour_aegis');
+  const [isConvoyVictoryOpen, setIsConvoyVictoryOpen] = useState<boolean>(false);
   const [spectatorTargetName, setSpectatorTargetName] = useState<string>('');
   const [damageZones, setDamageZones] = useState<ShipDamageZones>({
     frontHull: 0,
@@ -486,6 +523,52 @@ export default function App() {
       if (engineRef.current) {
         setTacticalTelemetry(engineRef.current.getTacticalTelemetry());
         setGhostTelemetry(engineRef.current.getGhostTelemetry());
+        setCosmicWeatherTelemetry(engineRef.current.getCosmicWeatherTelemetry());
+        setRivalChatter(engineRef.current.getRivalChatter());
+        setBossTelemetry(engineRef.current.getBossTelemetry());
+        setJuggernautTelemetry(engineRef.current.getJuggernautTelemetry());
+        const combatTelem = engineRef.current.getJuggernautCombatTelemetry();
+        if (combatTelem && combatTelem.isActive) {
+          setJuggernautCombatTelemetry(combatTelem);
+          if (combatTelem.isMatchOver && combatTelem.finalStats && !isJuggernautVictoryOpen) {
+            setIsJuggernautVictoryOpen(true);
+            const earnedCredits = combatTelem.finalStats.creditsEarned;
+            const earnedXp = combatTelem.finalStats.xpEarned;
+            setProgression(prev => {
+              const updated = {
+                ...prev,
+                credits: prev.credits + earnedCredits,
+                experience: (prev.experience || 0) + earnedXp,
+              };
+              progressionStorage.save(updated);
+              return updated;
+            });
+          }
+        }
+
+        const cTelem = engineRef.current.getConvoyTelemetry();
+        if (cTelem && cTelem.isActive && cTelem.missionState !== 'INITIALIZING' && cTelem.missionState !== 'DISPOSED') {
+          setConvoyTelemetry(cTelem);
+          if (
+            isConvoyActive &&
+            (cTelem.missionState === 'VICTORY' || cTelem.missionState === 'DEFEAT') &&
+            cTelem.finalStats &&
+            !isConvoyVictoryOpen
+          ) {
+            setIsConvoyVictoryOpen(true);
+            const earnedCredits = cTelem.finalStats.creditsEarned;
+            const earnedXp = cTelem.finalStats.xpEarned;
+            setProgression((prev) => {
+              const updated = {
+                ...prev,
+                credits: prev.credits + earnedCredits,
+                experience: (prev.experience || 0) + earnedXp,
+              };
+              progressionStorage.save(updated);
+              return updated;
+            });
+          }
+        }
       }
     }, 100);
 
@@ -549,7 +632,7 @@ export default function App() {
         }
       }
 
-      if (e.code === 'KeyT') {
+      if (e.code === 'KeyT' && !engineRef.current?.getBossTelemetry().isActive) {
         if (engineRef.current && appState === 'RACING') {
           engineRef.current.activateTacticalModule();
         }
@@ -588,7 +671,7 @@ export default function App() {
         }
       }
 
-      if (e.code === 'KeyR') {
+      if (e.code === 'KeyR' && !engineRef.current?.getBossTelemetry().isActive) {
         if (engineRef.current && appState === 'RACING') {
           engineRef.current.resetToStart();
           engineRef.current.startRace();
@@ -639,11 +722,27 @@ export default function App() {
         }
       }
 
+      // Forward to Juggernaut Space Combat if active
+      if (engineRef.current && isJuggernautCombatActive) {
+        engineRef.current.handleJuggernautKeyDown(e.code);
+      }
+
+      // Forward to Convoy Guardian if active
+      if (engineRef.current && isConvoyActive) {
+        engineRef.current.handleConvoyKeyDown(e.code);
+      }
+
       updateInputState();
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       keysPressed.current[e.code] = false;
+      if (engineRef.current && isJuggernautCombatActive) {
+        engineRef.current.handleJuggernautKeyUp(e.code);
+      }
+      if (engineRef.current && isConvoyActive) {
+        engineRef.current.handleConvoyKeyUp(e.code);
+      }
       updateInputState();
     };
 
@@ -924,12 +1023,116 @@ export default function App() {
     }
   };
 
+  const handleStartJuggernautCombat = (config: JuggernautMatchConfig) => {
+    sound.playMenuClick();
+    setIsJuggernautModalOpen(false);
+    setIsJuggernautVictoryOpen(false);
+    setIsJuggernautCombatActive(true);
+    setAppState('RACING');
+    setIsResultsOpen(false);
+    setIsGameOverOpen(false);
+    setIsPauseOpen(false);
+
+    if (engineRef.current) {
+      engineRef.current.resumeGame();
+      engineRef.current.startJuggernautCombat(config);
+    }
+  };
+
+  const handleReplayJuggernaut = () => {
+    sound.playMenuClick();
+    setIsJuggernautVictoryOpen(false);
+    if (engineRef.current) {
+      engineRef.current.resumeGame();
+      const currentTelem = engineRef.current.getJuggernautCombatTelemetry();
+      engineRef.current.startJuggernautCombat({
+        mode: currentTelem.mode,
+        playerRole: currentTelem.playerRole,
+        playerShipId: currentShipId || 'VR-0777',
+        difficulty: 'STANDARD',
+        matchDurationSeconds: 180,
+        shrinkingBoundary: currentTelem.mode === 'SWARM_HUNT',
+      });
+    }
+  };
+
+  const handleReturnFromJuggernaut = () => {
+    sound.playMenuClick();
+    setIsJuggernautVictoryOpen(false);
+    setIsJuggernautCombatActive(false);
+    if (engineRef.current) {
+      engineRef.current.stopJuggernautCombat();
+      engineRef.current.stopRace();
+    }
+    setAppState('MAIN_MENU');
+  };
+
+  const handleStartConvoyGuardian = (variant: ConvoyVariant = 'SAVIOUR', shipId?: string, startRegionIndex: number = 0) => {
+    sound.playMenuClick();
+    setIsConvoyModalOpen(false);
+    setIsConvoyVictoryOpen(false);
+    setConvoyTelemetry(null);
+    setIsConvoyActive(true);
+    setConvoyVariant(variant);
+    const chosenShipId = shipId || (variant === 'SAVIOUR' ? 'saviour_aegis' : 'hunter_fang');
+    setSelectedConvoyShipId(chosenShipId);
+    setAppState('RACING');
+    setIsResultsOpen(false);
+    setIsGameOverOpen(false);
+    setIsPauseOpen(false);
+
+    if (engineRef.current) {
+      engineRef.current.resumeGame();
+      engineRef.current.startConvoyGuardian(chosenShipId, variant, startRegionIndex);
+    }
+  };
+
+  const handleTriggerEmergencyDrillFromModal = () => {
+    sound.playMenuClick();
+    setIsConvoyVictoryOpen(false);
+    if (engineRef.current) {
+      engineRef.current.resumeGame();
+      engineRef.current.handleConvoyTriggerEmergencyEscape();
+    }
+  };
+
+  const handleReplayConvoy = () => {
+    sound.playMenuClick();
+    setIsConvoyVictoryOpen(false);
+    setConvoyTelemetry(null);
+    if (engineRef.current) {
+      engineRef.current.resumeGame();
+      engineRef.current.startConvoyGuardian(selectedConvoyShipId, convoyVariant);
+    }
+  };
+
+  const handleReturnFromConvoy = () => {
+    sound.playMenuClick();
+    setIsConvoyVictoryOpen(false);
+    setIsConvoyActive(false);
+    if (engineRef.current) {
+      engineRef.current.stopConvoyGuardian();
+      engineRef.current.stopRace();
+    }
+    setAppState('MAIN_MENU');
+  };
+
   const handleReturnToLobby = () => {
     setIsPauseOpen(false);
     setIsGameOverOpen(false);
     setIsResultsOpen(false);
     setIsFinalCollapseResultsOpen(false);
     setFinalCollapseStats(null);
+    if (isJuggernautCombatActive) {
+      setIsJuggernautCombatActive(false);
+      setIsJuggernautVictoryOpen(false);
+      engineRef.current?.stopJuggernautCombat();
+    }
+    if (isConvoyActive) {
+      setIsConvoyActive(false);
+      setIsConvoyVictoryOpen(false);
+      engineRef.current?.stopConvoyGuardian();
+    }
     setAppState('MAIN_MENU');
     setIntroTelemetry(null);
     setCountdown(null);
@@ -1164,6 +1367,23 @@ export default function App() {
           onOpenIntoUnknown={() => setIsIntoUnknownOpen(true)}
           onOpenChampionship={() => setIsChampionshipOpen(true)}
           onOpenTrackBuilder={() => setIsTrackBuilderOpen(true)}
+          onOpenSkillTree={() => setIsSkillTreeOpen(true)}
+          onOpenReplay={() => setIsReplayOpen(true)}
+          onOpenLivery={() => setIsLiveryOpen(true)}
+          onStartHyperspaceGauntlet={() => {
+            hyperspaceGauntlet.start();
+            handleStartAIRace({
+              mode: 'DEBRIS_SURVIVAL',
+              difficulty: 'ACE',
+              trackId: 'quantum_highway',
+              botCount: 3,
+              laps: 99,
+            });
+          }}
+          onOpenSynthStudio={() => setIsSynthStudioOpen(true)}
+          onOpenJuggernautCombat={() => setIsJuggernautModalOpen(true)}
+          onStartJuggernaut={() => setIsJuggernautModalOpen(true)}
+          onOpenConvoyGuardian={() => setIsConvoyModalOpen(true)}
           credits={progression.credits}
           playerLevel={progression.level}
           ping={ping}
@@ -1253,8 +1473,50 @@ export default function App() {
         />
       )}
 
+      {/* Dedicated Juggernaut Space Combat HUD */}
+      {appState === 'RACING' && isJuggernautCombatActive && juggernautCombatTelemetry && (
+        <JuggernautHUD
+          telemetry={juggernautCombatTelemetry}
+          onTriggerAbility={(id) => engineRef.current?.triggerJuggernautAbility(id)}
+          onTogglePause={handleTogglePause}
+          onJoystickInput={(input) => engineRef.current?.handleJuggernautJoystick(input)}
+          onFirePress={(isFiring) => engineRef.current?.handleJuggernautFire(isFiring)}
+          onBoostPress={(isBoosting) => engineRef.current?.handleJuggernautBoost(isBoosting)}
+          onDirectionalInput={(input) => engineRef.current?.handleJuggernautDirectionalInput(input)}
+        />
+      )}
+
+      {/* Dedicated Convoy Guardian Escort HUD */}
+      {appState === 'RACING' && isConvoyActive && convoyTelemetry && (
+        <ConvoyHUD
+          telemetry={convoyTelemetry}
+          onTogglePause={handleTogglePause}
+          onJoystickInput={(inp) => engineRef.current?.handleConvoyJoystick(inp)}
+          onFirePress={(firing) => engineRef.current?.handleConvoyFire(firing)}
+          onBoostPress={(boosting) => engineRef.current?.handleConvoyBoost(boosting)}
+          onShieldPress={(shielding) => engineRef.current?.handleConvoyShield(shielding)}
+          onDirectionalInput={(inp) => engineRef.current?.handleConvoyDirectionalThrust(inp)}
+          onToggleEngine={() => engineRef.current?.handleConvoyToggleEngine()}
+          onTriggerAbility={(slot) => engineRef.current?.handleConvoyTriggerAbility(slot)}
+          onSelectRadarContact={(id) => engineRef.current?.handleConvoySelectRadarContact(id)}
+          onSetRadarZoom={(z) => engineRef.current?.handleConvoySetRadarZoom(z)}
+          onToggleRadarExpanded={() => engineRef.current?.handleConvoyToggleRadarExpanded()}
+          onCycleCameraPerspective={() => engineRef.current?.handleConvoyCycleCameraPerspective()}
+          onCameraZoomIn={() => engineRef.current?.handleConvoyCameraZoomIn()}
+          onCameraZoomOut={() => engineRef.current?.handleConvoyCameraZoomOut()}
+          onEngageParkingLock={() => engineRef.current?.handleConvoyEngageParkingLock()}
+          onToggleAssistedParking={() => engineRef.current?.handleConvoyToggleAssistedParking()}
+          onRepositionPlayer={() => engineRef.current?.handleConvoyRepositionToBay()}
+          onSetFormation={(f) => engineRef.current?.handleConvoySetFormation(f)}
+          onIssueCommand={(c) => engineRef.current?.handleConvoyIssueCommand(c)}
+          onTriggerEmergencyEscape={() => engineRef.current?.handleConvoyTriggerEmergencyEscape()}
+          onCallBackup={(division) => engineRef.current?.handleConvoyCallBackup(division)}
+          onSelectBackupDivision={(division) => engineRef.current?.handleConvoySelectBackupDivision(division)}
+        />
+      )}
+
       {/* In-Game Heads Up Display (HUD) */}
-      {appState === 'RACING' && (
+      {appState === 'RACING' && !isJuggernautCombatActive && !isConvoyActive && !bossTelemetry?.isActive && (
         <RaceHUD
           speed={speed}
           boost={boost}
@@ -1416,6 +1678,10 @@ export default function App() {
             cosmicRadio.togglePlay();
           }}
           ghostTelemetry={ghostTelemetry}
+          cosmicWeatherTelemetry={cosmicWeatherTelemetry}
+          rivalChatter={rivalChatter}
+          bossTelemetry={bossTelemetry}
+          juggernautTelemetry={juggernautTelemetry}
         />
       )}
 
@@ -1958,6 +2224,79 @@ export default function App() {
               laps: 2,
             });
           }}
+        />
+      )}
+
+      {/* Replay Theater & TV Broadcast Modal */}
+      {isReplayOpen && (
+        <ReplayTheaterModal
+          isOpen={isReplayOpen}
+          onClose={() => setIsReplayOpen(false)}
+        />
+      )}
+
+      {/* Pilot Skill Tree & Cybernetics Modal */}
+      {isSkillTreeOpen && (
+        <PilotSkillTreeModal
+          isOpen={isSkillTreeOpen}
+          onClose={() => setIsSkillTreeOpen(false)}
+          playerLevel={progression.level}
+        />
+      )}
+
+      {/* Ship Livery & Decal Studio Modal */}
+      {isLiveryOpen && (
+        <LiveryPainterModal
+          isOpen={isLiveryOpen}
+          onClose={() => setIsLiveryOpen(false)}
+          onApplyLivery={(_config) => {
+            sound.playGatePowerUp();
+          }}
+        />
+      )}
+
+      {/* Synthwave Sequencer & Audio Studio Modal */}
+      {isSynthStudioOpen && (
+        <SynthStudioModal
+          isOpen={isSynthStudioOpen}
+          onClose={() => setIsSynthStudioOpen(false)}
+        />
+      )}
+
+      {/* JUGGERNAUT SPACE COMBAT — Mode Selection & Role Assignment Modal */}
+      <JuggernautModal
+        isOpen={isJuggernautModalOpen}
+        onClose={() => setIsJuggernautModalOpen(false)}
+        onStartMatch={handleStartJuggernautCombat}
+        currentShipId={currentShipId}
+      />
+
+      {/* JUGGERNAUT SPACE COMBAT — Victory / Defeat Match End Summary Modal */}
+      {isJuggernautVictoryOpen && (
+        <JuggernautVictoryModal
+          stats={juggernautCombatTelemetry?.finalStats || null}
+          onReplayMatch={handleReplayJuggernaut}
+          onReturnToMainMenu={handleReturnFromJuggernaut}
+        />
+      )}
+
+      {/* CONVOY GUARDIAN — Escort Mission Briefing Modal */}
+      <ConvoyModal
+        isOpen={isConvoyModalOpen}
+        onClose={() => setIsConvoyModalOpen(false)}
+        onStartMission={handleStartConvoyGuardian}
+        currentShipName={getShipConfig(currentShipId)?.name || 'Vortex Nemesis'}
+      />
+
+      {/* CONVOY GUARDIAN — Victory / Defeat Results Modal */}
+      {isConvoyVictoryOpen && (
+        <ConvoyVictoryModal
+          isOpen={isConvoyVictoryOpen}
+          results={convoyTelemetry?.finalStats || null}
+          variant={convoyVariant}
+          onReplay={handleReplayConvoy}
+          onReturnToMenu={handleReturnFromConvoy}
+          onTriggerEmergencyEscape={handleTriggerEmergencyDrillFromModal}
         />
       )}
     </div>

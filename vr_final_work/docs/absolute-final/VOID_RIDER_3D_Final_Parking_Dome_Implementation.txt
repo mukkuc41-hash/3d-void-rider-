@@ -1,0 +1,81 @@
+GOOGLE AI STUDIO — FINAL PARKING DOME DESTINATION IMPLEMENTATION
+Project: VOID-RIDER 3D — CONVOY GUARDIAN
+Reference: Use the two user-uploaded images in this conversation as the exact visual target for the final Cargo Parking Dome.
+
+OBJECTIVE
+Make the illustrated orbital PARKING DOME the actual final destination and final parking point of the existing 15,000 km Convoy Guardian mission route. Recreate it as a navigable 3D environment in the existing game engine, not as a flat background image. Use the uploaded reference images as visual guidance for the dome's silhouette, transparent hemispherical shell, metallic circular structure, blue-white and warm amber lighting, central tower, multiple parking bays, concentric landing pads, docking entrances, and space/planet backdrop.
+
+PRESERVATION — REQUIRED
+- Inspect the actual project source and existing route, destination, checkpoint, docking, mission-completion, camera, HUD, environment, and asset systems before editing.
+- Do not rewrite the whole app.
+- Do not delete or rename any existing pages, modes, missions, route systems, hazards, abilities, UI, telemetry, assets, or unrelated features.
+- Keep SAVIOUR and HUNTERS as independent selectable mission variants.
+- The Parking Dome is the final destination of the existing route, not a replacement for the route or for the earlier environments.
+- Preserve the existing 15,000 km mission-scale route and its checkpoints/branches/hazards. Connect the existing final route endpoint to the dome's approach corridor; do not teleport the player or convoy to the destination.
+- If the project represents the 15,000 km journey using a compact playable spline, preserve that architecture and keep displayed distance/progress consistent.
+
+VISUAL SPECIFICATION
+Build the dome using the project's current rendering stack and style:
+1. A huge circular orbital station with a broad metallic base ring and transparent/partly transparent hemispherical canopy.
+2. Visible structural ribs and concentric support rings around the shell.
+3. A large central docking/control tower with readable “PARKING DOME” signage where text rendering supports it.
+4. Multiple illuminated landing/parking pads arranged in organized rings, with clear numbered bay markers such as BAY 01, BAY 02, BAY 03, and BAY 04.
+5. Several parked ships or placeholder ship models using existing ship assets where available. Do not introduce missing asset imports or rely on unavailable external URLs.
+6. Blue/cyan guidance lights, white docking lights, restrained amber service lights, illuminated runway/approach lanes, and a clearly visible main entrance.
+7. Space environment with stars and a planet horizon consistent with the game's existing environment. Reuse existing sky/environment systems instead of creating a second conflicting skybox.
+8. Keep the dome readable and visually impressive from the player's approach camera and from a closer docking camera. Use level-of-detail or instancing for repeated structural elements if needed for performance.
+
+FINAL APPROACH AND ARRIVAL
+- The convoy must follow the existing route through its final checkpoint and into a clearly marked approach corridor.
+- Add route guidance leading to the main docking entrance and then to assigned parking bays.
+- Display a destination marker such as “FINAL DESTINATION — CARGO PARKING DOME” and a final checkpoint/arrival indicator using existing HUD conventions.
+- The player and convoy must move through the approach in normal gameplay. No instant teleport, forced scene replacement, or fake completion triggered by simply entering the camera view.
+- Keep ships aligned to the route spline during the approach. Avoid ships cutting across bends, clipping through the dome, or intersecting the transparent shell.
+- Assign the convoy ships to safe parking pads or docking slots. Preserve the three cargo ships and all escort ships in SAVIOUR.
+- Use staged docking: approach corridor, entrance clearance, docking alignment, slow final approach, pad/slot alignment, then secured state.
+- Use existing docking systems if available. If a new docking state is needed, integrate it with the current mission state machine rather than adding a parallel system.
+- Prevent docking if the ship is too far from the correct slot, moving too quickly, badly misaligned, or colliding. Provide clear feedback and allow another attempt.
+- When docking is successful, use subtle clamp/landing lights and engine shutdown/idle visuals if supported by existing systems.
+- Make arrival completion depend on the actual mission objective and convoy survival, not solely on player position.
+
+MISSION VARIANTS
+SAVIOUR — ESCORT & PROTECT
+- The Parking Dome is the final extraction and cargo handoff location.
+- The player escorts the convoy along the full route and docks the required cargo ships safely.
+- Preserve convoy health/survival checks, escort ships, cargo identity, and any existing docking requirements.
+- Only mark the mission successful after the required convoy/cargo docking conditions are satisfied.
+
+HUNTERS — SURVIVE & DEFEAT
+- Keep HUNTERS as its own mission variant with its existing combat objective, enemy formations, boss, drone command behavior, and failure conditions.
+- Reuse the same dome as the final destination only if compatible with the current HUNTERS mission design. Do not silently turn HUNTERS into the SAVIOUR escort mission or remove its boss fight.
+- If the current design routes HUNTERS to the dome, stage the final arrival after the actual combat objective is completed; otherwise keep its existing ending intact.
+
+CAMERA, HUD, AND FEEDBACK
+- Smoothly transition the camera from route-following to a destination reveal as the dome becomes visible; do not abruptly take control away from the player.
+- Preserve camera controls and allow the player to regain full control after any arrival cinematic.
+- Show distance to destination, route progress, docking guidance, current target bay, docking alignment, speed/approach state, and mission objective using existing HUD components where possible.
+- Keep HUD layout responsive on desktop, tablet, and mobile. Avoid overlapping controls, telemetry, prompts, or minimap.
+- Use short, skippable arrival cinematics if the project already supports them. Never make the cinematic the only way to complete docking.
+
+TECHNICAL IMPLEMENTATION
+- Follow existing TypeScript types, scene graph, entity lifecycle, game loop, physics, route manager, checkpoint manager, and mission state patterns.
+- Reuse existing ship, lighting, material, route, camera, HUD, and audio systems when possible.
+- Keep all new geometry within the existing performance budget. Use instancing/LOD for repeated ribs, lights, and pads.
+- Dispose of geometry/materials/listeners properly when the environment is unloaded.
+- Do not directly teleport ships or bypass collision/physics to fake the arrival.
+- Avoid adding packages unless genuinely necessary and justified.
+- Keep the implementation deterministic and safe when restarting a mission or switching between SAVIOUR and HUNTERS.
+
+VALIDATION
+1. Confirm the route's final endpoint connects to the dome approach without a discontinuity.
+2. Confirm the dome is visible from a useful distance and looks close to the uploaded references.
+3. Confirm all required convoy ships can enter and dock without clipping or overlapping.
+4. Confirm docking requires valid alignment and speed.
+5. Confirm SAVIOUR victory only triggers after required cargo/convoy docking conditions are met.
+6. Confirm HUNTERS retains its separate combat objective and boss behavior.
+7. Confirm restart, mission switching, camera, HUD, route progress, hazards, and existing features still work.
+8. Run actual available build/typecheck/test scripts from package.json. Report the exact commands and results; never claim checks passed unless executed.
+9. Review the final diff to verify unrelated files/features were preserved.
+
+DELIVERABLE
+Implement this in the actual uploaded project source and return a complete updated project ZIP, plus a concise changed-file list and real validation results. Do not return only pseudocode or an image mockup. If the source ZIP is not available in the current workspace, ask for it instead of fabricating an updated archive.
