@@ -147,9 +147,10 @@ export class JuggernautCombatDirector {
         shield: 200,
         maxShield: 200,
         shieldRegenRate: 10,
-        maxSpeed: 290,
-        turnSpeed: 1.8,
-        acceleration: 70,
+        maxSpeed: 520,
+        turnSpeed: 2.2,
+        acceleration: 185,
+        boostMultiplier: 1.9,
         primaryDamage: 45,
         primaryFireRate: 2.2,
         attackRange: 480,
@@ -354,6 +355,7 @@ export class JuggernautCombatDirector {
     maxSpeed: number;
     turnSpeed: number;
     acceleration: number;
+    boostMultiplier?: number;
     primaryDamage: number;
     primaryFireRate: number;
     attackRange: number;
@@ -424,7 +426,7 @@ export class JuggernautCombatDirector {
       maxSpeed: params.maxSpeed,
       turnSpeed: params.turnSpeed,
       acceleration: params.acceleration,
-      boostMultiplier: 1.65,
+      boostMultiplier: params.boostMultiplier ?? 1.65,
       isBoosting: false,
       boostCharge: 100,
       primaryDamage: params.primaryDamage,
@@ -737,7 +739,10 @@ export class JuggernautCombatDirector {
 
     const dir = toTarget.clone().normalize();
     this.steerToward(ship, dir, dt);
-    ship.velocity.addScaledVector(fwd, ship.acceleration * 0.95 * dt);
+    ship.velocity.addScaledVector(fwd, ship.acceleration * 1.15 * dt);
+    if (ship.velocity.length() > ship.maxSpeed) {
+      ship.velocity.setLength(ship.maxSpeed);
+    }
 
     const shockwave = ship.abilities['shockwave'];
     if (shockwave && shockwave.currentCooldown <= 0) {
